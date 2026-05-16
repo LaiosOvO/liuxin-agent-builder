@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-last_updated: "2026-05-16T15:03:14.964Z"
+last_updated: "2026-05-16T23:36:00Z"
 progress:
   total_phases: 2
   completed_phases: 1
   total_plans: 16
-  completed_plans: 12
+  completed_plans: 13
 ---
 
 # Project State
@@ -23,11 +23,11 @@ See: .planning/PROJECT.md (updated 2026-05-16)
 ## Current Position
 
 Phase: 2 of 7 (DSL 引擎 + 基础节点)
-Plan: 3 of 10 in current phase（02-03 完成，React Flow Canvas + 5 节点 + DSL 双向转换 + 21 个测试）
+Plan: 8 of 10 in current phase（02-08 完成，工作流 CRUD + 实例 API + 前端实例列表/详情页 + SSE Timeline）
 Status: In Progress
-Last activity: 2026-05-16 — Plan 02-03 完成（@xyflow/react 12.10 + canvas-store + 5 自定义节点 + NodePalette + ConfigPanel + 21 个 vitest 测试）
+Last activity: 2026-05-16 — Plan 02-08 完成（workflow_service + instance_service + 22 后端测试 + 18 vitest 测试）
 
-Progress: [███░░░░░░░] 30%
+Progress: [████████░░] 81%
 
 ## Performance Metrics
 
@@ -51,6 +51,7 @@ Progress: [███░░░░░░░] 30%
 | Phase 02 P05 | 30m | 3 tasks | 5 files |
 | Phase 02-dsl P06 | 11 | 2 tasks | 9 files |
 | Phase 02-dsl P04 | 16 | 3 tasks | 13 files |
+| Phase 02-dsl P08 | 26m | 4 tasks | 25 files |
 
 ## Accumulated Context
 
@@ -92,6 +93,9 @@ Recent decisions affecting current work:
 - [Phase 02-04]: IfElse.resolve_route 使用原始 self.config（非 _render_config 结果）：conditions[].expr 为 Jinja2 模板，提前渲染导致 UndefinedError，必须延迟到求值
 - [Phase 02-04]: NODE_EXECUTORS 手动注册（非 pkgutil 自动发现），项目规模小可读性优先
 - [Phase 02-04]: 集成测试 state_schema 需包含节点 ID 字段（dict 类型），LangGraph TypedDict 只保留已声明字段
+- [Phase 02-08]: validate 路由注册于 /{workflow_id} 之前，避免 FastAPI 路径冲突
+- [Phase 02-08]: SSE 详情页 useReducer 合并增量节点状态，instance 终止后 refetch 同步最终状态
+- [Phase 02-08]: 实例列表采用 page/page_size URL 分页，canvas Run 按钮仅在 published 状态下启用
 
 ### Pending Todos
 
@@ -106,5 +110,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-05-16
-Stopped at: Completed 02-03-PLAN.md（@xyflow/react 12.10 画布 + 5 自定义节点 + DSL 双向转换 + 21 个测试通过）
+Stopped at: Completed 02-08-PLAN.md（工作流 CRUD + 实例 API + SSE + 前端实例页 + 40 个测试通过）
 Resume file: None
