@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>无法访问</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+      max-width: 600px;
+      margin: 80px auto;
+      padding: 40px;
+      text-align: center;
+      color: #333;
+      line-height: 1.7;
+    }
+    .icon {
+      font-size: 48px;
+      color: #d73a49;
+      margin-bottom: 20px;
+    }
+    h1 {
+      font-size: 24px;
+      color: #24292e;
+      margin-bottom: 8px;
+    }
+    .error-message {
+      color: #586069;
+      font-size: 16px;
+      margin: 20px 0;
+      padding: 16px;
+      background: #ffeef0;
+      border-left: 4px solid #d73a49;
+      border-radius: 4px;
+      text-align: left;
+    }
+    .footer {
+      margin-top: 32px;
+      font-size: 12px;
+      color: #888;
+    }
+  </style>
+</head>
+<body>
+  <div class="icon">⚠</div>
+  <h1>无法访问</h1>
+
+  <div class="error-message">
+    {{ error|default('链接异常，请联系发起人重新发起。') }}
+  </div>
+
+  <div class="footer">
+    <p>如有疑问，请联系流程发起人或管理员。</p>
+  </div>
+</body>
+</html>

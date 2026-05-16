@@ -34,7 +34,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi.middleware import SlowAPIMiddleware
 
-from app.agent_builder.api import auth, invites, me, setup
+from app.agent_builder.api import auth, hitl, invites, me, setup
 from app.agent_builder.api.v1 import router as v1_router
 from app.agent_builder.middleware.setup_redirect import SetupRedirectMiddleware
 from app.agent_builder.security.rate_limit import limiter
@@ -107,3 +107,7 @@ agent_builder_app.include_router(me.router, prefix="/api", tags=["me"])
 
 # ── v1 API 路由（Phase 2）────────────────────────────────────────────────────
 agent_builder_app.include_router(v1_router)
+
+# ── HITL 公网回调路由（Phase 3 — 公网暴露，无 /api 前缀）────────────────────
+# nginx public server_block 仅放行 /hitl/page/* + /hitl/action/* + /api/im/webhook/*
+agent_builder_app.include_router(hitl.router)

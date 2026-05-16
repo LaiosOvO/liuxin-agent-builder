@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{{ flow_title|default('HITL 决策') }} - 审批页</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+      max-width: 720px;
+      margin: 40px auto;
+      padding: 24px;
+      color: #333;
+      line-height: 1.7;
+      background: #fafbfc;
+    }
+    h1 {
+      color: #24292e;
+      font-size: 22px;
+      margin-bottom: 8px;
+    }
+    .meta {
+      font-size: 13px;
+      color: #586069;
+      margin-bottom: 20px;
+    }
+    .meta-row {
+      display: inline-block;
+      margin-right: 16px;
+    }
+    .meta-label {
+      color: #6a737d;
+    }
+    .section {
+      background: #fff;
+      border: 1px solid #e1e4e8;
+      border-radius: 6px;
+      padding: 20px 24px;
+      margin-bottom: 16px;
+    }
+    .section h2 {
+      font-size: 15px;
+      margin: 0 0 12px 0;
+      color: #24292e;
+      font-weight: 600;
+    }
+    .records {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+    .records li {
+      padding: 10px 0;
+      border-bottom: 1px dashed #eaecef;
+      font-size: 13px;
+    }
+    .records li:last-child {
+      border-bottom: none;
+    }
+    .records .actor {
+      font-weight: 600;
+      color: #0366d6;
+    }
+    .records .action {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 3px;
+      background: #f1f8ff;
+      color: #0366d6;
+      font-size: 12px;
+      margin: 0 4px;
+    }
+    .form-area {
+      margin-top: 12px;
+    }
+    .form-area label {
+      display: block;
+      font-size: 13px;
+      color: #586069;
+      margin-bottom: 4px;
+      font-weight: 600;
+    }
+    .form-area input[type="text"],
+    .form-area textarea {
+      width: 100%;
+      padding: 8px 12px;
+      border: 1px solid #d1d5da;
+      border-radius: 4px;
+      font-size: 14px;
+      font-family: inherit;
+      box-sizing: border-box;
+    }
+    .form-area textarea {
+      min-height: 80px;
+      resize: vertical;
+    }
+    .btn-group {
+      display: flex;
+      gap: 12px;
+      margin-top: 20px;
+      flex-wrap: wrap;
+    }
+    .btn {
+      padding: 10px 24px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 600;
+      color: #fff;
+    }
+    .btn-submit, .btn-approve { background: #28a745; }
+    .btn-return { background: #f6a609; }
+    .btn-reject { background: #d73a49; }
+    .btn:hover { opacity: 0.9; }
+    .deadline {
+      color: #d73a49;
+      font-weight: 600;
+    }
+    .errors {
+      background: #ffeef0;
+      border-left: 4px solid #d73a49;
+      padding: 12px 16px;
+      border-radius: 4px;
+      margin-bottom: 16px;
+      color: #86181d;
+    }
+    .errors ul { margin: 4px 0 0 0; padding-left: 20px; }
+  </style>
+</head>
+<body>
+  <h1>HITL 审批决策</h1>
+
+  {% if errors %}
+  <div class="errors">
+    <strong>表单校验失败：</strong>
+    <ul>
+      {% for err in errors %}
+      <li>{{ err }}</li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+
+  <div class="meta">
+    <span class="meta-row">
+      <span class="meta-label">阶段：</span>
+      {% if phase == 'submit' %}执行人提交{% elif phase == 'review' %}审核{% else %}{{ phase }}{% endif %}
+    </span>
+    <span class="meta-row">
+      <span class="meta-label">截止时间：</span>
+      <span class="deadline">{{ deadline_at }}</span>
+    </span>
+  </div>
+
+  {% if current_actor %}
+  <div class="section">
+    <h2>当前审批人</h2>
+    <div>{{ current_actor.email|default('') }}</div>
+  </div>
+  {% endif %}
+
+  {% if records %}
+  <div class="section">
+    <h2>历史决策（{{ records|length }} 条）</h2>
+    <ul class="records">
+      {% for r in records %}
+      <li>
+        <span class="actor">{{ r.actor_email|default('系统') }}</span>
+        <span class="action">{{ r.action }}</span>
+        <span>{{ r.ts }}</span>
+        {% if r.reason %}<div style="margin-top:4px;color:#6a737d;">原因：{{ r.reason }}</div>{% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+
+  <div class="section">
+    <h2>决策表单</h2>
+    <form method="POST" action="/hitl/action/{{ token }}" id="decision-form">
+      <input type="hidden" name="jti" value="{{ jti }}" />
+
+      <!-- 隐藏的 action 字段（被下方按钮 onclick 设置）-->
+      <input type="hidden" name="action" id="action-field" value="" />
+
+      <div class="form-area">
+        <label for="reason">原因（建议必填）</label>
+        <textarea id="reason" name="reason" placeholder="请说明您的决策依据..."></textarea>
+      </div>
+
+      {# form_schema 各字段：v1 通用 input/textarea，v2 前端 RJSF 替换 #}
+      {% if form_schema and form_schema.get('properties') %}
+      <div class="form-area" style="margin-top:12px;">
+        {% for field_name, field_def in form_schema.get('properties', {}).items() %}
+        <label for="{{ field_name }}">
+          {{ field_def.get('title', field_name) }}
+          {% if field_name in form_schema.get('required', []) %} <span style="color:#d73a49;">*</span>{% endif %}
+        </label>
+        {% if field_def.get('type') == 'string' and field_def.get('format') == 'textarea' %}
+        <textarea id="{{ field_name }}" name="{{ field_name }}"></textarea>
+        {% else %}
+        <input type="text" id="{{ field_name }}" name="{{ field_name }}" />
+        {% endif %}
+        {% endfor %}
+      </div>
+      {% endif %}
+
+      <div class="btn-group">
+        {% if action == 'submit' %}
+        <button type="button" class="btn btn-submit" onclick="submitAction('submit')">提交</button>
+        {% elif action == 'approve' %}
+        <button type="button" class="btn btn-approve" onclick="submitAction('approve')">通过</button>
+        {% endif %}
+        <button type="button" class="btn btn-return" onclick="submitAction('return')">退回</button>
+        <button type="button" class="btn btn-reject" onclick="submitAction('reject')">拒绝</button>
+      </div>
+    </form>
+  </div>
+
+  <script>
+    function submitAction(actionName) {
+      document.getElementById('action-field').value = actionName;
+      document.getElementById('decision-form').submit();
+    }
+  </script>
+</body>
+</html>
