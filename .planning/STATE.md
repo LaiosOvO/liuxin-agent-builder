@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: in_progress
-last_updated: "2026-05-17T17:40:00Z"
+last_updated: "2026-05-17T17:54:09Z"
 progress:
   total_phases: 7
   completed_phases: 2
   total_plans: 26
-  completed_plans: 18
+  completed_plans: 19
 ---
 
 # Project State
@@ -23,11 +23,11 @@ See: .planning/PROJECT.md (updated 2026-05-16)
 ## Current Position
 
 Phase: 3 of 7 (HITL 单节点 + Email 审批) — IN PROGRESS
-Plan: 3 of 10 in current phase（03-03 完成，HitlTokenService JWT + Safe Links bot 检测器）
-Status: Plan Complete — 可并行启动 03-02（同 Wave 2）/ 03-04（Wave 3）
-Last activity: 2026-05-17 — Plan 03-03 完成（HitlTokenService HS256 + bot_detector 15 patterns + 44 单元测试通过）
+Plan: 3 of 10 in current phase（03-01 / 03-02 / 03-03 完成，Wave 1 + Wave 2 全部交付）
+Status: Wave 2 Complete — 可启动 Wave 3（03-04 邮件投递 / 03-05 通知节点）
+Last activity: 2026-05-17 — Plan 03-02 完成（HITLNodeExecutor LangGraph interrupt + hitl_payload 4 纯函数 + HitlService + 38 测试通过）
 
-Progress: [█░░░░░░░░░] 12%
+Progress: [██░░░░░░░░] 19%
 
 ## Performance Metrics
 
@@ -55,7 +55,7 @@ Progress: [█░░░░░░░░░] 12%
 | Phase 02-dsl P07 | ~3h | 4 tasks | 10 files |
 | Phase 03-hitl-email P01 | 50m | 3 tasks | 10 files |
 | Phase 03-hitl-email P03 | 6m | 3 tasks | 5 files |
-| Phase 03-hitl-email P03 | 6m | 3 tasks | 5 files |
+| Phase 03-hitl-email P02 | 17m | 4 tasks | 15 files |
 
 ## Accumulated Context
 
@@ -122,6 +122,12 @@ Recent decisions affecting current work:
 - [Phase 03-03]: service 层异常细分（InvalidSignature/TokenExpired/InvalidAudience/HitlTokenError）便于 API 层差异化错误页（vs Dify PassportService 单一 Unauthorized）
 - [Phase 03-03]: BOT_UA_PATTERNS 15 项 = CONTEXT 13 + 'safelinks' 通用前缀 + 'ac-detector-tool'（Outlook 真实 UA from §Specific Ideas）
 - [Phase 03-03]: bot_detector 纯函数 + 元组常量；None/空/unicode/超长 UA 鲁棒；O(n*m) 复杂度但 m=15 + 仅 GET 路径调用可接受
+- [Phase 03-02]: HITLNodeExecutor override __call__ 跳过 tenacity 重试装饰器（重试会吞 GraphInterrupt 控制流异常）
+- [Phase 03-02]: 节点函数副作用归外原则：node 函数仅读 state._node_state_id，写 DB / 发邮件由 ExecutionEngine / 03-06 API 一次性触发（防 resume 重跑导致重复副作用）
+- [Phase 03-02]: state 中 node_state_id 用单下划线前缀 `_node_state_id` — LangGraph 1.2 剥离 __dunder__ 前缀字段（实测发现，记入 reading doc §7.5）
+- [Phase 03-02]: hitl_payload 与 HitlService 解耦：前者无 DB 依赖纯函数单测，后者集成测试用真实 PG，加快 TDD feedback loop
+- [Phase 03-02]: form_schema 用 jsonschema Draft-7（与前端 RJSF AJV-8 兼容），空 schema {} 视为不约束
+- [Phase 03-02]: HitlService.batch_create_tokens flush 不 commit（保持事务可组合，外层 API handler 决定提交时机）
 
 ### Pending Todos
 
@@ -137,5 +143,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-05-17
-Stopped at: Completed 03-03-PLAN.md（HitlTokenService JWT HS256 + Safe Links bot_detector 15 patterns — 44 单元测试通过）
+Stopped at: Completed 03-02-PLAN.md（HITLNodeExecutor LangGraph interrupt + hitl_payload 4 纯函数 + HitlService + 38 测试通过）
 Resume file: None
