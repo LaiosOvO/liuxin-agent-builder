@@ -35,6 +35,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from slowapi.middleware import SlowAPIMiddleware
 
 from app.agent_builder.api import auth, invites, me, setup
+from app.agent_builder.api.v1 import router as v1_router
 from app.agent_builder.middleware.setup_redirect import SetupRedirectMiddleware
 from app.agent_builder.security.rate_limit import limiter
 from app.agent_builder.db.checkout_hook import register_discard_all_hook
@@ -103,3 +104,6 @@ agent_builder_app.include_router(setup.router, prefix="/api/setup", tags=["setup
 agent_builder_app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
 agent_builder_app.include_router(invites.router, prefix="/api/invites", tags=["invites"])
 agent_builder_app.include_router(me.router, prefix="/api", tags=["me"])
+
+# ── v1 API 路由（Phase 2）────────────────────────────────────────────────────
+agent_builder_app.include_router(v1_router)
