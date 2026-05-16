@@ -114,6 +114,17 @@ class NodeState(Base):
         comment="节点输出摘要（非 raw output；raw output 走 Redis pointer 防 checkpoint 膨胀）",
     )
 
+    # ── HITL 运行时状态（Phase 3 03-06 新增，migration 0004） ──────────────────
+    # HITL 节点跨 interrupt/resume 持久化的状态机字段：
+    #   phase / current_actor / approval_chain / records / pending_approvers
+    #   started_at / deadline_at / form_schema
+    # 详见 docs/reading-dify-03-06-hitl-api-2026-05-17.md §7 + 03-CONTEXT.md
+    payload: Mapped[dict | None] = mapped_column(
+        JSONB,
+        nullable=True,
+        comment="节点运行时状态（HITL: phase/current_actor/records/form_schema/deadline_at）",
+    )
+
     # ── 索引 ──────────────────────────────────────────────────────────────────
     __table_args__ = (
         # 工作区 + 实例 + 开始时间（节点列表查询主路径）
