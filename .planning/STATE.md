@@ -8,7 +8,7 @@ progress:
   total_phases: 2
   completed_phases: 1
   total_plans: 16
-  completed_plans: 13
+  completed_plans: 14
 ---
 
 # Project State
@@ -23,11 +23,11 @@ See: .planning/PROJECT.md (updated 2026-05-16)
 ## Current Position
 
 Phase: 2 of 7 (DSL 引擎 + 基础节点)
-Plan: 8 of 10 in current phase（02-08 完成，工作流 CRUD + 实例 API + 前端实例列表/详情页 + SSE Timeline）
+Plan: 9 of 10 in current phase（02-09 完成，前端 TS DSL 校验器 + 错误 UI 三层 + 300ms debounce）
 Status: In Progress
-Last activity: 2026-05-16 — Plan 02-08 完成（workflow_service + instance_service + 22 后端测试 + 18 vitest 测试）
+Last activity: 2026-05-16 — Plan 02-09 完成（TS validator 4 类校验 + validator-store + issue-list + 节点红框 + 33 vitest 测试）
 
-Progress: [████████░░] 81%
+Progress: [█████████░] 90%
 
 ## Performance Metrics
 
@@ -100,6 +100,9 @@ Recent decisions affecting current work:
 - [Phase 02-07]: Redis Stream 做历史存储 + pub/sub 做实时分发（改进 Dify 无断连补发痛点）
 - [Phase 02-07]: EventBus 用单调递增 seq（Redis INCR）作为 Last-Event-ID，支持 Last-Event-ID 断连补发
 - [Phase 02-07]: AppStatus.should_exit_event 重置 fixture 解决跨测试事件循环污染（sse_starlette 单例绑定问题）
+- [Phase 02-09]: Jinja 解析器用正则而非 nunjucks（减少 ~300KB bundle，DSL 不需要求值）
+- [Phase 02-09]: 拓扑排序用 Kahn 算法（比 graphlib 更易 TS 实现），成环检测用 DFS 白/灰/黑染色
+- [Phase 02-09]: 发布前后端复检降级策略：validate API 不可用时不阻断发布（network fault tolerance）
 
 ### Pending Todos
 
@@ -114,5 +117,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-05-16
-Stopped at: Completed 02-07-PLAN.md（ExecutionEngine + EventBus + SSE 端点 + 23 个测试通过）
+Stopped at: Completed 02-09-PLAN.md（前端 TS DSL 校验器 + validator-store + 错误 UI 三层 + 33 个测试通过）
 Resume file: None
