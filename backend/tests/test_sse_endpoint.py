@@ -32,6 +32,23 @@ pytestmark = pytest.mark.asyncio
 _REDIS_PATCH = "app.agent_builder.api.v1.instances_events.get_redis"
 
 
+@pytest.fixture(autouse=True)
+def reset_sse_app_status():
+    """每次测试前重置 sse_starlette 的 AppStatus 单例事件。
+
+    sse_starlette 在首次处理 SSE 响应时创建 AppStatus.should_exit_event（anyio.Event）
+    并绑定到当前事件循环。后续 function-scope 测试使用不同事件循环时，
+    等待旧事件会触发 "bound to a different event loop" 错误。
+    重置为 None 让下一次 SSE 调用重新创建（绑定到新事件循环）。
+    """
+    from sse_starlette.sse import AppStatus
+    AppStatus.should_exit_event = None
+    AppStatus.should_exit = False
+    yield
+    AppStatus.should_exit_event = None
+    AppStatus.should_exit = False
+
+
 @pytest_asyncio.fixture
 async def fake_redis_instance():
     """独立 fakeredis 实例（每测试独立）。"""
