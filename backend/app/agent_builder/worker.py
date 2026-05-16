@@ -27,6 +27,9 @@ from uuid import UUID
 # Plan 03-04: HITL email job 注册（Phase 3）
 from app.jobs.email_jobs import send_hitl_email_job, send_hitl_reminder_job
 
+# Plan 03-09: HITL 超时催办 cron job（NOTI-09 + HITL-04 single 模式 + NET-05）
+from app.jobs.hitl_timeout_jobs import scan_hitl_timeouts
+
 logger = logging.getLogger(__name__)
 
 
@@ -73,16 +76,31 @@ class WorkerSettings:
 
     配置项：
     - functions：注册的任务函数列表
+    - cron_jobs：定时任务列表（Plan 03-09 新增 — scan_hitl_timeouts 每分钟扫一次）
     - redis_settings：从 REDIS_URL env 读取（默认 redis://localhost:6379/0）
     - keep_result：任务结果保留秒数（调试用）
     - on_startup：启动钩子（恢复未完成实例）
     """
     from arq.connections import RedisSettings
+    from arq.cron import cron
 
     functions = [
         run_instance_arq,
         send_hitl_email_job,      # Plan 03-04: HITL 决策邮件（NOTI-01 + NOTI-10）
         send_hitl_reminder_job,   # Plan 03-04: HITL 催办邮件（NOTI-09，03-09 plan 调用）
+    ]
+    # Plan 03-09: cron jobs — 每分钟扫一次 HITL 超时节点
+    # 设计参考 docs/reading-dify-03-09-timeout-worker-2026-05-17.md §7
+    # unique=True (默认) 确保多 worker 中只有一个执行
+    cron_jobs = [
+        cron(
+            scan_hitl_timeouts,
+            minute=set(range(60)),  # 每分钟都触发（注意 set 范围必须为 0-59）
+            second={0},             # 每分钟的第 0 秒触发
+            unique=True,
+            max_tries=1,            # cron 失败不重试（60s 后再来）
+            timeout=50,             # 50s 内必须跑完（防多 worker 抢调度）
+        ),
     ]
     on_startup = on_startup
     redis_settings = RedisSettings.from_dsn(

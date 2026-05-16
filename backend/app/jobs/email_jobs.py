@@ -83,7 +83,8 @@ def _render_email_content(
 
     Args:
         notif_payload: notifications.payload（含 tokens / form_schema / flow_title / ...）
-        template_name: 模板文件名（如 'hitl_decision.html' / 'generic_notification.html'）
+        template_name: 模板文件名（如 'hitl_decision.html' / 'generic_notification.html'
+                       / 'hitl_escalation.html'）
 
     Returns:
         渲染后的字符串（HTML 已 autoescape，text 不 escape）
@@ -96,6 +97,18 @@ def _render_email_content(
             subject=notif_payload.get("subject", ""),
             body=notif_payload.get("body", ""),
             recipient_email=notif_payload.get("recipient_email", ""),
+        )
+    # Plan 03-09 升级邮件模板（EscalationService）— 无 tokens，含 original_actor / overdue_hours
+    if notif_payload.get("escalation") is True:
+        return template.render(
+            flow_title=notif_payload.get("flow_title", ""),
+            node_title=notif_payload.get("node_title", ""),
+            applicant_name=notif_payload.get("applicant_name", ""),
+            original_actor_email=notif_payload.get("original_actor_email", ""),
+            overdue_hours=notif_payload.get("overdue_hours", 72.0),
+            deadline_at=notif_payload.get("deadline_at", ""),
+            description=notif_payload.get("description", ""),
+            instance_id=notif_payload.get("instance_id", ""),
         )
     # HITL 决策 / 催办模板：为 tokens 拼接 deeplinks（每个 token 一条带 URL 的记录）
     deeplinks = [
@@ -151,25 +164,29 @@ async def send_hitl_email_job(ctx: dict | None, notification_id: str) -> None:
         notif.status = "sending"
         await db.commit()
 
-        # 选择模板（Plan 03-05 新增 generic 路径）：
+        # 选择模板（Plan 03-05 / 03-09 扩展路径）：
         # - payload.generic=True → generic_notification.html（Notification 节点，NODE-07）
+        # - payload.escalation=True → hitl_escalation.html（03-09 升级邮件）
         # - reminder_round>0 → hitl_reminder.html（催办）
         # - 否则 → hitl_decision.html（HITL 首发）
         is_generic = notif.payload.get("generic") is True
+        is_escalation = notif.payload.get("escalation") is True
         is_reminder = notif.reminder_round > 0
         if is_generic:
             html_template = "generic_notification.html"
+        elif is_escalation:
+            html_template = "hitl_escalation.html"
         else:
             html_template = "hitl_reminder.html" if is_reminder else "hitl_decision.html"
-        text_template = "hitl_decision_text.txt"  # 明文 fallback 仅 HITL 路径使用
+        text_template = "hitl_decision_text.txt"  # 明文 fallback 仅 HITL 决策路径使用
 
         # 渲染（autoescape 防 XSS）
         try:
             html_body = _render_email_content(notif.payload, html_template)
-            # Notification 节点无明文 fallback 需求（body 已是用户输入）
+            # Notification 节点 / 升级邮件无明文 fallback 需求
             text_body = (
                 None
-                if is_generic
+                if (is_generic or is_escalation)
                 else _render_email_content(notif.payload, text_template)
             )
         except Exception as exc:
@@ -187,6 +204,11 @@ async def send_hitl_email_job(ctx: dict | None, notification_id: str) -> None:
             # 这里只做 CR/LF 防注入清理（防止 Jinja 渲染结果意外含换行）
             raw_subject = notif.payload.get("subject", "通知")
             subject = raw_subject.replace("\r", " ").replace("\n", " ")[:200]
+        elif is_escalation:
+            # Plan 03-09 升级邮件：[升级] 前缀
+            flow_title = notif.payload.get("flow_title", "")
+            node_title = notif.payload.get("node_title", "")
+            subject = f"[升级] 审批超时：{flow_title} - {node_title}"
         else:
             subject_prefix = "[催办] " if is_reminder else ""
             flow_title = notif.payload.get("flow_title", "")
