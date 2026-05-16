@@ -52,6 +52,7 @@ Progress: [████████░░] 81%
 | Phase 02-dsl P06 | 11 | 2 tasks | 9 files |
 | Phase 02-dsl P04 | 16 | 3 tasks | 13 files |
 | Phase 02-dsl P08 | 26m | 4 tasks | 25 files |
+| Phase 02-dsl P07 | ~3h | 4 tasks | 10 files |
 
 ## Accumulated Context
 
@@ -96,6 +97,9 @@ Recent decisions affecting current work:
 - [Phase 02-08]: validate 路由注册于 /{workflow_id} 之前，避免 FastAPI 路径冲突
 - [Phase 02-08]: SSE 详情页 useReducer 合并增量节点状态，instance 终止后 refetch 同步最终状态
 - [Phase 02-08]: 实例列表采用 page/page_size URL 分页，canvas Run 按钮仅在 published 状态下启用
+- [Phase 02-07]: Redis Stream 做历史存储 + pub/sub 做实时分发（改进 Dify 无断连补发痛点）
+- [Phase 02-07]: EventBus 用单调递增 seq（Redis INCR）作为 Last-Event-ID，支持 Last-Event-ID 断连补发
+- [Phase 02-07]: AppStatus.should_exit_event 重置 fixture 解决跨测试事件循环污染（sse_starlette 单例绑定问题）
 
 ### Pending Todos
 
@@ -110,5 +114,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-05-16
-Stopped at: Completed 02-08-PLAN.md（工作流 CRUD + 实例 API + SSE + 前端实例页 + 40 个测试通过）
+Stopped at: Completed 02-07-PLAN.md（ExecutionEngine + EventBus + SSE 端点 + 23 个测试通过）
 Resume file: None
