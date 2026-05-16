@@ -156,6 +156,259 @@ export async function waitForEmailAndExtractLink(
   return extractLink(email, hrefContains);
 }
 
+/** Phase 3 HITL 邮件解析后的结构 */
+export interface HitlEmailParsed {
+  /** 收件人邮箱 */
+  to: string;
+  /** 发件人邮箱 */
+  from: string;
+  /** subject 头 */
+  subject: string;
+  /** 完整 HTML body */
+  html: string;
+  /** 纯文本 fallback（如有） */
+  text: string;
+  /** 是否催办邮件（subject 含 [催办] 或 [升级] 前缀） */
+  isReminder: boolean;
+  /** 是否升级邮件（subject 含 [升级] 前缀） */
+  isEscalation: boolean;
+  /** 提取的 deeplink 列表 */
+  deeplinks: Array<{
+    /** action 名称（推断） */
+    action: string;
+    /** 完整 URL */
+    url: string;
+    /** JWT token 字符串 */
+    token: string;
+    /** JWT payload 中的 jti */
+    jti: string;
+  }>;
+}
+
+/**
+ * 轮询 MailHog 直到找到发给 recipient 的最新 HITL 邮件，并解析 button + token。
+ *
+ * @param recipient 收件人邮箱
+ * @param timeout   最大等待毫秒数（默认 15000）
+ * @returns         结构化解析后的 HITL 邮件
+ *
+ * **使用约定**：
+ * - 调用方应先 purgeAllEmails() 保证测试隔离
+ * - 邮件 HTML 必须包含至少 1 个 `/hitl/page/<token>` 链接
+ */
+export async function getLatestHitlEmail(
+  recipient: string,
+  timeout = 15_000,
+): Promise<HitlEmailParsed> {
+  const email = await getLatestEmail(recipient, timeout);
+
+  // 解析头部
+  const subject = decodeMimeHeader(email.Content.Headers['Subject']?.[0] ?? '');
+  const from = email.Content.Headers['From']?.[0] ?? '';
+  const to = email.Content.Headers['To']?.[0] ?? '';
+
+  // 获取完整 body
+  const fullBody = email.Content.Body;
+
+  // 提取 HTML 与 text part（MIME multipart 简单解析）
+  const { html, text } = splitMimeBody(fullBody);
+
+  // 解析 deeplinks
+  const deeplinks = parseDeeplinks(html || fullBody);
+
+  return {
+    to,
+    from,
+    subject,
+    html: html || fullBody,
+    text,
+    isReminder: subject.includes('[催办]'),
+    isEscalation: subject.includes('[升级]'),
+    deeplinks,
+  };
+}
+
+/**
+ * 从 HITL 邮件 HTML 中提取所有 token。
+ *
+ * 与 getLatestHitlEmail 互补：当只需要 token 列表（不需完整邮件信息）时使用。
+ */
+export function extractTokensFromEmail(html: string): Array<{
+  action: string;
+  jti: string;
+  token: string;
+}> {
+  return parseDeeplinks(html).map(({ action, jti, token }) => ({ action, jti, token }));
+}
+
+/**
+ * 解析邮件 HTML 中的 HITL deeplink button。
+ *
+ * 匹配两种格式：
+ * 1. `<a href="...hitl/page/TOKEN...">通过</a>`（HTML button）
+ * 2. `https://.../hitl/page/TOKEN`（plain text URL）
+ */
+function parseDeeplinks(body: string): Array<{
+  action: string;
+  url: string;
+  token: string;
+  jti: string;
+}> {
+  const result: Array<{
+    action: string;
+    url: string;
+    token: string;
+    jti: string;
+  }> = [];
+  const seenTokens = new Set<string>();
+
+  // 1. HTML `<a href="...">label</a>` 模式
+  const htmlPattern =
+    /<a\s+[^>]*href=["']([^"']*\/hitl\/page\/([A-Za-z0-9._-]+))[^"']*["'][^>]*>([^<]*)<\/a>/gi;
+  let m: RegExpExecArray | null;
+
+  while ((m = htmlPattern.exec(body)) !== null) {
+    const url = m[1];
+    const token = m[2];
+    const label = (m[3] ?? '').trim();
+    if (seenTokens.has(token)) continue;
+    seenTokens.add(token);
+    result.push({
+      action: inferAction(label, url),
+      url,
+      token,
+      jti: extractJtiFromJwt(token),
+    });
+  }
+
+  // 2. plain text URL（fallback —— 邮件 plain text 没有 HTML 包装）
+  const textPattern = /(https?:\/\/[^\s<>"']*\/hitl\/page\/([A-Za-z0-9._-]+))/gi;
+  while ((m = textPattern.exec(body)) !== null) {
+    const url = m[1];
+    const token = m[2];
+    if (seenTokens.has(token)) continue;
+    seenTokens.add(token);
+    result.push({
+      action: inferAction('', url),
+      url,
+      token,
+      jti: extractJtiFromJwt(token),
+    });
+  }
+
+  return result;
+}
+
+/** 按 button 文案 + URL 中的查询参数推断 action */
+function inferAction(label: string, url: string): string {
+  const lower = label.toLowerCase();
+  if (lower.includes('通过') || lower.includes('approve')) return 'approve';
+  if (lower.includes('提交') || lower.includes('submit')) return 'submit';
+  if (lower.includes('退回') || lower.includes('return')) return 'return';
+  if (lower.includes('拒绝') || lower.includes('reject')) return 'reject';
+
+  // 从 URL 查询参数推断（如 ?action=submit）
+  const urlMatch = url.match(/[?&]action=(\w+)/);
+  if (urlMatch) return urlMatch[1];
+
+  return 'unknown';
+}
+
+/** 从 JWT 提取 jti（不校验签名） */
+function extractJtiFromJwt(token: string): string {
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) return '';
+    const payloadBase64 = parts[1];
+    const base64 = payloadBase64.replace(/-/g, '+').replace(/_/g, '/');
+    const padded = base64 + '='.repeat((4 - (base64.length % 4)) % 4);
+    const payloadJson = Buffer.from(padded, 'base64').toString('utf-8');
+    const payload = JSON.parse(payloadJson) as { jti?: string };
+    return payload.jti ?? '';
+  } catch {
+    return '';
+  }
+}
+
+/** Decode quoted-printable / =?UTF-8?B?...?= 编码的 MIME header */
+function decodeMimeHeader(raw: string): string {
+  // RFC 2047 encoded-word: =?charset?B|Q?encoded-text?=
+  return raw.replace(
+    /=\?([^?]+)\?([BbQq])\?([^?]*)\?=/g,
+    (_, _charset: string, enc: string, text: string) => {
+      try {
+        if (enc.toUpperCase() === 'B') {
+          return Buffer.from(text, 'base64').toString('utf-8');
+        }
+        // Q encoding（quoted-printable）
+        return text.replace(/_/g, ' ').replace(/=([0-9A-F]{2})/g, (_, hex: string) =>
+          String.fromCharCode(parseInt(hex, 16)),
+        );
+      } catch {
+        return text;
+      }
+    },
+  );
+}
+
+/** Split multipart MIME body into HTML and text parts */
+function splitMimeBody(body: string): { html: string; text: string } {
+  // 单一格式：body 不含 boundary → 直接判断 HTML/text
+  if (!body.includes('Content-Type:') && !body.includes('boundary=')) {
+    if (body.trimStart().startsWith('<') || body.includes('<html')) {
+      return { html: body, text: '' };
+    }
+    return { html: '', text: body };
+  }
+
+  // multipart 简单切分
+  let html = '';
+  let text = '';
+
+  // 找 text/html part
+  const htmlMatch = body.match(
+    /Content-Type:\s*text\/html[^\n]*\n(?:[^\n]*\n)*?\n([\s\S]*?)(?:\n--[a-zA-Z0-9_-]+|\n\.|\Z)/i,
+  );
+  if (htmlMatch) {
+    html = decodeMimeBody(htmlMatch[1]);
+  }
+
+  // 找 text/plain part
+  const textMatch = body.match(
+    /Content-Type:\s*text\/plain[^\n]*\n(?:[^\n]*\n)*?\n([\s\S]*?)(?:\n--[a-zA-Z0-9_-]+|\n\.|\Z)/i,
+  );
+  if (textMatch) {
+    text = decodeMimeBody(textMatch[1]);
+  }
+
+  // fallback：什么都没匹配，把整 body 当 html
+  if (!html && !text) {
+    html = body;
+  }
+
+  return { html, text };
+}
+
+/** 解码 quoted-printable / base64 编码的 MIME body */
+function decodeMimeBody(raw: string): string {
+  // quoted-printable: =XX → byte, =\n → 续行
+  if (raw.includes('=')) {
+    try {
+      const decoded = raw
+        .replace(/=\n/g, '')
+        .replace(/=\r\n/g, '')
+        .replace(/=([0-9A-F]{2})/gi, (_, hex: string) =>
+          String.fromCharCode(parseInt(hex, 16)),
+        );
+      // 检查是否为 utf-8 字节序列
+      return Buffer.from(decoded, 'binary').toString('utf-8');
+    } catch {
+      return raw;
+    }
+  }
+  return raw;
+}
+
 /** 转义正则特殊字符 */
 function escapeRegex(str: string): string {
   return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
