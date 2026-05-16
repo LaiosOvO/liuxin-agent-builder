@@ -38,21 +38,29 @@ class IfElseNodeExecutor(BaseNodeExecutor):
     async def execute(self, config: dict, state: dict) -> dict:
         """IfElse 节点执行：仅做路由，不修改 state 业务字段。
 
+        注意：直接使用 self.config（原始未渲染配置）而非 config（已渲染），
+        因为 conditions[].expr 是 Jinja2 表达式，需要延迟到 resolve_route 中求值，
+        不能在 _render_config 阶段提前渲染（提前渲染会导致 UndefinedError）。
+
         Args:
-            config: 渲染后的节点配置（含 conditions / default_target）
+            config: 渲染后的节点配置（仅用于读取非 expr 字段，如 default_target）
             state: 当前 state dict
 
         Returns:
             {"_routed_to": target_node_id}，记录路由结果（供事件/调试使用）
         """
-        target = self.resolve_route(config, state)
+        target = self.resolve_route(self.config, state)
         return {"_routed_to": target}
 
     def resolve_route(self, config: dict, state: dict) -> str:
         """对 conditions[].expr 依次 Jinja2 求值，返回目标节点 ID。
 
+        注意：config 应为原始未渲染的节点配置（self.config），不是 _render_config 的结果。
+        原因：conditions[].expr 是 Jinja2 模板字符串，需要在此处对 state 求值；
+              如果在 _render_config 中提前渲染，则 undefined 变量会导致 UndefinedError 而非跳过。
+
         求值逻辑：
-        1. 依次对每个 condition 的 expr 用 Jinja2 渲染
+        1. 依次对每个 condition 的 expr 用 Jinja2 渲染（以 state 为上下文）
         2. 渲染结果（strip + lower）映射：
            - "true" / "1" / "yes" → truthy → 返回该 condition 的 target_node_id
            - 其他 → falsy → 继续下一条件
@@ -60,7 +68,7 @@ class IfElseNodeExecutor(BaseNodeExecutor):
         4. expr 求值异常 → 跳过该 condition（容错处理）
 
         Args:
-            config: 节点配置（含 conditions 列表 + default_target）
+            config: 原始节点配置（含 conditions 列表 + default_target），不经过 _render_config
             state: 当前 state dict（作为 Jinja2 渲染上下文）
 
         Returns:
