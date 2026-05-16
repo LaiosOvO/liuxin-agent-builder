@@ -49,6 +49,8 @@ def _create_engine() -> AsyncEngine:
         pool_pre_ping=True,
         pool_recycle=1800,
         echo=os.getenv("SQLALCHEMY_ECHO", "").lower() in ("1", "true", "yes"),
+        # statement_cache_size=0：兼容 PgBouncer transaction mode（防 prepared statement 冲突）
+        connect_args={"statement_cache_size": 0},
     )
     # 注册 DISCARD ALL checkout hook（防 Pitfall 6）
     register_discard_all_hook(eng)

@@ -73,9 +73,12 @@ class SetupRedirectMiddleware(BaseHTTPMiddleware):
         """读取 setup 状态（优先进程内缓存，缓存未命中时查 DB）。
 
         注意：中间件不能使用 FastAPI Depends，需要手动管理 DB session。
+        使用独立 session，不与请求 session 共享（避免 event loop 冲突）。
         """
-        from app.services.setup_service import _setup_complete as cached
+        import app.services.setup_service as svc_module
 
+        # 直接读取 module-level 缓存变量（避免额外导入）
+        cached = svc_module._setup_complete
         if cached is not None:
             return cached
 
@@ -85,7 +88,9 @@ class SetupRedirectMiddleware(BaseHTTPMiddleware):
             from app.services.setup_service import is_setup_complete
 
             async with async_session_maker() as session:
-                return await is_setup_complete(session)
+                result = await is_setup_complete(session)
+                await session.close()
+                return result
         except Exception as e:
             log.error("检查 setup 状态失败：%s", e)
             # 失败时 fail-close（阻止访问）

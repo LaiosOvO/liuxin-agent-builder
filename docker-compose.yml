@@ -117,6 +117,16 @@ services:
       start_period: 30s
     restart: unless-stopped
 
+  mailhog:
+    image: mailhog/mailhog:latest
+    container_name: agent-builder-mailhog
+    ports:
+      - "1025:1025"   # SMTP（开发环境邮件发送端口）
+      - "8025:8025"   # Web UI（浏览器查看捕获邮件）
+    networks:
+      - agent-builder-net
+    restart: unless-stopped
+
   nginx:
     image: nginx:1.25-alpine
     container_name: agent-builder-nginx

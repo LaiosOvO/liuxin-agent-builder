@@ -10,16 +10,16 @@ See: .planning/PROJECT.md (updated 2026-05-16)
 ## Current Position
 
 Phase: 1 of 7 (Skeleton + 账号体系)
-Plan: 5 of 6 in current phase
-Status: In Progress
-Last activity: 2026-05-16 — Plan 01-05 完成（管理前端页面：setup/login/invite/dashboard + RoleGate + Zustand store + 55个测试）
+Plan: 6 of 6 in current phase（01-04 补完，Phase 1 全部6个计划完成）
+Status: Phase Complete
+Last activity: 2026-05-16 — Plan 01-04 完成（认证骨架：JWT/RBAC/Setup向导/邀请流程 + 119个集成测试，覆盖率70.82%）
 
-Progress: [█████░░░░░] 50%
+Progress: [██████░░░░] 57%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 4
+- Total plans completed: 6 (Phase 1 全部完成)
 - Average duration: —
 - Total execution time: 0 hours
 
@@ -57,6 +57,9 @@ Recent decisions affecting current work:
 - M5 (Phase 1): Next.js 保持 15.2.3（不升级到 16.2）：升级需 Tailwind codemod，风险超 Phase 1 收益
 - M5 (Phase 1): login/page.tsx 替换 flock 版本：CONTEXT.md 外部可见层品牌规定优先于 fork discipline
 - M5 (Phase 1): API_BASE 运行时动态计算（getApiBase 函数），支持测试环境覆盖
+- M4 (Phase 1): rbac.denied 审计用独立 session（HTTPException 回滚主 session，需独立 session 确保审计提交）
+- M4 (Phase 1): GET verify-email 消费 jti（与 HITL GET 不消费不同，代码注释明确区分）
+- M4 (Phase 1): autouse pytest fixture 重置 slowapi limiter + app.state.limiter（防止 importlib.reload 后双 limiter 不一致）
 
 ### Pending Todos
 
@@ -71,5 +74,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-05-16
-Stopped at: Completed 01-05-PLAN.md（管理前端：Next.js 15.2.3 setup/login/invite/dashboard 四页面 + RoleGate + Zustand store + TanStack Query + 55个vitest测试）
+Stopped at: Completed 01-04-PLAN.md（认证骨架：JWT三类token + RBAC + Setup向导 + 邀请流程 + 119个集成测试(70.82%覆盖率)）
 Resume file: None

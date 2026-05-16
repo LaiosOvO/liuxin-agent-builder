@@ -41,11 +41,15 @@ def get_token_from_path(request: Request) -> str:
     return get_remote_address(request)
 
 
-# REDIS_URL 在 startup_checks 阶段已验证存在
-_redis_url: str = os.environ.get("REDIS_URL", "redis://redis:6379/0")
+# 支持测试环境使用 memory:// 存储（避免依赖 Redis）
+# SLOWAPI_STORAGE_URI 优先（测试时设为 "memory://"），否则使用 REDIS_URL
+_storage_uri: str = os.environ.get(
+    "SLOWAPI_STORAGE_URI",
+    os.environ.get("REDIS_URL", "redis://redis:6379/0"),
+)
 
 limiter: Limiter = Limiter(
     key_func=get_remote_address,
     default_limits=["100/minute"],
-    storage_uri=_redis_url,
+    storage_uri=_storage_uri,
 )
