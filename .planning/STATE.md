@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-05-16)
 ## Current Position
 
 Phase: 1 of 7 (Skeleton + 账号体系)
-Plan: 4 of TBD in current phase
+Plan: 5 of 6 in current phase
 Status: In Progress
-Last activity: 2026-05-16 — Plan 01-02 完成（DB 层 7 张表 + Alembic + WorkspaceScopedQuery + DISCARD ALL hook）
+Last activity: 2026-05-16 — Plan 01-05 完成（管理前端页面：setup/login/invite/dashboard + RoleGate + Zustand store + 55个测试）
 
-Progress: [████░░░░░░] 40%
+Progress: [█████░░░░░] 50%
 
 ## Performance Metrics
 
@@ -27,7 +27,7 @@ Progress: [████░░░░░░] 40%
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| 1 (Skeleton) | 3 | ~30min | ~10min |
+| 1 (Skeleton) | 5 | ~54min | ~11min |
 
 **Recent Trend:**
 - Last 5 plans: 01-01, 01-03 (并行), 01-02
@@ -54,6 +54,9 @@ Recent decisions affecting current work:
 - M2 (Phase 2): state schema 重型数据走 Redis Pointer Pattern（防 Pitfall 1 Checkpoint 膨胀）
 - M3 (Phase 3): GET 不消费 jti，POST 才消费（防 Pitfall 3 邮件扫描器预消费）
 - M3 (Phase 3): jti 消费 + Advisory Lock 防并发双提交（防 Pitfall 2）
+- M5 (Phase 1): Next.js 保持 15.2.3（不升级到 16.2）：升级需 Tailwind codemod，风险超 Phase 1 收益
+- M5 (Phase 1): login/page.tsx 替换 flock 版本：CONTEXT.md 外部可见层品牌规定优先于 fork discipline
+- M5 (Phase 1): API_BASE 运行时动态计算（getApiBase 函数），支持测试环境覆盖
 
 ### Pending Todos
 
@@ -68,5 +71,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-05-16
-Stopped at: Completed 01-02-PLAN.md（DB 层 7 张表 + Alembic 0001 migration + WorkspaceScopedQuery + DISCARD ALL hook + 12 个集成测试）
+Stopped at: Completed 01-05-PLAN.md（管理前端：Next.js 15.2.3 setup/login/invite/dashboard 四页面 + RoleGate + Zustand store + TanStack Query + 55个vitest测试）
 Resume file: None

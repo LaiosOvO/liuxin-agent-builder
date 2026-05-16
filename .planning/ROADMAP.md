@@ -37,7 +37,7 @@ Plans:
 - [ ] 01-02-PLAN.md — DB schema + Alembic + WorkspaceScopedQuery + DISCARD ALL hook（Wave 2）
 - [ ] 01-03-PLAN.md — nginx 双 server_block + HMAC 启动校验 + slowapi 限频（Wave 2）
 - [ ] 01-04-PLAN.md — Auth Service + API（setup/auth/invites/me）+ 集成测试（Wave 3）
-- [ ] 01-05-PLAN.md — Next.js 前端（setup/login/invite/dashboard）+ RoleGate（Wave 3）
+- [x] 01-05-PLAN.md — Next.js 前端（setup/login/invite/dashboard）+ RoleGate（Wave 3）
 - [ ] 01-06-PLAN.md — E2E 端到端验收 + MailHog + ROADMAP 5 条 success criteria 覆盖（Wave 4）
 
 ### Phase 2: DSL 引擎 + 基础节点
