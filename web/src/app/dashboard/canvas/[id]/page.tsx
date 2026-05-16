@@ -21,6 +21,8 @@ import { ConfigPanel } from '@/components/agent-builder/canvas/panels/config-pan
 import { IssueList } from '@/components/agent-builder/canvas/panels/issue-list';
 import { RunInstanceDialog } from '@/components/agent-builder/instances/run-instance-dialog';
 import { useCanvasStore } from '@/lib/stores/canvas-store';
+import { useValidatorStore } from '@/lib/stores/validator-store';
+import { useDebouncedValidator } from '@/lib/hooks/use-debounced-validator';
 import { workflowsApi } from '@/lib/api/workflows';
 import type { DSL } from '@/lib/types/dsl';
 
@@ -125,6 +127,12 @@ export default function WorkflowEditorPage({ params }: { params: Promise<PagePar
   const { workflowName, setWorkflowName, setWorkflowId, loadDSL, exportDSL } =
     useCanvasStore();
 
+  // 300ms 防抖 DSL 实时校验（节点/边变更自动触发）
+  useDebouncedValidator(300);
+
+  // 订阅校验状态（控制发布按钮）
+  const hasFatalErrors = useValidatorStore((s) => s.hasFatalErrors);
+
   // 初始化：加载工作流 DSL
   useEffect(() => {
     setWorkflowId(id);
@@ -186,14 +194,31 @@ export default function WorkflowEditorPage({ params }: { params: Promise<PagePar
   // 发布工作流
   const handlePublish = useCallback(async () => {
     if (publishing) return;
+    // 有致命错误时阻断发布（前端校验）
+    if (hasFatalErrors) {
+      toast.error('存在校验错误，请修复后再发布');
+      return;
+    }
     setPublishing(true);
     try {
       if (isMock) {
         toast.info('发布功能在 Plan 02-08 上线后可用');
         return;
       }
-      // 先保存草稿再发布
       const dsl = exportDSL();
+
+      // 发布前后端权威复检（CONTEXT.md 决策 #15 两阶段校验）
+      try {
+        const validateResult = await workflowsApi.validate(dsl);
+        if (validateResult?.errors?.some((e: { severity: string }) => e.severity === 'error')) {
+          toast.error('后端校验发现错误，请修复后重试');
+          return;
+        }
+      } catch {
+        // validate 接口不可用时降级（不阻断发布）
+      }
+
+      // 先保存草稿再发布
       await workflowsApi.saveDraft(id, dsl);
       await workflowsApi.publish(id);
       setWorkflowStatus('published');
@@ -205,7 +230,7 @@ export default function WorkflowEditorPage({ params }: { params: Promise<PagePar
     } finally {
       setPublishing(false);
     }
-  }, [id, isMock, publishing, exportDSL]);
+  }, [id, isMock, publishing, hasFatalErrors, exportDSL]);
 
   // 返回列表
   function handleBack() {
@@ -275,13 +300,15 @@ export default function WorkflowEditorPage({ params }: { params: Promise<PagePar
             {saving ? '保存中…' : '保存草稿'}
           </button>
 
-          {/* 发布 */}
+          {/* 发布（有致命校验错误时禁用） */}
           <button
             onClick={handlePublish}
-            disabled={publishing}
-            className="flex items-center gap-1 rounded-lg bg-indigo-600 px-3 py-1.5 text-sm text-white hover:bg-indigo-700 disabled:opacity-60"
+            disabled={publishing || hasFatalErrors}
+            title={hasFatalErrors ? '存在校验错误，请先修复再发布' : undefined}
+            className="flex items-center gap-1 rounded-lg bg-indigo-600 px-3 py-1.5 text-sm text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
+            data-testid="publish-btn"
           >
-            {publishing ? '发布中…' : '发布'}
+            {publishing ? '发布中…' : hasFatalErrors ? '修复错误后才能发布' : '发布'}
           </button>
         </div>
       </header>
