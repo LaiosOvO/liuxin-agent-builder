@@ -19,6 +19,7 @@ import { Canvas } from '@/components/agent-builder/canvas/canvas';
 import { NodePalette } from '@/components/agent-builder/canvas/panels/node-palette';
 import { ConfigPanel } from '@/components/agent-builder/canvas/panels/config-panel';
 import { IssueList } from '@/components/agent-builder/canvas/panels/issue-list';
+import { RunInstanceDialog } from '@/components/agent-builder/instances/run-instance-dialog';
 import { useCanvasStore } from '@/lib/stores/canvas-store';
 import { workflowsApi } from '@/lib/api/workflows';
 import type { DSL } from '@/lib/types/dsl';
@@ -118,6 +119,8 @@ export default function WorkflowEditorPage({ params }: { params: Promise<PagePar
   const [saving, setSaving] = useState(false);
   const [publishing, setPublishing] = useState(false);
   const [workflowStatus, setWorkflowStatus] = useState<'draft' | 'published'>('draft');
+  const [showRunDialog, setShowRunDialog] = useState(false);
+  const [currentDsl, setCurrentDsl] = useState<DSL | null>(null);
 
   const { workflowName, setWorkflowName, setWorkflowId, loadDSL, exportDSL } =
     useCanvasStore();
@@ -145,6 +148,7 @@ export default function WorkflowEditorPage({ params }: { params: Promise<PagePar
       .then((detail) => {
         loadDSL(detail.dsl);
         setWorkflowStatus(detail.status);
+        setCurrentDsl(detail.dsl);
       })
       .catch(() => {
         // API 未就绪时降级到 mock 模式（不提示错误，静默降级）
@@ -244,11 +248,18 @@ export default function WorkflowEditorPage({ params }: { params: Promise<PagePar
         </div>
 
         <div className="flex items-center gap-2">
-          {/* 运行（Plan 02-08 接入实例创建） */}
+          {/* 运行工作流 */}
           <button
-            disabled
-            title="运行功能将在 Plan 02-08 上线"
-            className="flex items-center gap-1 rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-gray-400 disabled:cursor-not-allowed"
+            onClick={() => setShowRunDialog(true)}
+            disabled={workflowStatus !== 'published' || isMock}
+            title={
+              isMock
+                ? '本地模式不支持运行'
+                : workflowStatus !== 'published'
+                  ? '请先发布工作流'
+                  : '运行工作流'
+            }
+            className="flex items-center gap-1 rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50 disabled:cursor-not-allowed disabled:text-gray-400"
           >
             <RocketIcon className="h-3.5 w-3.5" />
             运行
@@ -291,6 +302,16 @@ export default function WorkflowEditorPage({ params }: { params: Promise<PagePar
 
       {/* 底部：Issue 列表 */}
       <IssueList />
+
+      {/* 运行实例弹窗 */}
+      {showRunDialog && (
+        <RunInstanceDialog
+          workflowId={id}
+          workflowName={workflowName}
+          dsl={currentDsl}
+          onClose={() => setShowRunDialog(false)}
+        />
+      )}
     </div>
   );
 }
