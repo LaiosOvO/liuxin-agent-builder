@@ -10,16 +10,16 @@ See: .planning/PROJECT.md (updated 2026-05-16)
 ## Current Position
 
 Phase: 1 of 7 (Skeleton + 账号体系)
-Plan: 3 of TBD in current phase
+Plan: 4 of TBD in current phase
 Status: In Progress
-Last activity: 2026-05-16 — Plan 01-03 完成（nginx 最小暴露面 + 启动校验 + slowapi）
+Last activity: 2026-05-16 — Plan 01-02 完成（DB 层 7 张表 + Alembic + WorkspaceScopedQuery + DISCARD ALL hook）
 
-Progress: [███░░░░░░░] 30%
+Progress: [████░░░░░░] 40%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 3
+- Total plans completed: 4
 - Average duration: —
 - Total execution time: 0 hours
 
@@ -30,7 +30,7 @@ Progress: [███░░░░░░░] 30%
 | 1 (Skeleton) | 3 | ~30min | ~10min |
 
 **Recent Trend:**
-- Last 5 plans: 01-01, 01-02, 01-03
+- Last 5 plans: 01-01, 01-03 (并行), 01-02
 - Trend: 稳定
 
 *Updated after each plan completion*
@@ -47,6 +47,10 @@ Recent decisions affecting current work:
 - M1 (Phase 1): HMAC_SECRET 启动校验 ≥ 32 字节（防 Pitfall 4）
 - M1 (Phase 1): startup_checks 在模块顶层直接调用，不放 FastAPI lifespan（lifespan 触发太晚）
 - M1 (Phase 1): slowapi get_token_from_path 用命名函数不用 lambda（slowapi 装饰器调用签名约束）
+- M1 (Phase 1): 手写 migration 0001（不用 autogenerate，避免 CITEXT/复合索引出错）
+- M1 (Phase 1): migrations/ 独立于 flock 原 app/alembic（fork discipline），新建 backend/migrations/
+- M1 (Phase 1): audit_logs 使用 BIGSERIAL PK（时序有序，非 UUID）
+- M1 (Phase 1): Docker 不可用时集成测试自动回退到 POSTGRES_DSN 指定的 SSH 隧道 DB
 - M2 (Phase 2): state schema 重型数据走 Redis Pointer Pattern（防 Pitfall 1 Checkpoint 膨胀）
 - M3 (Phase 3): GET 不消费 jti，POST 才消费（防 Pitfall 3 邮件扫描器预消费）
 - M3 (Phase 3): jti 消费 + Advisory Lock 防并发双提交（防 Pitfall 2）
@@ -64,5 +68,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-05-16
-Stopped at: Completed 01-skeleton-03-PLAN.md（nginx 双 server_block + 启动校验 + slowapi + E2E 路径扫描）
+Stopped at: Completed 01-02-PLAN.md（DB 层 7 张表 + Alembic 0001 migration + WorkspaceScopedQuery + DISCARD ALL hook + 12 个集成测试）
 Resume file: None

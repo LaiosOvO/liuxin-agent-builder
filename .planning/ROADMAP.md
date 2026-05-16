@@ -117,7 +117,7 @@ Plans:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Skeleton + 账号体系 | 2/6 | In Progress|  |
+| 1. Skeleton + 账号体系 | 3/6 | In Progress|  |
 | 2. DSL 引擎 + 基础节点 | 0/TBD | Not started | - |
 | 3. HITL 单节点 + Email 审批 | 0/TBD | Not started | - |
 | 4. 审批链 + IM 通知 | 0/TBD | Not started | - |
