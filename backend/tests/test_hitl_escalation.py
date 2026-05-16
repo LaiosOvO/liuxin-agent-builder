@@ -32,7 +32,7 @@ from app.agent_builder.services.escalation_service import EscalationService
 
 @pytest.fixture(autouse=False)
 async def clean_phase3_tables(db_session):
-    """每次测试后清理 Phase 3 表（FK 顺序）。"""
+    """每次测试后清理 Phase 3 表（FK 顺序）+ dispose engine。"""
     yield
     await db_session.execute(text("DELETE FROM hitl_tokens"))
     await db_session.execute(text("DELETE FROM notifications"))
@@ -45,6 +45,9 @@ async def clean_phase3_tables(db_session):
     await db_session.execute(text("DELETE FROM users"))
     await db_session.execute(text("DELETE FROM workspaces"))
     await db_session.commit()
+    # Phase 3 plan 03-09 测试用 async_session_maker 跨 fixture session — dispose 防污染
+    from app.agent_builder.db.engine import engine
+    await engine.dispose()
 
 
 @pytest.fixture(autouse=True)

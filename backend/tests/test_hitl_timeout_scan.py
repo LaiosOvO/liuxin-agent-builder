@@ -37,7 +37,7 @@ from app.jobs.hitl_timeout_jobs import (
 
 @pytest.fixture(autouse=False)
 async def clean_phase3_tables(db_session):
-    """每次测试后清理 Phase 3 表（FK 顺序）。"""
+    """每次测试后清理 Phase 3 表（FK 顺序）+ dispose engine（防跨测试事件循环污染）。"""
     yield
     await db_session.execute(text("DELETE FROM hitl_tokens"))
     await db_session.execute(text("DELETE FROM notifications"))
@@ -50,6 +50,10 @@ async def clean_phase3_tables(db_session):
     await db_session.execute(text("DELETE FROM users"))
     await db_session.execute(text("DELETE FROM workspaces"))
     await db_session.commit()
+    # scan_hitl_timeouts 内部用 async_session_maker 新建 session — 需 dispose engine
+    # 防止后续测试事件循环上下文 pollution（参考 test_hitl_advisory_lock_concurrent.py）
+    from app.agent_builder.db.engine import engine
+    await engine.dispose()
 
 
 @pytest.fixture(autouse=True)

@@ -76,18 +76,25 @@ async def scan_hitl_timeouts(ctx: dict | None) -> int:
     async with async_session_maker() as db:
         nodes = await _scan_overdue_nodes(db, now=now)
         log.info("scan_hitl_timeouts: 找到 %d 个潜在超时节点", len(nodes))
+        # 仅取 ID — _process_node 内部重新加载（避免 detached ORM 对象跨 session 行为）
+        node_ids = [ns.id for ns in nodes]
 
-        for ns in nodes:
+        for ns_id in node_ids:
             try:
-                handled = await _process_node(ctx, db, ns, now=now)
+                handled = await _process_node(ctx, db, ns_id, now=now)
                 if handled:
                     processed += 1
             except Exception:
                 # 单节点异常隔离 — 借鉴 Dify human_input_timeout_tasks.py:108
                 log.exception(
                     "scan_hitl_timeouts: 处理节点 %s 失败（不影响其他节点）",
-                    ns.id,
+                    ns_id,
                 )
+                # 失败后 rollback 让 session 恢复可用
+                try:
+                    await db.rollback()
+                except Exception:
+                    pass
 
     log.info("scan_hitl_timeouts: 本次处理 %d 个节点", processed)
     return processed
@@ -125,25 +132,32 @@ async def _scan_overdue_nodes(
 async def _process_node(
     ctx: dict | None,
     db: AsyncSession,
-    ns: NodeState,
+    ns_id: UUID,
     *,
     now: datetime,
 ) -> bool:
     """处理单个超时节点（advisory_lock 保护下）。
 
+    Args:
+        ns_id: 节点状态 UUID（不传 ORM 对象 — 避免 detached object 跨 session race）
+
     Returns:
         True 表示触发了一次 reminder / escalation；False 表示 skip（状态变化 / 已处理过当前档）。
     """
     # 1. advisory_xact_lock — hash(node_state_id) 单进程内一致
-    lock_key = hash(str(ns.id)) & 0x7FFFFFFFFFFFFFFF
+    lock_key = hash(str(ns_id)) & 0x7FFFFFFFFFFFFFFF
 
     # advisory_xact_lock：当前事务结束时自动释放
-    # 注意：不在 begin_nested 内（savepoint 内 PG advisory_lock 表现不同）
-    # 改为：手动 begin/commit 包裹（确保 advisory_lock 在新事务里）
+    # 在持有 lock 之前完成事务隔离边界 — 锁内 SELECT 看到最新 committed 数据
     await db.execute(text("SELECT pg_advisory_xact_lock(:k)"), {"k": lock_key})
 
-    # 2. 重新查 ns.status（advisory_lock 与 scan 之间可能被外部 POST 改）
-    await db.refresh(ns)
+    # 2. 锁内重新加载节点（fresh from PG — advisory_lock 释放期间可能有其他 worker 提交）
+    ns = await db.get(NodeState, ns_id)
+    if ns is None:
+        log.warning("_process_node: 节点 %s 已删除，跳过", ns_id)
+        await db.commit()
+        return False
+
     if ns.status not in ("waiting_human", "in_review"):
         log.info(
             "_process_node: 节点 %s 状态已变更为 %s，跳过",
@@ -246,21 +260,22 @@ async def _trigger_reminder(
 ) -> None:
     """触发催办邮件（NOTI-09）。
 
-    复用 03-04 NotificationService.enqueue_hitl_email + 03-02 HitlService.batch_create_tokens
-    （重签发 token，因首发 token 已过 24h 默认过期）。
+    复用 03-02 HitlService.batch_create_tokens 重签发 token（首发 token 已过 24h 默认过期），
+    直接 INSERT notifications 行（不走 NotificationService.enqueue_hitl_email，因后者内部
+    commit 会提前释放 advisory_lock — 我们要保持事务一致性到 _process_node 的统一 commit）。
 
     Args:
         ctx: arq worker 上下文（含 redis） — None 时走 fallback（不入队 arq）
-        db: 当前 db session（advisory_lock 已持有）
+        db: 当前 db session（advisory_lock 已持有 — 不提前 commit）
         ns: NodeState 实例
         reminder_round: 1 = 首催, 2 = 二催
 
     Notes:
         - UNIQUE 约束（instance_id, node_state_id, channel='email', recipient, reminder_round）
-          保证不重复入队；如果竞争失败 → IntegrityError → 上层 try/except 吞掉
+          保证不重复入队；advisory_lock 是第一道防线，UNIQUE 兜底防极端 race
+        - arq enqueue_job 在事务 commit 之后由 _process_node 完成（避免回滚后仍 enqueue）
     """
     from app.agent_builder.services.hitl_service import HitlService
-    from app.services.notification_service import NotificationService
 
     payload = ns.payload or {}
     current_actor = payload.get("current_actor") or {}
@@ -300,49 +315,68 @@ async def _trigger_reminder(
         allowed_actions=allowed_actions,
     )
 
-    # deadline_at 解析（必传给 enqueue_hitl_email）
+    # 构造 notifications.payload（参考 NotificationService.enqueue_hitl_email 结构）
     deadline_at_str = payload.get("deadline_at")
-    deadline_at = (
-        datetime.fromisoformat(deadline_at_str)
+    deadline_at_iso = (
+        deadline_at_str
         if isinstance(deadline_at_str, str)
-        else datetime.now(timezone.utc)
+        else datetime.now(timezone.utc).isoformat()
     )
+    token_records = [{"jti": str(t.jti), "action": t.action} for t in tokens]
+    notif_payload: dict[str, Any] = {
+        "tokens": token_records,
+        "form_schema": dict(payload.get("form_schema") or {}),
+        "deadline_at": deadline_at_iso,
+        "actor_name": current_actor.get("email", ""),
+        "flow_title": payload.get("flow_title", ""),
+        "node_title": payload.get("node_title", ""),
+        "applicant_name": payload.get("applicant_name", ""),
+        "description": payload.get("description", ""),
+    }
 
-    # 取 arq_pool 自 ctx（生产路径）/ 测试 fallback
-    arq_pool = ctx.get("redis") if isinstance(ctx, dict) else None
-
-    svc = NotificationService(db, arq_pool=arq_pool)
+    notif = Notification(
+        workspace_id=ns.workspace_id,
+        instance_id=ns.instance_id,
+        node_state_id=ns.id,
+        channel="email",
+        recipient=recipient_email,
+        reminder_round=reminder_round,
+        status="pending",
+        payload=notif_payload,
+    )
+    db.add(notif)
     try:
-        await svc.enqueue_hitl_email(
-            workspace_id=ns.workspace_id,
-            instance_id=ns.instance_id,
-            node_state_id=ns.id,
-            recipient_email=recipient_email,
-            tokens=tokens,
-            form_schema=payload.get("form_schema") or {},
-            deadline_at=deadline_at,
-            actor_name=current_actor.get("email", ""),  # actor 实名 v1 没有 — 用 email
-            flow_title=payload.get("flow_title", ""),
-            node_title=payload.get("node_title", ""),
-            applicant_name=payload.get("applicant_name", ""),
-            description=payload.get("description", ""),
-            reminder_round=reminder_round,
-        )
+        await db.flush()
         log.info(
-            "_trigger_reminder: 节点 %s 已入队 round=%s 催办邮件 → %s",
+            "_trigger_reminder: 节点 %s 已 INSERT round=%s 催办行 → %s",
             ns.id,
             reminder_round,
             recipient_email,
         )
     except sa.exc.IntegrityError:
-        # UNIQUE 约束冲突 — 多 worker 抢到同一档（advisory_lock 已防大多数 race，
-        # 此处兜底；rollback 让事务恢复可用）
+        # UNIQUE 约束冲突 — 多 worker 抢到同一档（advisory_lock 已防大多数 race；
+        # 此处兜底；rollback 让事务恢复可用 — 外层 _process_node 看不到此 INSERT）
         log.info(
             "_trigger_reminder: 节点 %s round=%s 已被其他 worker 处理（UNIQUE 冲突）",
             ns.id,
             reminder_round,
         )
         await db.rollback()
+        return
+
+    # 入队 arq job（commit 之后，由 _process_node 调用）
+    # 这里只把 notif 暂存到 ns，让 _process_node commit 后再 enqueue
+    # 简化：直接调用 send_hitl_email_job 异步 task（测试时被 monkeypatch）
+    arq_pool = ctx.get("redis") if isinstance(ctx, dict) else None
+    if arq_pool is not None:
+        await arq_pool.enqueue_job("send_hitl_email_job", str(notif.id))
+    else:
+        # 测试 / dev fallback：直接 asyncio.create_task
+        import asyncio
+
+        from app.jobs.email_jobs import send_hitl_email_job
+
+        asyncio.create_task(send_hitl_email_job(None, str(notif.id)))
 
 
 async def _trigger_escalation(
