@@ -165,10 +165,31 @@ class DSLCompiler:
         )
 
     def _build_node_executor(self, node: dict) -> Callable:
-        """构造节点占位 executor。
+        """构造节点 executor（Plan 02-04 接入真实 executor）。
 
-        占位 executor 接收 state dict，返回包含节点标识的字典。
-        Plan 02-04/05 接入真实 executor 时替换此方法。
+        按节点 type 从 NODE_EXECUTORS 注册表查找 executor 类并实例化。
+        未注册的节点类型（如 llm，Plan 02-05 接入）回退到占位 executor。
+
+        Args:
+            node: DSL 节点定义 dict
+
+        Returns:
+            已实例化的 BaseNodeExecutor 或 placeholder async 函数
+        """
+        from app.agent_builder.workflow.nodes import NODE_EXECUTORS
+
+        node_type = node.get("type", "unknown")
+        executor_cls = NODE_EXECUTORS.get(node_type)
+
+        if executor_cls is not None:
+            # 真实 executor：传入节点定义 + 共享 jinja_env
+            return executor_cls(node, jinja_env=self._jinja_env)
+
+        # 未注册节点类型（如 llm，Plan 02-05 接入）使用占位 executor
+        return self._build_placeholder_executor(node)
+
+    def _build_placeholder_executor(self, node: dict) -> Callable:
+        """构造占位 executor（Plan 02-05 接入 llm 节点前的过渡）。
 
         Args:
             node: DSL 节点定义 dict
@@ -180,28 +201,22 @@ class DSLCompiler:
         node_type = node.get("type", "unknown")
 
         async def placeholder(state: dict) -> dict:
-            """占位 executor：返回占位标识（Plan 02-04/05 接入真实逻辑）。
-
-            Plan 02-04/05 接入时，将此占位函数替换为：
-                executor = get_node_executor(node_type)
-                return await executor.execute(state, node_config, jinja_env)
-            """
+            """占位 executor：返回占位标识（Plan 02-05 接入真实逻辑）。"""
             return {node_id: {"_placeholder": True, "type": node_type}}
 
         # 为占位函数设置有意义的名称（便于 LangGraph 日志和调试）
         placeholder.__name__ = f"placeholder_{node_id}"
-        placeholder.__qualname__ = f"DSLCompiler._build_node_executor.<locals>.placeholder_{node_id}"
+        placeholder.__qualname__ = f"DSLCompiler._build_placeholder_executor.<locals>.placeholder_{node_id}"
 
         return placeholder
 
     def _make_if_else_router(self, node: dict) -> Callable:
-        """构造 if_else 节点的路由函数。
+        """构造 if_else 节点的路由函数（Plan 02-04 接入真实 IfElseNodeExecutor）。
 
-        占位路由：直接返回 default_target（不评估 Jinja2 条件表达式）。
-        Plan 02-04/05 接入真实路由时替换此方法：
-            1. 按 conditions 顺序评估 Jinja2 expr
-            2. 第一个为真的条件 → 返回其 target_node_id
-            3. 无条件满足 → 返回 default_target
+        使用 IfElseNodeExecutor.resolve_route 进行真实 Jinja2 条件求值：
+        1. 按 conditions 顺序评估 Jinja2 expr
+        2. 第一个为真的条件 → 返回其 target_node_id
+        3. 无条件满足 → 返回 default_target
 
         Args:
             node: DSL if_else 节点定义 dict
@@ -209,37 +224,13 @@ class DSLCompiler:
         Returns:
             同步函数 router(state) -> str（返回目标节点 ID）
         """
-        cfg = node.get("config", {})
-        default_target = cfg.get("default_target", "")
-        conditions = cfg.get("conditions", [])
-        jinja_env = self._jinja_env
+        from app.agent_builder.workflow.nodes.if_else import IfElseNodeExecutor
+
+        executor = IfElseNodeExecutor(node, jinja_env=self._jinja_env)
 
         def router(state: dict) -> str:
-            """占位路由器：尝试评估 Jinja2 条件，失败时返回 default_target。
-
-            Plan 02-04/05 接入后，此函数将完整评估所有条件表达式。
-            """
-            # 尝试评估 Jinja2 布尔表达式
-            for cond in conditions:
-                expr: str = cond.get("expr", "")
-                target: str = cond.get("target_node_id", default_target)
-                if not expr:
-                    continue
-                try:
-                    # 去除 Jinja2 模板分隔符，得到表达式
-                    # 支持格式：{{ expr }} 或直接 expr
-                    clean_expr = expr.strip()
-                    if clean_expr.startswith("{{") and clean_expr.endswith("}}"):
-                        clean_expr = clean_expr[2:-2].strip()
-                    # 渲染为字符串并评估
-                    rendered = jinja_env.from_string("{{ " + clean_expr + " }}").render(**state)
-                    # 简单布尔转换
-                    if rendered.lower() not in ("false", "0", "none", "null", ""):
-                        return target
-                except Exception:
-                    # 占位阶段：条件评估失败时走 default
-                    pass
-            return default_target
+            """真实路由器：用 IfElseNodeExecutor.resolve_route 评估 Jinja2 条件。"""
+            return executor.resolve_route(executor.config, state)
 
         router.__name__ = f"router_{node.get('id', 'if_else')}"
         return router
