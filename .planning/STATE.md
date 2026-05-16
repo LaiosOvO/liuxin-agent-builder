@@ -2,13 +2,13 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: unknown
-last_updated: "2026-05-16T20:33:31.537Z"
+status: in_progress
+last_updated: "2026-05-17T05:36:00.000Z"
 progress:
-  total_phases: 4
+  total_phases: 5
   completed_phases: 3
-  total_plans: 26
-  completed_plans: 26
+  total_plans: 38
+  completed_plans: 27
 ---
 
 # Project State
@@ -18,16 +18,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-16)
 
 **Core value:** 让非编码人员通过拖拽 5 分钟搭出"多通道审批 + 公网回调"的 LangGraph 工作流，并真实跑起来
-**Current focus:** Phase 3 — HITL 单节点 + Email 审批 ✓ COMPLETE → Phase 4 可启动
+**Current focus:** Phase 4 — 审批链 + IM 通知（12 plans，Wave 1 启动）
 
 ## Current Position
 
-Phase: 3 of 7 (HITL 单节点 + Email 审批) — ✅ COMPLETE
-Plan: 10 of 10 in current phase（全 10 plans 完成，Wave 1+2+3+4+5+6 全交付）
-Status: ✅ Phase 3 完整收官 — Wave 6 03-10 E2E gate 完成（5 Playwright spec 覆盖 ROADMAP Phase 3 全 5 条 success criteria + Safe Links bot 4 UA regression + 23 test）
-Last activity: 2026-05-17 — Plan 03-10 完成（5 Playwright spec + hitl-builder + 2 Page Object + mailhog HITL 扩展 + Smoke/Standard/Full 三档运行模式 + TypeScript --noEmit 0 错误 + Playwright --list 全枚举；13 个 requirements 全部 Complete）
+Phase: 4 of 7 (审批链 + IM 通知)
+Plan: 1 of 12 in current phase（Wave 1 04-01 完成）
+Status: ⏳ Phase 4 Wave 1 启动 — 04-01 chain payload + invalidate_chain + Alembic 0005 partial index 完成；下一步 Wave 2 (04-02 chain executor + 04-03 delegation + 04-04 escalation 可并行)
+Last activity: 2026-05-17 — Plan 04-01 完成（ChainAdvanceResult frozen dataclass + compute_chain_advance 纯函数 4 mode × 3 action 状态机 + HitlTokenStore.invalidate_chain 跨实例失效 + Alembic 0005 partial index ix_hitl_tokens_instance_used ON (instance_id, used_at) WHERE used_at IS NULL；40 个测试通过：29 unit + 11 integration；hitl_payload.py 模块覆盖率 98%；HITL-02 + HITL-06 需求向后兼容；Phase 3 既有 invalidate_siblings regression test 全过）
 
-Progress: [████░░░░░░] 43%（3/7 phases complete）
+Progress: [████░░░░░░] 43%（3/7 phases complete; Phase 4 1/12 plans done）
 
 ## Performance Metrics
 
@@ -64,6 +64,7 @@ Progress: [████░░░░░░] 43%（3/7 phases complete）
 | Phase 03-hitl-email P09 | ~26m | 4 tasks（Task0 reading + Task1 scan + Task2 escalation + Task3 rounds） | 9 files (7 created + 2 modified) |
 | Phase 03-hitl-email P08 | 28min | 3 tasks | 12 files |
 | Phase 03-hitl-email P10 | 10min | 4 tasks | 10 files |
+| Phase 04-approval-chain-im P01 | 10min | 3 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -203,6 +204,16 @@ Recent decisions affecting current work:
 - [Phase 03-10]: advisory_lock 并发断言 ≥1 而非 ==1（与 03-06 同模式 — asyncio.gather 不保证真并发）
 - [Phase 03-10]: 汇总型 reading doc（不读新 Dify 代码）— Phase 3 终结性 plan 整合前 9 plan reading docs + 测试模式总结
 - [Phase 03-10]: mailhog MIME body 简单切分（regex HTML/text + quoted-printable 解码）— 不引入 mailparser 依赖
+- [Phase 04-01]: ChainAdvanceResult 用 @dataclass(frozen=True) + field(default_factory=list) 而非 Pydantic/TypedDict/NamedTuple — frozen 保证 immutable + default_factory 防共享 mutable 默认值陷阱（零依赖 + 零运行时开销）
+- [Phase 04-01]: compute_chain_advance 4 chain mode × 3 action = 12 状态机分支全覆盖（_advance_single/_advance_sequential/_advance_parallel_all/_advance_parallel_any 四 helper 各自负责一种 mode）
+- [Phase 04-01]: build_initial_payload 默认 chain_mode='single' 保持 Phase 3 完全向后兼容；parallel_* 模式自动初始化 decisions 字典；single/sequential 不初始化 decisions（用 current_idx 推进）
+- [Phase 04-01]: invalidate_chain used_ip='system:chain-invalidate' / used_ua='system:invalidate_chain' — 与 sibling-invalidate / 真实用户消费三层审计区分
+- [Phase 04-01]: supplement_notify 智能过滤：parallel_* 终止时仅通知「未决策 + 非当前 actor」的 approver — 已决策 token 已自然消费，避免重复补通知
+- [Phase 04-01]: sequential 越权防护：only approvers[current_idx] 能决策；不依赖 actor_id ∈ approvers 弱校验（防中间人提前 approve）
+- [Phase 04-01]: [Rule 3 - Blocking] Alembic migration revision 0004 已被 0004_phase3_node_state_payload 占用 → 用 0005，down_revision='0004'（不重命名既有 migration，避免 alembic_version 表混乱）
+- [Phase 04-01]: 0005 partial index `WHERE used_at IS NULL` — invalidate_chain 仅扫未消费 token，partial index 体积更小、更新代价更低
+- [Phase 04-01]: 严格 immutability 测试：copy.deepcopy(payload) 前后 deep equal 断言 + result.new_payload["approval_chain"] is not payload["approval_chain"] 对象 identity 断言（4 测试覆盖三模式）
+- [Phase 04-01]: _advance_single 包装 Phase 3 行为 + 返回 ChainAdvanceResult — 调用方对 4 模式统一处理无特殊分支（invalidate_others=False）
 
 ### Pending Todos
 
@@ -218,6 +229,6 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-05-17
-Stopped at: Completed 03-10-PLAN.md（Phase 3 E2E gate — 5 Playwright spec 覆盖 ROADMAP Phase 3 全 5 个 success criteria：hitl_email_delivery / hitl_token_login / hitl_safe_links_bot / hitl_token_invalidation / hitl_tracking_page；hitl-builder helper + hitl.page + tracking.page + mailhog HITL 扩展；Smoke/Standard/Full 三档模式；CLAUDE.md 2.5 P0 Safe Links 4 UA 完整覆盖；13/13 requirements Complete；Phase 3 完整收官）
+Stopped at: Completed 04-01-PLAN.md（Phase 4 Wave 1 — chain payload + invalidate_chain + Alembic 0005 partial index）
 Resume file: None
-Next action: /gsd:verify-work 3 → /gsd:plan-phase 4（审批链 4 模式 + IM 通知 NOTI-02..07）
+Next action: 继续 Phase 4 Wave 2 — 04-02 chain executor + 04-03 delegation + 04-04 escalation 可并行 dispatch
