@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-last_updated: "2026-05-16T14:58:47.603Z"
+last_updated: "2026-05-16T14:59:59.697Z"
 progress:
   total_phases: 2
   completed_phases: 1
   total_plans: 16
-  completed_plans: 10
+  completed_plans: 11
 ---
 
 # Project State
@@ -49,6 +49,7 @@ Progress: [███░░░░░░░] 30%
 *Updated after each plan completion*
 | Phase 02-dsl P02 | 12 | 3 tasks | 17 files |
 | Phase 02 P05 | 30m | 3 tasks | 5 files |
+| Phase 02-dsl P06 | 11 | 2 tasks | 9 files |
 
 ## Accumulated Context
 
@@ -86,6 +87,7 @@ Recent decisions affecting current work:
 - [Phase 02-dsl, 02-03]: ConfigPanel 按 nodeType switch 独立子组件（5 种表单差异大，可维护性优于泛型方案）
 - [Phase 02-dsl, 02-03]: flock pre-existing TS 错误（Members/index.tsx）不修复（fork discipline），记录 deferred-items.md
 - [Phase 02]: llm_client.py 前次 run 已实现完整，评估后无需补丁；LLMNodeExecutor 继承 BaseNodeExecutor，不重复重试逻辑
+- [Phase 02-dsl]: pointer 格式用 __ptr__:redis:state:<32位hex>，Redis key = agent_builder:state_ptr:<ws>:<inst>:<uuid>，TTL=30天，阈值4096 bytes，missing pointer 返回标记不抛错
 
 ### Pending Todos
 
