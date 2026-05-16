@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-last_updated: "2026-05-16T14:31:32.032Z"
+last_updated: "2026-05-16T14:58:47.603Z"
 progress:
   total_phases: 2
   completed_phases: 1
   total_plans: 16
-  completed_plans: 8
+  completed_plans: 10
 ---
 
 # Project State
@@ -48,6 +48,7 @@ Progress: [███░░░░░░░] 30%
 
 *Updated after each plan completion*
 | Phase 02-dsl P02 | 12 | 3 tasks | 17 files |
+| Phase 02 P05 | 30m | 3 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -84,6 +85,7 @@ Recent decisions affecting current work:
 - [Phase 02-dsl, 02-03]: workflowsApi 先定义签名不接后端，?mock=1 降级到 localStorage 离线体验（Plan 02-08 兑现）
 - [Phase 02-dsl, 02-03]: ConfigPanel 按 nodeType switch 独立子组件（5 种表单差异大，可维护性优于泛型方案）
 - [Phase 02-dsl, 02-03]: flock pre-existing TS 错误（Members/index.tsx）不修复（fork discipline），记录 deferred-items.md
+- [Phase 02]: llm_client.py 前次 run 已实现完整，评估后无需补丁；LLMNodeExecutor 继承 BaseNodeExecutor，不重复重试逻辑
 
 ### Pending Todos
 
