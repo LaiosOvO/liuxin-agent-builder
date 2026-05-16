@@ -35,7 +35,7 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Form, Request, status
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -127,6 +127,28 @@ def _render_error(request: Request, message: str, status_code: int) -> HTMLRespo
     )
 
 
+def _wants_json(request: Request) -> bool:
+    """Content negotiation: 当 Accept 含 application/json 时返回 True。
+
+    Next.js 前端 SSR fetch 用 Accept: application/json；
+    邮件客户端 / 浏览器直访保持 HTML 默认。
+    """
+    accept = request.headers.get("Accept", "")
+    return "application/json" in accept.lower()
+
+
+def _render_error_negotiated(
+    request: Request, message: str, status_code: int
+) -> HTMLResponse | JSONResponse:
+    """按 Accept 头返回 HTML 或 JSON 错误响应。"""
+    if _wants_json(request):
+        return JSONResponse(
+            {"error": message, "status_code": status_code},
+            status_code=status_code,
+        )
+    return _render_error(request, message, status_code)
+
+
 # ── GET /hitl/page/<token> ───────────────────────────────────────────────────
 
 
@@ -142,11 +164,17 @@ async def hitl_page_view(
     CLAUDE.md 2.5：GET **不消费** jti（永不可接受 GET 消费）。
     """
     ua = request.headers.get("User-Agent", "")
+    wants_json = _wants_json(request)
 
     # ── 0. Bot UA 检测（Pitfall 3 P0 防护）───────────────────────────────
     # 必须在 JWT decode 之前 — bot 可能用任意 token 探测，不浪费 CPU 解码
     if is_bot_ua(ua):
         log.info("bot UA detected on GET, returning static scan page (ua=%s)", ua[:80])
+        if wants_json:
+            return JSONResponse(
+                {"bot_scan": True, "message": "邮件扫描，未触发任何状态变更"},
+                status_code=200,
+            )
         return templates.TemplateResponse(
             "bot_scan.html",
             {"request": request},
@@ -157,16 +185,16 @@ async def hitl_page_view(
     try:
         payload = HitlTokenService.decode(token)
     except TokenExpired:
-        return _render_error(
+        return _render_error_negotiated(
             request, "链接已过期，请联系发起人重新发起。", status.HTTP_410_GONE
         )
     except (InvalidSignature, InvalidAudience):
-        return _render_error(
+        return _render_error_negotiated(
             request, "无效的链接签名。", status.HTTP_401_UNAUTHORIZED
         )
     except HitlTokenError as e:
         log.warning("HITL token decode failed: %s", e)
-        return _render_error(
+        return _render_error_negotiated(
             request, "链接格式错误。", status.HTTP_400_BAD_REQUEST
         )
 
@@ -175,7 +203,7 @@ async def hitl_page_view(
     store = HitlTokenStore(db, redis)
     jti_uuid = UUID(payload["jti"])
     if await store.is_consumed(jti_uuid):
-        return _render_error(
+        return _render_error_negotiated(
             request,
             "决策已提交，链接失效。",
             status.HTTP_410_GONE,
@@ -184,7 +212,7 @@ async def hitl_page_view(
     # ── 3. 加载节点状态（form_schema / records / deadline）─────────────
     node_state = await db.get(NodeState, UUID(payload["node_state_id"]))
     if node_state is None:
-        return _render_error(
+        return _render_error_negotiated(
             request, "节点不存在。", status.HTTP_404_NOT_FOUND
         )
 
@@ -193,28 +221,49 @@ async def hitl_page_view(
     # ── 4. 签 30min HMAC session cookie ────────────────────────────────
     cookie_value = _sign_session_cookie(payload["jti"])
 
-    # ── 5. 渲染 page.html ───────────────────────────────────────────────
+    # ── 5. 渲染 page.html or JSON ───────────────────────────────────────
     # allowed_actions 是 JWT payload 内的字段（HitlTokenService.sign 写入）
     allowed_actions = payload.get("allowed_actions", [])
     primary_action = allowed_actions[0] if allowed_actions else "submit"
 
-    response = templates.TemplateResponse(
-        "page.html",
-        {
-            "request": request,
-            "token": token,
-            "jti": payload["jti"],
-            "action": primary_action,
-            "node_state_id": payload["node_state_id"],
-            "form_schema": ns_payload.get("form_schema", {}),
-            "records": ns_payload.get("records", []),
-            "deadline_at": ns_payload.get("deadline_at"),
-            "current_actor": ns_payload.get("current_actor"),
-            "phase": ns_payload.get("phase", "submit"),
-            "flow_title": ns_payload.get("flow_title"),
-        },
-        status_code=200,
-    )
+    if wants_json:
+        # JSON 响应（供 Next.js 前端 SSR / client fetch 消费）
+        response = JSONResponse(
+            {
+                "bot_scan": False,
+                "token": token,
+                "jti": payload["jti"],
+                "action": primary_action,
+                "allowed_actions": allowed_actions,
+                "node_state_id": payload["node_state_id"],
+                "form_schema": ns_payload.get("form_schema", {}),
+                "records": ns_payload.get("records", []),
+                "deadline_at": ns_payload.get("deadline_at"),
+                "current_actor": ns_payload.get("current_actor"),
+                "phase": ns_payload.get("phase", "submit"),
+                "flow_title": ns_payload.get("flow_title"),
+            },
+            status_code=200,
+        )
+    else:
+        response = templates.TemplateResponse(
+            "page.html",
+            {
+                "request": request,
+                "token": token,
+                "jti": payload["jti"],
+                "action": primary_action,
+                "node_state_id": payload["node_state_id"],
+                "form_schema": ns_payload.get("form_schema", {}),
+                "records": ns_payload.get("records", []),
+                "deadline_at": ns_payload.get("deadline_at"),
+                "current_actor": ns_payload.get("current_actor"),
+                "phase": ns_payload.get("phase", "submit"),
+                "flow_title": ns_payload.get("flow_title"),
+            },
+            status_code=200,
+        )
+
     response.set_cookie(
         key=f"hitl_session_{payload['jti']}",
         value=cookie_value,
@@ -244,28 +293,29 @@ async def hitl_action_submit(
     """
     ua = request.headers.get("User-Agent", "")
     ip = request.client.host if request.client else ""
+    wants_json = _wants_json(request)
 
     # ── 1. JWT decode ──────────────────────────────────────────────────
     try:
         payload = HitlTokenService.decode(token)
     except TokenExpired:
-        return _render_error(
+        return _render_error_negotiated(
             request, "链接已过期，无法提交。", status.HTTP_410_GONE
         )
     except (InvalidSignature, InvalidAudience):
-        return _render_error(
+        return _render_error_negotiated(
             request, "无效的链接签名。", status.HTTP_401_UNAUTHORIZED
         )
     except HitlTokenError as e:
         log.warning("HITL POST token decode failed: %s", e)
-        return _render_error(
+        return _render_error_negotiated(
             request, "链接格式错误。", status.HTTP_400_BAD_REQUEST
         )
 
     # ── 2. cookie 校验（Token-as-login HMAC session）────────────────────
     cookie_value = request.cookies.get(f"hitl_session_{payload['jti']}")
     if not _verify_session_cookie(payload["jti"], cookie_value):
-        return _render_error(
+        return _render_error_negotiated(
             request,
             "会话已过期或无效，请重新点击邮件链接。",
             status.HTTP_401_UNAUTHORIZED,
@@ -273,7 +323,7 @@ async def hitl_action_submit(
 
     # ── 3. action 字段校验（不可空）────────────────────────────────────
     if not action:
-        return _render_error(
+        return _render_error_negotiated(
             request, "缺少 action 字段。", status.HTTP_400_BAD_REQUEST
         )
 
@@ -296,13 +346,22 @@ async def hitl_action_submit(
             ua=ua,
         )
     except JtiAlreadyConsumed:
-        return _render_error(
+        return _render_error_negotiated(
             request,
             "决策已提交，无法重复提交。",
             status.HTTP_409_CONFLICT,
         )
     except FormDataValidationError as e:
-        # 422 + 重新渲染 page.html 含 errors
+        # 422 + 重新渲染 page.html 含 errors（HTML） 或 JSON {errors: [...]}
+        if wants_json:
+            return JSONResponse(
+                {
+                    "error": "表单校验失败",
+                    "errors": e.errors,
+                    "status_code": status.HTTP_422_UNPROCESSABLE_ENTITY,
+                },
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            )
         node_state = await db.get(NodeState, UUID(payload["node_state_id"]))
         ns_payload = (node_state.payload or {}) if node_state else {}
         return templates.TemplateResponse(
@@ -324,16 +383,26 @@ async def hitl_action_submit(
         )
     except (FlowInstanceNotFound, NodeStateNotFound) as e:
         log.warning("HITL POST resource not found: %s", e)
-        return _render_error(
+        return _render_error_negotiated(
             request, "关联资源不存在。", status.HTTP_404_NOT_FOUND
         )
     except ValueError as e:
         # compute_next_status 非法 action / phase 组合
-        return _render_error(
+        return _render_error_negotiated(
             request, f"非法决策动作：{e}", status.HTTP_400_BAD_REQUEST
         )
 
-    # ── 6. 成功页 ───────────────────────────────────────────────────────
+    # ── 6. 成功页 / JSON 响应 ───────────────────────────────────────────
+    if wants_json:
+        return JSONResponse(
+            {
+                "ok": True,
+                "action": action,
+                "instance_id": str(result["instance_id"]),
+                "new_node_status": result["new_node_status"],
+            },
+            status_code=200,
+        )
     return templates.TemplateResponse(
         "success.html",
         {

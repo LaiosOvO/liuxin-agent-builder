@@ -422,3 +422,105 @@ async def test_get_page_signs_cookie_with_correct_hmac(
         secret, str(seed["jti"]).encode("utf-8"), hashlib.sha256
     ).hexdigest()
     assert cookie_sig == expected_sig
+
+
+# ── Plan 03-07 新增：JSON content negotiation 4 用例 ─────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_get_page_with_accept_json_returns_json_payload(
+    db_session, app_client, clean_phase3
+):
+    """Accept: application/json → 返回 JSON 数据（Next.js 前端 SSR 消费）。"""
+    seed = await _seed_token(db_session)
+    resp = await app_client.get(
+        f"/hitl/page/{seed['token']}",
+        headers={
+            "User-Agent": "Mozilla/5.0 (Macintosh; Chrome/120)",
+            "Accept": "application/json",
+        },
+    )
+    assert resp.status_code == 200
+    assert resp.headers["content-type"].startswith("application/json")
+    data = resp.json()
+    assert data["bot_scan"] is False
+    assert data["token"] == seed["token"]
+    assert data["jti"] == str(seed["jti"])
+    assert "form_schema" in data
+    assert "records" in data
+    assert "deadline_at" in data
+    assert data["phase"] in ("submit", "review")
+    # cookie 仍应签 — Next.js SSR 透传 cookie 给浏览器响应
+    cookie_name = f"hitl_session_{seed['jti']}"
+    assert cookie_name in resp.cookies
+
+
+@pytest.mark.asyncio
+async def test_get_bot_ua_with_accept_json_returns_bot_scan_json(
+    db_session, app_client, clean_phase3
+):
+    """Bot UA + Accept JSON → JSON {bot_scan: true}（不签 cookie，CLAUDE.md 2.5）。"""
+    seed = await _seed_token(db_session)
+    resp = await app_client.get(
+        f"/hitl/page/{seed['token']}",
+        headers={
+            "User-Agent": "Mozilla/5.0 (compatible; outlook-safelinks/1.0)",
+            "Accept": "application/json",
+        },
+    )
+    assert resp.status_code == 200
+    assert resp.headers["content-type"].startswith("application/json")
+    data = resp.json()
+    assert data["bot_scan"] is True
+    # bot 路径不发 cookie（三重不可逆契约）
+    assert f"hitl_session_{seed['jti']}" not in resp.cookies
+
+
+@pytest.mark.asyncio
+async def test_get_expired_with_accept_json_returns_json_error_410(
+    db_session, app_client, clean_phase3
+):
+    """过期 token + Accept JSON → JSON {error, status_code: 410}。"""
+    seed = await _seed_token(db_session)
+    expired_token = HitlTokenService.sign(
+        jti=seed["jti"],
+        instance_id=seed["inst_id"],
+        node_state_id=seed["node_state_id"],
+        actor_id=seed["user_id"],
+        action="submit",
+        role="executor",
+        expires_at=datetime.now(timezone.utc) - timedelta(seconds=10),
+    )
+    resp = await app_client.get(
+        f"/hitl/page/{expired_token}",
+        headers={
+            "User-Agent": "Mozilla/5.0",
+            "Accept": "application/json",
+        },
+    )
+    assert resp.status_code == 410
+    assert resp.headers["content-type"].startswith("application/json")
+    data = resp.json()
+    assert "error" in data
+    assert data["status_code"] == 410
+
+
+@pytest.mark.asyncio
+async def test_get_json_path_does_not_consume_jti(
+    db_session, app_client, clean_phase3
+):
+    """JSON 路径同样不消费 jti（CLAUDE.md 2.5 跨 content type 一致）。"""
+    seed = await _seed_token(db_session)
+    await app_client.get(
+        f"/hitl/page/{seed['token']}",
+        headers={
+            "User-Agent": "Mozilla/5.0",
+            "Accept": "application/json",
+        },
+    )
+    # 二次断言：DB 中 used_at 仍为 NULL
+    result = await db_session.execute(
+        select(HitlToken).where(HitlToken.jti == seed["jti"])
+    )
+    token_row = result.scalar_one()
+    assert token_row.used_at is None
