@@ -181,8 +181,8 @@ class TestNodeSchemasRegistry:
     """节点 Schema 注册表功能"""
 
     def test_all_node_types_registered(self):
-        """所有 5 种节点类型都在 NODE_SCHEMAS 中注册"""
-        expected = {"start", "end", "llm", "tool", "if_else"}
+        """所有 6 种节点类型都在 NODE_SCHEMAS 中注册（Phase 3 加入 hitl）"""
+        expected = {"start", "end", "llm", "tool", "if_else", "hitl"}
         assert set(NODE_SCHEMAS.keys()) == expected
 
     def test_get_node_schema_returns_dict(self):

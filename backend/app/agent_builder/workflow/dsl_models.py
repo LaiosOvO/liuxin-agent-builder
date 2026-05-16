@@ -27,7 +27,7 @@ class DSLNode(BaseModel):
     """
 
     id: str
-    type: Literal["start", "end", "llm", "tool", "if_else"]
+    type: Literal["start", "end", "llm", "tool", "if_else", "hitl"]
     position: dict[str, float] = Field(default_factory=lambda: {"x": 0.0, "y": 0.0})
     config: dict[str, Any] = Field(default_factory=dict)
 

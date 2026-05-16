@@ -68,7 +68,7 @@ DSL_SCHEMA: dict = {
                         "description": "节点 ID，小写字母开头，仅含小写字母/数字/下划线",
                     },
                     "type": {
-                        "enum": ["start", "end", "llm", "tool", "if_else"],
+                        "enum": ["start", "end", "llm", "tool", "if_else", "hitl"],
                         "description": "节点类型",
                     },
                     "position": {

@@ -12,10 +12,12 @@
 - "if_else" → IfElseNodeExecutor
 - "tool"    → ToolNodeExecutor
 - "llm"     → LLMNodeExecutor（Plan 02-05）
+- "hitl"    → HITLNodeExecutor（Plan 03-02：interrupt + Command(resume)）
 
 Plan 接入说明：
 - Plan 02-04：start / end / if_else / tool
 - Plan 02-05：llm 节点（init_chat_model 多 provider）
+- Plan 03-02：hitl 节点（LangGraph 1.2 interrupt + Command(resume)）
 
 设计参考（Dify 阅读笔记 docs/reading-dify-02-04-base-nodes-2026-05-16.md）：
 - Dify 用 pkgutil.walk_packages 自动发现，我们手动 import（项目规模小，可读性优先）
@@ -25,6 +27,7 @@ from __future__ import annotations
 
 from app.agent_builder.workflow.nodes.base import BaseNodeExecutor
 from app.agent_builder.workflow.nodes.end import EndNodeExecutor
+from app.agent_builder.workflow.nodes.hitl import HITLNodeExecutor
 from app.agent_builder.workflow.nodes.if_else import IfElseNodeExecutor
 from app.agent_builder.workflow.nodes.llm import LLMNodeExecutor
 from app.agent_builder.workflow.nodes.start import StartNodeExecutor
@@ -38,6 +41,7 @@ NODE_EXECUTORS: dict[str, type[BaseNodeExecutor]] = {
     "if_else": IfElseNodeExecutor,
     "tool": ToolNodeExecutor,
     "llm": LLMNodeExecutor,
+    "hitl": HITLNodeExecutor,
 }
 
 __all__ = [
@@ -48,4 +52,5 @@ __all__ = [
     "IfElseNodeExecutor",
     "ToolNodeExecutor",
     "LLMNodeExecutor",
+    "HITLNodeExecutor",
 ]

@@ -13,6 +13,7 @@
 from __future__ import annotations
 
 from app.agent_builder.workflow.node_schemas.end import END_NODE_SCHEMA, END_OUTPUT_FIELDS
+from app.agent_builder.workflow.node_schemas.hitl_schema import HITL_NODE_SCHEMA, HITL_OUTPUT_FIELDS
 from app.agent_builder.workflow.node_schemas.if_else import IF_ELSE_NODE_SCHEMA, IF_ELSE_OUTPUT_FIELDS
 from app.agent_builder.workflow.node_schemas.llm import LLM_NODE_SCHEMA, LLM_OUTPUT_FIELDS
 from app.agent_builder.workflow.node_schemas.start import START_NODE_SCHEMA, START_OUTPUT_FIELDS
@@ -26,6 +27,7 @@ NODE_SCHEMAS: dict[str, tuple[dict, frozenset[str]]] = {
     "llm": (LLM_NODE_SCHEMA, LLM_OUTPUT_FIELDS),
     "tool": (TOOL_NODE_SCHEMA, TOOL_OUTPUT_FIELDS),
     "if_else": (IF_ELSE_NODE_SCHEMA, IF_ELSE_OUTPUT_FIELDS),
+    "hitl": (HITL_NODE_SCHEMA, HITL_OUTPUT_FIELDS),
 }
 
 
@@ -73,4 +75,6 @@ __all__ = [
     "TOOL_OUTPUT_FIELDS",
     "IF_ELSE_NODE_SCHEMA",
     "IF_ELSE_OUTPUT_FIELDS",
+    "HITL_NODE_SCHEMA",
+    "HITL_OUTPUT_FIELDS",
 ]

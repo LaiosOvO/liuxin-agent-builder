@@ -184,6 +184,25 @@ await graph.ainvoke(
 
 `build_initial_payload` 接受 `approvers: list[UUID]` 参数（默认 [current_actor_id]）但 v1 不暴露 `mode=sequential/parallel_*`。Phase 4 才会在节点 enter 时根据 approval_chain.mode 决定是发 1 个 actor 邮件还是发多个。
 
+### 7.5 重要陷阱：LangGraph 剥离 dunder 前缀字段（集成测试发现）
+
+实测 venv 中 langgraph 1.2.0：**`__xxx` 前缀的 state 字段会被 StateGraph 内部当作"保留命名空间"剥离**，节点函数中看不到此字段。
+
+```python
+# bad — node 看不到此字段
+state = {"__node_state_id": "abc"}
+
+# good — 用单下划线前缀（约定 "internal" 但不被剥离）
+state = {"_node_state_id": "abc"}
+```
+
+**本 plan 修正**：所有 `__node_state_id` 改为 `_node_state_id`，包括：
+- `HITLNodeExecutor.__call__` 内读取
+- 集成测试初始 state
+- 后续 03-06 ExecutionEngine 注入时的字段名也按此约定
+
+**根因**：LangGraph 1.2 内部用 `__interrupt__` / `__pregel_pull__` 等 dunder key 做控制消息，把所有 `__xxx` 视为保留 namespace 剥离。
+
 ---
 
 ## 8. 防陷阱小结（PITFALLS）
