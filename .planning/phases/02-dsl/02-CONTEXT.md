@@ -48,12 +48,13 @@ EDIT-01, EDIT-02, EDIT-03, NODE-01, NODE-03, NODE-05, NODE-06, EXEC-01, EXEC-02,
 
 ### LLM 节点行为
 
-- **Provider 策略**：**litellm 100+ provider 兼容 + LangChain/LangGraph 集成**（用户决策）
-  - 节点配置：`model: "openai/gpt-4o" | "deepseek/deepseek-chat" | "zhipu/glm-4.6" | "anthropic/claude-sonnet-4-5"` 等 litellm 模型字符串
-  - 走 `litellm.acompletion()` 异步调用（已在 flock pyproject.toml）
-  - 集成 LangChain 的 `litellm` adapter（`from langchain_community.chat_models import ChatLiteLLM`），LangGraph 节点直接用
-  - API Key 从 env 读：`OPENAI_API_KEY` / `ANTHROPIC_API_KEY` / `ZHIPUAI_API_KEY` / `DEEPSEEK_API_KEY` 等（每个 provider 独立 key）
-  - 优势：一份代码兼容所有 provider，未来加新 provider 仅改 env + 节点配置
+- **Provider 策略**：**LangChain `init_chat_model` + 按需 native provider 包**（2026-05-16 修正：去掉 litellm 层，避免 LangChain → litellm → provider 三层包装）
+  - 节点配置：`model: "zhipuai:glm-4.6" | "anthropic:claude-sonnet-4-5" | "openai:gpt-4o" | "deepseek:deepseek-chat" | "ollama:llama3"` 等 `init_chat_model` 字符串格式
+  - 实现：`from langchain.chat_models import init_chat_model; chat = init_chat_model(model_str, **config)`
+  - 装包按需：`langchain-openai`（GPT）/`langchain-anthropic`（Claude）/`langchain-community`（GLM via ChatZhipuAI、DeepSeek、Ollama 等长尾）
+  - API Key 从 env 读：`OPENAI_API_KEY` / `ANTHROPIC_API_KEY` / `ZHIPUAI_API_KEY` / `DEEPSEEK_API_KEY`
+  - 节点配置可覆盖：`api_base` / `api_key`（用于自部署 OpenAI-compatible 网关，如 Ollama）
+  - **不用 litellm**：用户直觉对了——LangChain 已是 LLM client 抽象层，再叠 litellm 是冗余；直接 init_chat_model 原生不打折，bug 排查路径短一层
 - **Prompt 体验**：**两者都要**（默认 multi-turn，高级可切原始 prompt）
   - 默认 UI：三段编辑 — `system_prompt`（可选）/ `user_prompt`（必填）/ `assistant_examples`（可选，few-shot）
   - 全部支持 Jinja2 变量插值
@@ -66,7 +67,7 @@ EDIT-01, EDIT-02, EDIT-03, NODE-01, NODE-03, NODE-05, NODE-06, EXEC-01, EXEC-02,
   - 节点级默认：`timeout_sec=30`、`retry_count=3`、`backoff_base_sec=1`（即 1s/2s/4s）
   - 节点配置可覆盖：`config.retry_count`、`config.timeout_sec`、`config.backoff_base_sec`
   - 全部重试失败 → 节点 status=`failed` → instance.status=`failed`（默认）
-  - litellm 内置 `num_retries` 参数可叠加，但我们在节点层包一层 tenacity 控制更易追溯
+  - 用 `tenacity` 在节点层包一层，控制更易追溯（LangChain 各 provider 自带 retry 也可叠加，但统一在节点层做更易调试）
 
 ### 实时状态同步
 
