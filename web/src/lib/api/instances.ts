@@ -11,6 +11,7 @@ import type {
   InstanceListResponse,
   InstanceSummary,
 } from '@/lib/types/instance';
+import type { TrackingResponse } from '@/lib/types/tracking';
 
 /** 实例 API 封装 */
 export const instancesApi = {
@@ -42,4 +43,13 @@ export const instancesApi = {
     apiCall<InstanceSummary>(`/agent_builder/v1/instances/${id}/abort`, {
       method: 'POST',
     }),
+
+  /** 获取实例追踪信息（HITL-07 申请人追踪页） */
+  tracking: (id: string): Promise<TrackingResponse> =>
+    apiCall<TrackingResponse>(`/agent_builder/v1/instances/${id}/tracking`),
 };
+
+/** 独立导出便于按 named import 用 */
+export function fetchTracking(instanceId: string): Promise<TrackingResponse> {
+  return instancesApi.tracking(instanceId);
+}
