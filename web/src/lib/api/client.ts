@@ -7,10 +7,15 @@
 
 import type { ApiErrorBody } from '@/lib/types/api';
 
-const API_BASE =
-  (typeof window !== 'undefined' && (window as Window & { __API_BASE_URL__?: string }).__API_BASE_URL__) ||
-  process.env.NEXT_PUBLIC_API_BASE ||
-  '/api';
+/** 运行时动态获取 API 基础地址（支持测试环境覆盖） */
+function getApiBase(): string {
+  return (
+    (typeof window !== 'undefined' &&
+      (window as Window & { __API_BASE_URL__?: string }).__API_BASE_URL__) ||
+    process.env.NEXT_PUBLIC_API_BASE ||
+    '/api'
+  );
+}
 
 export interface ApiCallOptions {
   method?: string;
@@ -41,7 +46,7 @@ export async function apiCall<T>(
   path: string,
   opts: ApiCallOptions = {},
 ): Promise<T> {
-  const url = `${API_BASE}${path}`;
+  const url = `${getApiBase()}${path}`;
 
   const headers: Record<string, string> = {};
   if (opts.body !== undefined) {
