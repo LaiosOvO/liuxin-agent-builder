@@ -12,7 +12,7 @@
 
 - [x] **Phase 1: Skeleton + 账号体系** - Fork flock、多租户隔离、自建账号/RBAC、公网最小暴露面 ✓ 2026-05-16
 - [x] **Phase 2: DSL 引擎 + 基础节点** - DSL 编译执行、Postgres checkpoint、5 种内置节点、实例管理 ✓ 2026-05-17
-- [ ] **Phase 3: HITL 单节点 + Email 审批** - 四态决策、Token 即登录、邮件深链、公网回调
+- [x] **Phase 3: HITL 单节点 + Email 审批** - 四态决策、Token 即登录、邮件深链、公网回调 ✓ 2026-05-17
 - [ ] **Phase 4: 审批链 + IM 通知** - 4 种审批链模式、飞书/企微/钉钉/Slack/Mattermost 通知卡片
 - [ ] **Phase 4.5: Bot Triggers + Slash 分发 + Reply (双向 IM)** - 通用 Bot Trigger/Reply 节点 + Slash 命令路由，Mattermost 先行，飞书/企微/钉钉/Slack 后补
 - [ ] **Phase 5: IM 目录双向同步** - 三家 IM 用户/部门同步、Assignee 多形态解析、高级节点
@@ -85,7 +85,7 @@ Plans:
 - [x] 03-07-PLAN.md — 决策页前端（@rjsf/core 5.24 + 4 组件 + 2 路由 + 后端 JSON 协商补缺 + middleware /hitl/ 白名单 + 14 测试通过，2026-05-17 完成）
 - [x] 03-08-PLAN.md — 申请人追踪页 HITL-07（GET /instances/<id>/tracking + tracking-timeline + applicant-only-records + 32 测试，节点可视化全字段，2026-05-17 完成）
 - [x] 03-09-PLAN.md — 超时催办 worker（scan_hitl_timeouts arq cron 60s + 三档阶梯 24/48/72h + EscalationService + 21 测试，2026-05-17 完成）
-- [ ] 03-10-PLAN.md — E2E 验收（ROADMAP Phase 3 全 5 条 + Safe Links bot regression）
+- [x] 03-10-PLAN.md — E2E 验收（5 Playwright spec + hitl-builder + 2 Page Object + mailhog HITL 扩展 + CLAUDE.md 2.5 P0 Safe Links 4 UA + Smoke/Standard/Full 三档模式 + 23 test，2026-05-17 完成）
 
 ### Phase 4: 审批链 + IM 通知
 **Goal**: 多人审批链（4 种模式）正确推进，审批人能通过飞书/企微/钉钉/Slack/Mattermost 卡片收到通知并跳转决策页

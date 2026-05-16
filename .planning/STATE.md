@@ -2,13 +2,13 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: unknown
-last_updated: "2026-05-16T19:44:00.774Z"
+status: phase-3-complete
+last_updated: "2026-05-17T03:35:00.000Z"
 progress:
-  total_phases: 4
-  completed_phases: 2
+  total_phases: 7
+  completed_phases: 3
   total_plans: 26
-  completed_plans: 25
+  completed_plans: 26
 ---
 
 # Project State
@@ -18,16 +18,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-16)
 
 **Core value:** 让非编码人员通过拖拽 5 分钟搭出"多通道审批 + 公网回调"的 LangGraph 工作流，并真实跑起来
-**Current focus:** Phase 3 — HITL 单节点 + Email 审批
+**Current focus:** Phase 3 — HITL 单节点 + Email 审批 ✓ COMPLETE → Phase 4 可启动
 
 ## Current Position
 
-Phase: 3 of 7 (HITL 单节点 + Email 审批) — IN PROGRESS
-Plan: 8 of 10 in current phase（03-01 / 03-02 / 03-03 / 03-04 / 03-05 / 03-06 / 03-07 / 03-08 / 03-09 完成，Wave 1+2+3+4+5 全交付）
-Status: Wave 5 全部完成 — HITL-07 申请人追踪页（节点可视化全套字段）— 后续可启动 Wave 6 03-10 E2E gate
-Last activity: 2026-05-17 — Plan 03-08 完成（GET /instances/<id>/tracking + TrackingTimeline + ApplicantOnlyRecords + DeadlineCountdown + 32 测试通过；申请人 vs admin 数据脱敏正确；节点可视化覆盖 user feedback_node_visualization 强制要求）
+Phase: 3 of 7 (HITL 单节点 + Email 审批) — ✅ COMPLETE
+Plan: 10 of 10 in current phase（全 10 plans 完成，Wave 1+2+3+4+5+6 全交付）
+Status: ✅ Phase 3 完整收官 — Wave 6 03-10 E2E gate 完成（5 Playwright spec 覆盖 ROADMAP Phase 3 全 5 条 success criteria + Safe Links bot 4 UA regression + 23 test）
+Last activity: 2026-05-17 — Plan 03-10 完成（5 Playwright spec + hitl-builder + 2 Page Object + mailhog HITL 扩展 + Smoke/Standard/Full 三档运行模式 + TypeScript --noEmit 0 错误 + Playwright --list 全枚举；13 个 requirements 全部 Complete）
 
-Progress: [███░░░░░░░] 27%
+Progress: [████░░░░░░] 43%（3/7 phases complete）
 
 ## Performance Metrics
 
@@ -63,6 +63,7 @@ Progress: [███░░░░░░░] 27%
 | Phase 03-hitl-email P07 | 17m | 6 tasks（Task0+pre1+1+2+3+4） | 17 files (13 created + 4 modified) |
 | Phase 03-hitl-email P09 | ~26m | 4 tasks（Task0 reading + Task1 scan + Task2 escalation + Task3 rounds） | 9 files (7 created + 2 modified) |
 | Phase 03-hitl-email P08 | 28min | 3 tasks | 12 files |
+| Phase 03-hitl-email P10 | 10min | 4 tasks | 10 files |
 
 ## Accumulated Context
 
@@ -193,6 +194,15 @@ Recent decisions affecting current work:
 - [Phase 03-08]: useQuery refetchInterval 仅在 active 节点存在时 30s — 终态实例不浪费带宽
 - [Phase 03-08]: 403/404 自动跳回 /dashboard/instances (1.2s 延时) — 给用户读错误信息但不卡死
 - [Phase 03-08]: [Rule 1 - Bug] 移除多余 autouse engine.dispose fixture — 与 conftest.db_session 重叠 race（test_instances_api 同样模式 pre-existing 待 Phase 7 修复）
+- [Phase 03-10]: 5 spec ↔ 5 ROADMAP criteria 1:1 追溯（spec 头注释 + describe 标签双重明示，可机械化 grep 验证）
+- [Phase 03-10]: Smoke 默认 skip + RUN_E2E=1 opt-in 触发：CI 默认无 docker-compose 全栈，对 Phase 1/2 E2E 模式保持一致
+- [Phase 03-10]: 复用 Phase 1 mailhog-client + Phase 2 dsl-builder；新增 hitl-builder + hitl.page (公网无登录) + tracking.page (申请人 dashboard)
+- [Phase 03-10]: Bot UA 4 种 parametrize：Outlook AC-Detector-Tool / MS Defender / Slackbot / Googlebot — CLAUDE.md 2.5 P0 完整覆盖
+- [Phase 03-10]: 裸 fetch (fetchPageRaw / submitActionRaw) 模拟 bot UA：spec 控制 headers + 无浏览器解析开销（page.setExtraHTTPHeaders 留 Phase 4 跨浏览器）
+- [Phase 03-10]: 断言 jti 未消费用语义化方式（bot 扫描后真实用户仍可签 cookie + POST 成功）而非直连 DB — admin API 当前不存在
+- [Phase 03-10]: advisory_lock 并发断言 ≥1 而非 ==1（与 03-06 同模式 — asyncio.gather 不保证真并发）
+- [Phase 03-10]: 汇总型 reading doc（不读新 Dify 代码）— Phase 3 终结性 plan 整合前 9 plan reading docs + 测试模式总结
+- [Phase 03-10]: mailhog MIME body 简单切分（regex HTML/text + quoted-printable 解码）— 不引入 mailparser 依赖
 
 ### Pending Todos
 
@@ -208,5 +218,6 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-05-17
-Stopped at: Completed 03-08-PLAN.md（HITL-07 申请人追踪页：GET /instances/<id>/tracking endpoint + applicant/admin 双轨权限 + service 层脱敏 ip/ua + tracking-timeline 节点可视化（user feedback 强制要求）+ applicant-only-records 前端双重脱敏 + DeadlineCountdown 3 级颜色 + 32 测试通过；Wave 5 全部完成）
+Stopped at: Completed 03-10-PLAN.md（Phase 3 E2E gate — 5 Playwright spec 覆盖 ROADMAP Phase 3 全 5 个 success criteria：hitl_email_delivery / hitl_token_login / hitl_safe_links_bot / hitl_token_invalidation / hitl_tracking_page；hitl-builder helper + hitl.page + tracking.page + mailhog HITL 扩展；Smoke/Standard/Full 三档模式；CLAUDE.md 2.5 P0 Safe Links 4 UA 完整覆盖；13/13 requirements Complete；Phase 3 完整收官）
 Resume file: None
+Next action: /gsd:verify-work 3 → /gsd:plan-phase 4（审批链 4 模式 + IM 通知 NOTI-02..07）
