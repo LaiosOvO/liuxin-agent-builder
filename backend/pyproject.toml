@@ -99,14 +99,23 @@ test = [
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
-addopts = "-v --cov=src --cov-report=term-missing"
+# 覆盖率跟踪 agent_builder 模块；asyncio_mode=strict 避免 pytest-asyncio 0.24 的弃用警告
+addopts = "-v --cov=app/agent_builder --cov-report=term-missing"
+asyncio_mode = "strict"
 filterwarnings = [
     "ignore::DeprecationWarning",
     "ignore::UserWarning",
+    "ignore::pytest.PytestUnraisableExceptionWarning",
+]
+
+[tool.coverage.run]
+omit = [
+    "*/tests/*",
+    "*/migrations/*",
 ]
 
 [tool.coverage.report]
-fail_under = 25
+fail_under = 60
 
 [tool.hatch.build.targets.wheel]
 packages = ["src"]
