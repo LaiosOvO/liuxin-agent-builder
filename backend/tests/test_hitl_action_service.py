@@ -13,7 +13,7 @@
 设计：
 - 真实 PG（CLAUDE.md 2.2 不 mock DB）
 - 真实 Redis（HitlTokenStore 内部用 pipeline）
-- mock graph_loader（返回 None 跳过 LangGraph ainvoke — Phase 2 ExecutionEngine 集成留 03-10 E2E）
+- mock graph_resumer（返回 False 跳过 LangGraph ainvoke — 真实 resume 集成在 test_hitl_graph_resume_integration.py + 03-10 E2E）
 - seed 链路与 test_hitl_service.py 一致
 """
 from __future__ import annotations
@@ -234,7 +234,7 @@ async def test_submit_action_happy_path_consumes_jti_and_writes_audit(
 ):
     """Happy path：submit 决策 → jti 消费 + audit 写入 + node_state 状态变迁。"""
     seed = await _seed_full_flow(db_session)
-    service = HitlActionService(db_session, redis_client, graph_loader=_mock_graph_loader)
+    service = HitlActionService(db_session, redis_client, graph_resumer=_mock_graph_resumer)
     jwt_payload = _build_jwt_payload(seed, "submit")
 
     result = await service.submit_action(
@@ -267,7 +267,7 @@ async def test_submit_action_form_schema_validation_failure_raises(
     """form_schema 校验失败 → 抛 FormDataValidationError + jti 未消费。"""
     schema = {"type": "object", "required": ["comment"], "properties": {"comment": {"type": "string"}}}
     seed = await _seed_full_flow(db_session, form_schema=schema)
-    service = HitlActionService(db_session, redis_client, graph_loader=_mock_graph_loader)
+    service = HitlActionService(db_session, redis_client, graph_resumer=_mock_graph_resumer)
     jwt_payload = _build_jwt_payload(seed, "submit")
 
     with pytest.raises(FormDataValidationError) as exc_info:
@@ -296,7 +296,7 @@ async def test_submit_action_double_submit_raises_JtiAlreadyConsumed(
 ):
     """同 jti 二次提交 → 抛 JtiAlreadyConsumed。"""
     seed = await _seed_full_flow(db_session)
-    service = HitlActionService(db_session, redis_client, graph_loader=_mock_graph_loader)
+    service = HitlActionService(db_session, redis_client, graph_resumer=_mock_graph_resumer)
     jwt_payload = _build_jwt_payload(seed, "submit")
 
     # 第一次成功
@@ -327,7 +327,7 @@ async def test_submit_action_invalidates_siblings(
 ):
     """同节点其他 token 失效（HITL-01 防重复决策）。"""
     seed = await _seed_full_flow(db_session)
-    service = HitlActionService(db_session, redis_client, graph_loader=_mock_graph_loader)
+    service = HitlActionService(db_session, redis_client, graph_resumer=_mock_graph_resumer)
     jwt_payload = _build_jwt_payload(seed, "submit")
 
     await service.submit_action(
@@ -360,7 +360,7 @@ async def test_submit_action_writes_audit_log_with_ip_ua_decision(
 ):
     """NET-05 决策审计：actor_ip / actor_ua / decision / node_state_id 全部填。"""
     seed = await _seed_full_flow(db_session)
-    service = HitlActionService(db_session, redis_client, graph_loader=_mock_graph_loader)
+    service = HitlActionService(db_session, redis_client, graph_resumer=_mock_graph_resumer)
     jwt_payload = _build_jwt_payload(seed, "submit")
 
     await service.submit_action(
@@ -398,7 +398,7 @@ async def test_submit_action_updates_node_state_payload_records(
 ):
     """append_record 添加新记录到 node_state.payload['records']。"""
     seed = await _seed_full_flow(db_session)
-    service = HitlActionService(db_session, redis_client, graph_loader=_mock_graph_loader)
+    service = HitlActionService(db_session, redis_client, graph_resumer=_mock_graph_resumer)
     jwt_payload = _build_jwt_payload(seed, "submit")
 
     await service.submit_action(
@@ -444,7 +444,7 @@ async def test_submit_action_computes_new_status_correctly(
         ["submit", "return", "reject"] if phase == "submit" else ["approve", "return", "reject"]
     )
     seed = await _seed_full_flow(db_session, phase=phase, actions=actions_for_phase)
-    service = HitlActionService(db_session, redis_client, graph_loader=_mock_graph_loader)
+    service = HitlActionService(db_session, redis_client, graph_resumer=_mock_graph_resumer)
     jwt_payload = _build_jwt_payload(seed, action)
     # 修正 role 匹配 phase
     jwt_payload["role"] = "executor" if phase == "submit" else "reviewer"
@@ -466,7 +466,7 @@ async def test_submit_action_advisory_lock_acquired(
 ):
     """advisory_xact_lock 被调用（spy text() 调用参数）。"""
     seed = await _seed_full_flow(db_session)
-    service = HitlActionService(db_session, redis_client, graph_loader=_mock_graph_loader)
+    service = HitlActionService(db_session, redis_client, graph_resumer=_mock_graph_resumer)
     jwt_payload = _build_jwt_payload(seed, "submit")
 
     # spy db.execute 调用
@@ -502,7 +502,7 @@ async def test_submit_action_raises_FlowInstanceNotFound_if_instance_missing(
 ):
     """flow_instance 不存在 → 抛 FlowInstanceNotFound（覆盖 404 路径）。"""
     seed = await _seed_full_flow(db_session)
-    service = HitlActionService(db_session, redis_client, graph_loader=_mock_graph_loader)
+    service = HitlActionService(db_session, redis_client, graph_resumer=_mock_graph_resumer)
     jwt_payload = _build_jwt_payload(seed, "submit")
     jwt_payload["flow_id"] = str(uuid.uuid4())  # 不存在的 instance_id
 
@@ -520,9 +520,17 @@ async def test_submit_action_raises_FlowInstanceNotFound_if_instance_missing(
 # ── mock helpers ─────────────────────────────────────────────────────────────
 
 
-async def _mock_graph_loader(flow_instance, db, redis):
-    """mock graph loader — 返回 None 跳过 LangGraph ainvoke。
+async def _mock_graph_resumer(
+    flow_instance,
+    db,
+    redis,
+    *,
+    resume_args: dict,
+    thread_id: str,
+) -> bool:
+    """mock graph resumer — 跳过 LangGraph ainvoke 返回 False。
 
-    真实 graph + Command(resume) 集成在 03-10 E2E 覆盖。
+    真实 graph resume + Command(resume) 集成回归在
+    test_hitl_graph_resume_integration.py + 03-10 E2E 覆盖。
     """
-    return None
+    return False

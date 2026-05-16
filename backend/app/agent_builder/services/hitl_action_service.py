@@ -92,19 +92,21 @@ class HitlActionService:
         self,
         db: AsyncSession,
         redis,
-        graph_loader=None,
+        graph_resumer=None,
     ) -> None:
         """构造函数。
 
         Args:
             db: SQLAlchemy AsyncSession（事务包裹）
             redis: redis.asyncio.Redis 客户端（HitlTokenStore 加速 + sibling pipeline）
-            graph_loader: 可选 — 注入 graph 构造函数（测试用 mock；生产用 _default_graph_loader）
-                          签名：async (flow_instance: FlowInstance, db, redis) -> graph
+            graph_resumer: 可选 — 注入 LangGraph resume 函数（测试用 mock；生产用 _default_graph_resumer）
+                          签名：async (flow_instance, db, redis, *, resume_args, thread_id) -> bool
+                          内部应当持有 checkpointer 生命周期（async with get_checkpointer()）
+                          + 编译 DSL + ainvoke(Command(resume=...))，返回 True 表示成功推进
         """
         self.db = db
         self.redis = redis
-        self._graph_loader = graph_loader
+        self._graph_resumer = graph_resumer
 
     async def submit_action(
         self,
@@ -210,22 +212,21 @@ class HitlActionService:
 
         # ── 7. LangGraph resume（在 advisory_lock 持有期间执行）────────────
         # 注意：必须在锁内 ainvoke，否则 Pitfall 2 仍会触发
-        graph = await self._load_graph(flow_instance)
-        if graph is not None:
-            await graph.ainvoke(
-                Command(
-                    resume={
-                        "action": action,
-                        "reason": reason,
-                        "form_data": form_data,
-                        "actor_id": str(actor_id),
-                        "ip": ip,
-                        "ua": ua,
-                        "jti": str(jti),
-                    }
-                ),
-                config={"configurable": {"thread_id": thread_id}},
-            )
+        # resumer 内部负责 checkpointer 生命周期 + compile + ainvoke
+        resume_args = {
+            "action": action,
+            "reason": reason,
+            "form_data": form_data,
+            "actor_id": str(actor_id),
+            "ip": ip,
+            "ua": ua,
+            "jti": str(jti),
+        }
+        await self._resume_graph(
+            flow_instance,
+            resume_args=resume_args,
+            thread_id=thread_id,
+        )
 
         # ── 8. audit_log（NET-05 决策审计）────────────────────────────────
         audit = AuditLog(
@@ -257,16 +258,32 @@ class HitlActionService:
             "invalidated_siblings": invalidated_count,
         }
 
-    async def _load_graph(self, flow_instance: FlowInstance):
-        """加载 LangGraph compiled graph 用于 resume。
+    async def _resume_graph(
+        self,
+        flow_instance: FlowInstance,
+        *,
+        resume_args: dict,
+        thread_id: str,
+    ) -> bool:
+        """触发 LangGraph Command(resume) — 用于推进中断的 HITL 节点。
 
-        生产环境：构造 DSLCompiler 编译 dsl_snapshot
-        测试环境：注入 graph_loader（mock）跳过真实编译
+        生产环境：调用 _default_graph_resumer（持 AsyncPostgresSaver context + compile + ainvoke）
+        测试环境：注入 graph_resumer（mock），可返回 True/False 测试不同分支
+
+        Args:
+            flow_instance: 当前实例 ORM 行
+            resume_args: Command(resume=...) 的 payload
+            thread_id: LangGraph checkpoint thread_id（含 workspace 前缀）
+
+        Returns:
+            True: 成功 ainvoke；False: resumer 不可用或 DSL 缺失（不阻塞 node_state 写入）
         """
-        if self._graph_loader is not None:
-            return await self._graph_loader(flow_instance, self.db, self.redis)
-
-        # 生产默认：从 workflow_version 加载 DSL 并编译
-        # 注：实际编译路径会在 ExecutionEngine 后续 plan 集成；
-        # 本 service 仅依赖 graph_loader 注入点保持解耦
-        return None
+        if self._graph_resumer is None:
+            return False
+        return await self._graph_resumer(
+            flow_instance,
+            self.db,
+            self.redis,
+            resume_args=resume_args,
+            thread_id=thread_id,
+        )

@@ -161,9 +161,16 @@ async def _seed_flow_with_tokens(db_session, n_tokens: int = 3) -> dict:
     }
 
 
-async def _mock_graph_loader(flow_instance, db, redis):
-    """跳过 LangGraph ainvoke。"""
-    return None
+async def _mock_graph_resumer(
+    flow_instance,
+    db,
+    redis,
+    *,
+    resume_args: dict,
+    thread_id: str,
+) -> bool:
+    """跳过 LangGraph ainvoke 返回 False。"""
+    return False
 
 
 def _build_payload(seed: dict, action: str) -> dict:
@@ -190,7 +197,7 @@ async def _submit_in_new_session(
     """
     async with async_session_maker() as session:
         service = HitlActionService(
-            session, redis_client, graph_loader=_mock_graph_loader
+            session, redis_client, graph_resumer=_mock_graph_resumer
         )
         try:
             result = await service.submit_action(
@@ -297,7 +304,7 @@ async def test_advisory_lock_released_after_commit(
     payload = _build_payload(seed, "submit")
 
     service = HitlActionService(
-        db_session, redis_client, graph_loader=_mock_graph_loader
+        db_session, redis_client, graph_resumer=_mock_graph_resumer
     )
     await service.submit_action(
         payload=payload,

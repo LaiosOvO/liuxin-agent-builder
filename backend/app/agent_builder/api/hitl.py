@@ -335,7 +335,7 @@ async def hitl_action_submit(
 
     # ── 5. 业务层：HitlActionService.submit_action ─────────────────────
     redis = _get_redis(request)
-    service = HitlActionService(db, redis, graph_loader=_default_graph_loader)
+    service = HitlActionService(db, redis, graph_resumer=_default_graph_resumer)
     try:
         result = await service.submit_action(
             payload=payload,
@@ -415,37 +415,63 @@ async def hitl_action_submit(
     )
 
 
-# ── 默认 graph_loader（生产用，注入到 HitlActionService）──────────────────
+# ── 默认 graph_resumer（生产用，注入到 HitlActionService）──────────────────
 
 
-async def _default_graph_loader(flow_instance: FlowInstance, db, redis):
-    """默认 graph loader — 编译 workflow_version.dsl 返回 graph。
+async def _default_graph_resumer(
+    flow_instance: FlowInstance,
+    db,
+    redis,
+    *,
+    resume_args: dict,
+    thread_id: str,
+) -> bool:
+    """默认 graph resumer — 持 AsyncPostgresSaver checkpointer 生命周期，
+    编译 workflow_version.dsl 后立即 ainvoke(Command(resume=...))。
 
-    Phase 2 的 ExecutionEngine 已落 DSLCompiler；此处复用编译路径。
-    测试环境通过 HitlActionService.__init__(graph_loader=mock) 覆盖。
+    必须在 advisory_lock 持有期间被调用（HitlActionService.submit_action 内）。
+    Checkpointer 是 context manager，在 with 块退出时关闭连接 —
+    因此 compile + ainvoke 必须**同时**位于 with-scope 内。
 
-    v1 简化：若编译失败或缺少依赖（如 checkpointer 未初始化），返回 None
-    跳过 ainvoke — node_state.payload 仍然完整更新，可由后台 worker 补救。
+    Returns:
+        True: 成功 ainvoke 推进流程；False: DSL 缺失 / 编译失败（不阻塞写入）
     """
-    try:
-        from app.agent_builder.models.workflow_version import WorkflowVersion
-        from app.agent_builder.workflow.compiler import DSLCompiler
+    from langgraph.types import Command
 
+    from app.agent_builder.models.workflow_version import WorkflowVersion
+    from app.agent_builder.workflow.checkpoint import get_checkpointer
+    from app.agent_builder.workflow.compiler import DSLCompiler
+
+    try:
         workflow_version = await db.get(
             WorkflowVersion, flow_instance.workflow_version_id
         )
         if workflow_version is None or not workflow_version.dsl:
-            return None
+            log.warning(
+                "HITL graph resume skipped: workflow_version dsl missing "
+                "(instance_id=%s)",
+                flow_instance.id,
+            )
+            return False
 
-        compiler = DSLCompiler(
-            workspace_id=flow_instance.workspace_id,
-            instance_id=flow_instance.id,
-            redis=redis,
-        )
-        compiled = compiler.compile(workflow_version.dsl)
-        return compiled.graph
+        async with get_checkpointer() as checkpointer:
+            compiler = DSLCompiler(
+                workspace_id=flow_instance.workspace_id,
+                instance_id=flow_instance.id,
+                redis=redis,
+            )
+            compiled = compiler.compile(
+                workflow_version.dsl,
+                checkpointer=checkpointer,
+            )
+            await compiled.graph.ainvoke(
+                Command(resume=resume_args),
+                config={"configurable": {"thread_id": thread_id}},
+            )
+        return True
     except Exception as e:
         log.warning(
-            "HITL default_graph_loader failed (skipping ainvoke): %s", e
+            "HITL default_graph_resumer failed (node_state still updated): %s",
+            e,
         )
-        return None
+        return False
