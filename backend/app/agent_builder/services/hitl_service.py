@@ -99,6 +99,61 @@ class HitlService:
         await self.db.flush()
         return tokens
 
+    async def batch_create_tokens_for_actors(
+        self,
+        *,
+        instance_id: UUID,
+        node_state_id: UUID,
+        actor_ids: list[UUID],
+        allowed_actions: list[str],
+        expires_in_seconds: int = DEFAULT_TOKEN_EXPIRES_IN,
+    ) -> list[HitlToken]:
+        """批量为多个 actor 创建 hitl_tokens 行（Phase 4 chain 模式入口）。
+
+        典型场景（决策依据 04-CONTEXT.md §审批链 4 模式语义）：
+        - sequential approve 推进：next_approvers=[B]，给 B 每 allowed_action 一行 token
+        - parallel_all / parallel_any 初始化：approvers=[A, B, C]，每人都收到 N 个 action token
+
+        Args:
+            instance_id: 流程实例 UUID
+            node_state_id: 节点状态 UUID
+            actor_ids: 待创建 token 的 actor UUID 列表（可为空 list → 返回空 list）
+            allowed_actions: 允许的 action 字符串列表（如 ['approve', 'return', 'reject']）
+            expires_in_seconds: token 过期秒数（默认 24h）
+
+        Returns:
+            list[HitlToken]，长度 == len(actor_ids) × len(allowed_actions)
+            已 add_all + flush（未 commit；外层事务管理）
+
+        Notes:
+            - 与 `batch_create_tokens`（单 actor）的区别：本方法接受 list[actor_id] 笛卡尔积展开
+            - 所有 token 共享同一 expires_at（同一批次）
+            - 每个 (actor, action) 一行 token，独立 jti
+            - actor_ids 为空时返回空 list（不抛错）— 调用方按需检查
+            - 调用方负责 commit（保持事务可组合）
+        """
+        if not actor_ids:
+            return []
+
+        expires_at = datetime.now(timezone.utc) + timedelta(seconds=expires_in_seconds)
+        tokens = [
+            HitlToken(
+                jti=uuid4(),
+                instance_id=instance_id,
+                node_state_id=node_state_id,
+                actor_id=actor_id,
+                action=action,
+                expires_at=expires_at,
+            )
+            for actor_id in actor_ids
+            for action in allowed_actions
+        ]
+        self.db.add_all(tokens)
+        # flush 让 server defaults（created_at）生效但不 commit
+        # 外层事务管理：API handler / HitlActionService 决定何时 commit
+        await self.db.flush()
+        return tokens
+
     async def resolve_allowed_actions(self, phase: str) -> list[str]:
         """根据 phase 计算允许的 action 列表（不带 self，但保留方法签名一致）。
 
