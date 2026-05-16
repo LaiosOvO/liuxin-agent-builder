@@ -207,3 +207,76 @@ class HitlTokenStore:
             )
 
         return len(invalidated_jtis)
+
+    async def invalidate_chain(
+        self,
+        instance_id: UUID,
+        except_jti: UUID,
+    ) -> list[tuple[UUID, UUID]]:
+        """跨整个 instance 失效所有未消费 token（HITL-02 parallel_* 模式核心副作用）。
+
+        典型场景（决策依据 04-CONTEXT.md §并行会签 / 或签）：
+        - parallel_all: A reject → invalidate_chain 失效 B/C/D 未消费 token；发"已终止（被 X 拒绝）"补通知
+        - parallel_any: A approve → invalidate_chain 失效 B/C/D 未消费 token；发"已被 A 处理"补通知
+        - parallel_any: 任一 reject → invalidate_chain 失效（与 parallel_all 一致）
+
+        与 invalidate_siblings 的区别：
+        - invalidate_siblings(node_state_id, except_jti) — 单节点内（同 node_state_id 范围）
+        - invalidate_chain(instance_id, except_jti) — 整个 instance（跨节点；parallel 模式 N actor 同时收到 token）
+
+        **必须在 advisory_lock 内调（Pitfall 2 防护）** — 由 service 层（如 HitlActionService.submit_action）
+        在 `pg_advisory_xact_lock(hash(thread_id))` 持有期间调用本方法，与 invalidate_siblings 一致。
+
+        Args:
+            instance_id: 流程实例 UUID
+            except_jti: 排除的 jti（刚被合法消费的那一个，不要再标记）
+
+        Returns:
+            list of (jti, actor_id) — 被失效 token 的 jti + actor_id 对，用于发"已终止/已被处理"补通知。
+            空 list 表示无未消费 token 需失效（理想路径或已被并发先行处理）。
+
+        Notes:
+            used_ip 写入 "system:chain-invalidate" 标识系统级链失效（与 sibling-invalidate / 真实用户消费区分）；
+            used_ua 写入 "system:invalidate_chain" 便于审计追溯。
+
+            为加速 instance 维度的失效扫描，0005 migration 加了 partial index
+            `ix_hitl_tokens_instance_used ON (instance_id, used_at) WHERE used_at IS NULL`。
+
+        Raises:
+            不直接抛异常，调用方负责事务管理（commit/rollback）。
+        """
+        now = datetime.now(timezone.utc)
+
+        stmt = (
+            update(HitlToken)
+            .where(
+                HitlToken.instance_id == instance_id,
+                HitlToken.jti != except_jti,
+                HitlToken.used_at.is_(None),
+            )
+            .values(
+                used_at=now,
+                used_ip="system:chain-invalidate",
+                used_ua="system:invalidate_chain",
+            )
+            .returning(HitlToken.jti, HitlToken.actor_id)
+        )
+        result = await self.db.execute(stmt)
+        # returning(jti, actor_id) → 每行是 (jti, actor_id) tuple
+        rows: list[tuple[UUID, UUID]] = [(row[0], row[1]) for row in result.all()]
+
+        if rows:
+            # Redis pipeline 批量设置（与 invalidate_siblings 同模式）
+            async with self.redis.pipeline(transaction=False) as pipe:
+                for jti, _ in rows:
+                    pipe.set(_redis_key(jti), "consumed", ex=_REDIS_TTL_SECONDS)
+                await pipe.execute()
+
+            log.info(
+                "hitl_token.chain_invalidated count=%d instance_id=%s except=%s",
+                len(rows),
+                instance_id,
+                except_jti,
+            )
+
+        return rows
