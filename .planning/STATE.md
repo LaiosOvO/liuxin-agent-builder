@@ -10,16 +10,16 @@ See: .planning/PROJECT.md (updated 2026-05-16)
 ## Current Position
 
 Phase: 1 of 7 (Skeleton + 账号体系)
-Plan: 0 of TBD in current phase
-Status: Ready to plan
-Last activity: 2026-05-16 — Roadmap created（7 phases，60 requirements mapped，100% coverage）
+Plan: 3 of TBD in current phase
+Status: In Progress
+Last activity: 2026-05-16 — Plan 01-03 完成（nginx 最小暴露面 + 启动校验 + slowapi）
 
-Progress: [░░░░░░░░░░] 0%
+Progress: [███░░░░░░░] 30%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 0
+- Total plans completed: 3
 - Average duration: —
 - Total execution time: 0 hours
 
@@ -27,11 +27,11 @@ Progress: [░░░░░░░░░░] 0%
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| - | - | - | - |
+| 1 (Skeleton) | 3 | ~30min | ~10min |
 
 **Recent Trend:**
-- Last 5 plans: —
-- Trend: —
+- Last 5 plans: 01-01, 01-02, 01-03
+- Trend: 稳定
 
 *Updated after each plan completion*
 
@@ -45,6 +45,8 @@ Recent decisions affecting current work:
 - M1 (Phase 1): Fork flock 后所有改动集中新增模块，不改 flock 上游文件（防 Pitfall 11）
 - M1 (Phase 1): 多租户所有查询显式带 workspace_id WHERE + SQLAlchemy checkout 时 DISCARD ALL（防 Pitfall 6）
 - M1 (Phase 1): HMAC_SECRET 启动校验 ≥ 32 字节（防 Pitfall 4）
+- M1 (Phase 1): startup_checks 在模块顶层直接调用，不放 FastAPI lifespan（lifespan 触发太晚）
+- M1 (Phase 1): slowapi get_token_from_path 用命名函数不用 lambda（slowapi 装饰器调用签名约束）
 - M2 (Phase 2): state schema 重型数据走 Redis Pointer Pattern（防 Pitfall 1 Checkpoint 膨胀）
 - M3 (Phase 3): GET 不消费 jti，POST 才消费（防 Pitfall 3 邮件扫描器预消费）
 - M3 (Phase 3): jti 消费 + Advisory Lock 防并发双提交（防 Pitfall 2）
@@ -62,5 +64,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-05-16
-Stopped at: Roadmap 创建完成，REQUIREMENTS.md traceability 已填充，STATE.md 初始化
+Stopped at: Completed 01-skeleton-03-PLAN.md（nginx 双 server_block + 启动校验 + slowapi + E2E 路径扫描）
 Resume file: None
