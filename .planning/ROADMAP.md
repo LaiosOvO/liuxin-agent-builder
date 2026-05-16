@@ -75,7 +75,17 @@ Plans:
   3. Outlook Safe Links 扫描器 GET token 链接不消费 jti，审批人首次点击仍可正常决策
   4. 同一 token 提交后立即失效；同节点其他 token 同时失效；重复提交返回 409
   5. 申请人能在追踪页查看自己实例的当前节点状态和历史决策记录
-**Plans**: TBD
+**Plans**:
+- [x] 03-01-PLAN.md — HITL DB schema + Redis 黑名单（HitlToken/Notification ORM + audit_logs NET-05 + HitlTokenStore，2026-05-17 完成）
+- [ ] 03-02-PLAN.md — HITL node executor
+- [ ] 03-03-PLAN.md — HITL Token Service（JWT 签发 + Safe Links bot detector）
+- [ ] 03-04-PLAN.md — Email 投递（arq + Jinja2 + NOTI-10 重试）
+- [ ] 03-05-PLAN.md — Notification node executor（NODE-07）
+- [ ] 03-06-PLAN.md — HITL public API（/hitl/page + /hitl/action + cookie session）
+- [ ] 03-07-PLAN.md — 决策页前端（form_schema RJSF render）
+- [ ] 03-08-PLAN.md — 申请人追踪页（HITL-07）
+- [ ] 03-09-PLAN.md — 超时催办 worker（arq + NOTI-09 升级）
+- [ ] 03-10-PLAN.md — E2E 验收（ROADMAP Phase 3 全 5 条 + Safe Links bot regression）
 
 ### Phase 4: 审批链 + IM 通知
 **Goal**: 多人审批链（4 种模式）正确推进，审批人能通过飞书/企微/钉钉/Slack/Mattermost 卡片收到通知并跳转决策页
@@ -145,7 +155,7 @@ Plans:
 |-------|----------------|--------|-----------|
 | 1. Skeleton + 账号体系 | 6/6 | ✓ Complete | 2026-05-16 |
 | 2. DSL 引擎 + 基础节点 | 10/10 | ✓ Complete | 2026-05-17 |
-| 3. HITL 单节点 + Email 审批 | 0/TBD | Not started | - |
+| 3. HITL 单节点 + Email 审批 | 1/10 | In Progress | - |
 | 4. 审批链 + IM 通知 | 0/TBD | Not started | - |
 | 4.5. Bot Triggers + Slash | 0/TBD | Not started | - |
 | 5. IM 目录双向同步 | 0/TBD | Not started | - |

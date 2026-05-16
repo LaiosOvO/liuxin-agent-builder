@@ -2,13 +2,13 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: phase_complete
-last_updated: "2026-05-17T00:00:00Z"
+status: in_progress
+last_updated: "2026-05-17T17:30:00Z"
 progress:
-  total_phases: 2
+  total_phases: 7
   completed_phases: 2
-  total_plans: 16
-  completed_plans: 16
+  total_plans: 26
+  completed_plans: 17
 ---
 
 # Project State
@@ -18,16 +18,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-16)
 
 **Core value:** 让非编码人员通过拖拽 5 分钟搭出"多通道审批 + 公网回调"的 LangGraph 工作流，并真实跑起来
-**Current focus:** Phase 2 — DSL 引擎 + 基础节点
+**Current focus:** Phase 3 — HITL 单节点 + Email 审批
 
 ## Current Position
 
-Phase: 2 of 7 (DSL 引擎 + 基础节点) — COMPLETE
-Plan: 10 of 10 in current phase（02-10 完成，E2E 验收门 5 spec + 2 POM + DSL builder helper）
-Status: Phase Complete — Phase 3（HITL 单节点 + Email 审批）可启动
-Last activity: 2026-05-17 — Plan 02-10 完成（5 个 Playwright spec 覆盖 ROADMAP Phase 2 全部 5 个 success criteria）
+Phase: 3 of 7 (HITL 单节点 + Email 审批) — IN PROGRESS
+Plan: 2 of 10 in current phase（03-01 完成，HITL DB schema + Redis 黑名单存储）
+Status: Plan Complete — 03-02 HITL node executor 可启动
+Last activity: 2026-05-17 — Plan 03-01 完成（2 张新表 + audit_logs NET-05 字段 + HitlTokenStore + 20 测试通过）
 
-Progress: [██████████] 100%
+Progress: [█░░░░░░░░░] 10%
 
 ## Performance Metrics
 
@@ -53,6 +53,7 @@ Progress: [██████████] 100%
 | Phase 02-dsl P04 | 16 | 3 tasks | 13 files |
 | Phase 02-dsl P08 | 26m | 4 tasks | 25 files |
 | Phase 02-dsl P07 | ~3h | 4 tasks | 10 files |
+| Phase 03-hitl-email P01 | 50m | 3 tasks | 10 files |
 
 ## Accumulated Context
 
@@ -107,6 +108,13 @@ Recent decisions affecting current work:
 - [Phase 02-10]: API fixture 模式准备测试数据（不走 UI 拖拽）：速度快 + 不受 UI 渲染时机影响
 - [Phase 02-10]: checkpoint_recovery spec 仅 E2E_FULL_STACK=1 触发（docker restart 需特殊权限，不适合 CI 默认）
 - [Phase 02-10]: instance_list_filter 并发创建 15 实例（Promise.all），dsl-builder.ts 集中管理 4 种 DSL 变体
+- [Phase 03-01]: hitl_tokens 单表统管 jti+actor+action（不照搬 Dify Form/Delivery/Recipient 三表，v1 单人审批不需要）
+- [Phase 03-01]: action 字段 VARCHAR(16) 不做 DB 枚举约束（service 层校验，新增 action 不需要 migration）
+- [Phase 03-01]: audit_logs 既有 ip/user_agent 保留，新增 actor_ip/actor_ua 作 HITL 决策审计专用语义
+- [Phase 03-01]: Redis key 前缀 `agent_builder:jti:<jti>` + TTL 24h 对齐 token 默认过期时间
+- [Phase 03-01]: is_consumed 未知 jti 返回 True（防伪造，与 consume 零行返回 None 语义一致）
+- [Phase 03-01]: invalidate_siblings used_ip 写 'system:sibling-invalidate' 标识系统级失效（与真实用户消费区分）
+- [Phase 03-01]: HitlTokenStore Redis-first + PG 权威双层存储模式（is_consumed 命中 Redis 走 hot path；miss 回查 PG + 回填）
 
 ### Pending Todos
 
@@ -115,11 +123,12 @@ None yet.
 ### Blockers/Concerns
 
 - Phase 2: 需在 M2 首日确认 flock 是否已有 WebSocket 实时画布，决定是否复用或新建
+- Phase 3: 后续 plan 测试需保持 Redis 测试容器运行（`docker start agent-builder-redis-test`，端口 16379:6379）
 - Phase 4: IM TokenManager（飞书/企微 token 并发刷新竞态）需在接入第一个 IM 适配器时就实现（防 Pitfall 7）
 - Phase 5: IM 双向同步需防止"同步 → 触发通知 → IM Bot 收到 → 再次触发同步"循环（防 Pitfall 15）
 
 ## Session Continuity
 
 Last session: 2026-05-17
-Stopped at: Completed 02-10-PLAN.md（E2E 验收门 — 5 spec + 2 POM + DSL builder helper，19 个测试可枚举，Phase 2 全部 10/10 plan 完成）
+Stopped at: Completed 03-01-PLAN.md（HITL DB schema + HitlTokenStore — 2 张新表 + audit_logs NET-05 字段 + 20 测试通过）
 Resume file: None
