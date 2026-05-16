@@ -2,13 +2,13 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: unknown
-last_updated: "2026-05-16T23:36:00Z"
+status: phase_complete
+last_updated: "2026-05-17T00:00:00Z"
 progress:
   total_phases: 2
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 16
-  completed_plans: 14
+  completed_plans: 16
 ---
 
 # Project State
@@ -22,12 +22,12 @@ See: .planning/PROJECT.md (updated 2026-05-16)
 
 ## Current Position
 
-Phase: 2 of 7 (DSL 引擎 + 基础节点)
-Plan: 9 of 10 in current phase（02-09 完成，前端 TS DSL 校验器 + 错误 UI 三层 + 300ms debounce）
-Status: In Progress
-Last activity: 2026-05-16 — Plan 02-09 完成（TS validator 4 类校验 + validator-store + issue-list + 节点红框 + 33 vitest 测试）
+Phase: 2 of 7 (DSL 引擎 + 基础节点) — COMPLETE
+Plan: 10 of 10 in current phase（02-10 完成，E2E 验收门 5 spec + 2 POM + DSL builder helper）
+Status: Phase Complete — Phase 3（HITL 单节点 + Email 审批）可启动
+Last activity: 2026-05-17 — Plan 02-10 完成（5 个 Playwright spec 覆盖 ROADMAP Phase 2 全部 5 个 success criteria）
 
-Progress: [█████████░] 90%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
@@ -103,6 +103,10 @@ Recent decisions affecting current work:
 - [Phase 02-09]: Jinja 解析器用正则而非 nunjucks（减少 ~300KB bundle，DSL 不需要求值）
 - [Phase 02-09]: 拓扑排序用 Kahn 算法（比 graphlib 更易 TS 实现），成环检测用 DFS 白/灰/黑染色
 - [Phase 02-09]: 发布前后端复检降级策略：validate API 不可用时不阻断发布（network fault tolerance）
+- [Phase 02-10]: SSE 订阅用 page.evaluate + EventSource（携带浏览器 cookie，真实连接），非 Node.js polyfill
+- [Phase 02-10]: API fixture 模式准备测试数据（不走 UI 拖拽）：速度快 + 不受 UI 渲染时机影响
+- [Phase 02-10]: checkpoint_recovery spec 仅 E2E_FULL_STACK=1 触发（docker restart 需特殊权限，不适合 CI 默认）
+- [Phase 02-10]: instance_list_filter 并发创建 15 实例（Promise.all），dsl-builder.ts 集中管理 4 种 DSL 变体
 
 ### Pending Todos
 
@@ -116,6 +120,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-05-16
-Stopped at: Completed 02-09-PLAN.md（前端 TS DSL 校验器 + validator-store + 错误 UI 三层 + 33 个测试通过）
+Last session: 2026-05-17
+Stopped at: Completed 02-10-PLAN.md（E2E 验收门 — 5 spec + 2 POM + DSL builder helper，19 个测试可枚举，Phase 2 全部 10/10 plan 完成）
 Resume file: None

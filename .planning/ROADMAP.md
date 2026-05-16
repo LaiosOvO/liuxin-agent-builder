@@ -11,7 +11,7 @@
 ## Phases
 
 - [x] **Phase 1: Skeleton + 账号体系** - Fork flock、多租户隔离、自建账号/RBAC、公网最小暴露面 ✓ 2026-05-16
-- [ ] **Phase 2: DSL 引擎 + 基础节点** - DSL 编译执行、Postgres checkpoint、5 种内置节点、实例管理
+- [x] **Phase 2: DSL 引擎 + 基础节点** - DSL 编译执行、Postgres checkpoint、5 种内置节点、实例管理 ✓ 2026-05-17
 - [ ] **Phase 3: HITL 单节点 + Email 审批** - 四态决策、Token 即登录、邮件深链、公网回调
 - [ ] **Phase 4: 审批链 + IM 通知** - 4 种审批链模式、飞书/企微/钉钉/Slack/Mattermost 通知卡片
 - [ ] **Phase 4.5: Bot Triggers + Slash 分发 + Reply (双向 IM)** - 通用 Bot Trigger/Reply 节点 + Slash 命令路由，Mattermost 先行，飞书/企微/钉钉/Slack 后补
@@ -57,13 +57,13 @@ Plans:
 - [x] 02-01-PLAN.md — LangGraph 1.2.0 + checkpoint-postgres 3.1.0 + Phase 2 业务表（Wave 1）
 - [x] 02-02-PLAN.md — DSL Schema + Jinja2 沙箱 + DSLValidator + DSLCompiler 骨架（Wave 1）
 - [x] 02-03-PLAN.md — React Flow Canvas + 5 节点 + NodePalette + ConfigPanel + DSL 双向转换（Wave 2）
-- [ ] 02-04-PLAN.md — TBD
-- [ ] 02-05-PLAN.md — TBD
-- [ ] 02-06-PLAN.md — TBD
-- [ ] 02-07-PLAN.md — TBD
-- [ ] 02-08-PLAN.md — 工作流持久化 API（workflowsApi 真实后端）
-- [ ] 02-09-PLAN.md — DSL 实时校验（IssueList 接入）
-- [ ] 02-10-PLAN.md — E2E 验收（拖拽 DAG + 发布 + 运行 + 时间线）
+- [x] 02-04-PLAN.md — 5 种节点执行器（BaseNodeExecutor + Start/End/LLM/Tool/IfElse）
+- [x] 02-05-PLAN.md — LLM 节点 + Redis Pointer Pattern
+- [x] 02-06-PLAN.md — Redis Pointer Pattern（state 重型数据透明存储）
+- [x] 02-07-PLAN.md — SSE 实时状态推送（EventBus + Redis Stream + pub/sub）
+- [x] 02-08-PLAN.md — 工作流持久化 API（workflowsApi 真实后端）
+- [x] 02-09-PLAN.md — DSL 实时校验（IssueList 接入）
+- [x] 02-10-PLAN.md — E2E 验收（拖拽 DAG + 发布 + 运行 + 时间线）
 
 ### Phase 3: HITL 单节点 + Email 审批
 **Goal**: 审批人收到邮件深链，点击链接完成四态决策，流程继续推进
@@ -144,7 +144,7 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Skeleton + 账号体系 | 6/6 | ✓ Complete | 2026-05-16 |
-| 2. DSL 引擎 + 基础节点 | 6/10 | In Progress|  |
+| 2. DSL 引擎 + 基础节点 | 10/10 | ✓ Complete | 2026-05-17 |
 | 3. HITL 单节点 + Email 审批 | 0/TBD | Not started | - |
 | 4. 审批链 + IM 通知 | 0/TBD | Not started | - |
 | 4.5. Bot Triggers + Slash | 0/TBD | Not started | - |
