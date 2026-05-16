@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-last_updated: "2026-05-16T19:05:30.489Z"
+last_updated: "2026-05-17T03:28:56Z"
 progress:
   total_phases: 4
   completed_phases: 2
   total_plans: 26
-  completed_plans: 23
+  completed_plans: 24
 ---
 
 # Project State
@@ -23,11 +23,11 @@ See: .planning/PROJECT.md (updated 2026-05-16)
 ## Current Position
 
 Phase: 3 of 7 (HITL 单节点 + Email 审批) — IN PROGRESS
-Plan: 6 of 10 in current phase（03-01 / 03-02 / 03-03 / 03-04 / 03-05 / 03-06 完成，Wave 1+2+3+4 全部交付）
-Status: Wave 4 Plan 06 完成 — Phase 3 P0 价值演示阶段服务端核心闭环 — 可启动 Wave 5（03-07 决策页前端 / 03-08 追踪页前端 / 03-09 超时催办 worker 并行）
-Last activity: 2026-05-17 — Plan 03-06 完成（HitlActionService + /hitl/page + /hitl/action FastAPI router + 4 HTML 模板 + 39 测试通过，含 Safe Links bot 6 用例 + advisory_lock 并发 3 用例 P0 防护回归）
+Plan: 7 of 10 in current phase（03-01 / 03-02 / 03-03 / 03-04 / 03-05 / 03-06 / 03-07 完成，Wave 1+2+3+4 + Wave 5 部分交付）
+Status: Wave 5 Plan 07 完成 — Phase 3 P0 价值演示阶段前端决策页闭环 — 可继续 Wave 5（03-08 追踪页前端 / 03-09 超时催办 worker 并行）
+Last activity: 2026-05-17 — Plan 03-07 完成（HITL 决策页前端 + RJSF 5.24 + 4 组件 + 2 路由 + 后端 JSON 协商补缺 + middleware /hitl/ 白名单 + 14 测试通过）
 
-Progress: [███░░░░░░░] 23%
+Progress: [███░░░░░░░] 24%
 
 ## Performance Metrics
 
@@ -60,6 +60,7 @@ Progress: [███░░░░░░░] 23%
 | Phase 03-hitl-email P06 | 25m | 5 tasks（Task0+pre1+1+2+3+4） | 16 files |
 | Phase 03-hitl-email P05 | ~10m | 3 tasks（Task0 reading doc + Task1 impl + Task2 13 测试） | 9 files |
 | Phase 03-hitl-email P06 | 25m | 5 tasks（Task 0+pre1+1+2+3+4） tasks | 16 files files |
+| Phase 03-hitl-email P07 | 17m | 6 tasks（Task0+pre1+1+2+3+4） | 17 files (13 created + 4 modified) |
 
 ## Accumulated Context
 
@@ -162,6 +163,15 @@ Recent decisions affecting current work:
 - [Phase 03-06]: Token-as-login HMAC cookie（Dify 完全没有的独立创新）— 30min session + jti-specific 多 token 隔离 + 防钓鱼（bot UA 路径不发 cookie 阻断 bot 直接 POST）
 - [Phase 03-06]: [Rule 1 - Bug] HitlActionService form_schema 校验 if form_schema and form_data → if form_schema（空 form_data 不能跳过 required 字段校验）
 - [Phase 03-06]: 并发测试断言宽松化（≥1 ok 而非 ==1）— asyncio.gather 不保证真并发（无 IO-block 时不切换）；advisory_lock 序列化执行后两个不同 jti 都可能 ok 但语义正确
+- [Phase 03-07]: [Rule 3 - Blocking] 后端 /hitl/page 与 /hitl/action 增加 Accept: application/json content negotiation — Next.js 前端必须拿结构化 JSON 才能 hydrate UI（03-06 仅实现 HTML）
+- [Phase 03-07]: [Rule 3 - Blocking] middleware.ts 加 /hitl/ BYPASS_PREFIXES — 公网决策页不依赖 setup 初始化状态
+- [Phase 03-07]: Server Component 不直接 fetch（v1 简化）— useEffect 客户端 fetch 避免 Set-Cookie 头透传复杂性；首屏 loading 约 100ms 可接受
+- [Phase 03-07]: 应用层防双提交 submitting useState + disabled 所有按钮 — Pitfall 2 第一道防护配合后端 advisory_lock 第二道防护
+- [Phase 03-07]: Discriminated union 类型 HitlPageResponse (按 bot_scan) / HitlSubmitResult (按 ok) — TypeScript 编译期保证分支完整性
+- [Phase 03-07]: DeadlineCountdown SSR 安全（初始 nowMs 用 deadlineMs 自身避免 hydration mismatch）+ AbortController + cancelled 双重防护（StrictMode 双 effect 安全）
+- [Phase 03-07]: form_data 复杂类型客户端 JSON.stringify 后再 URLSearchParams 提交（后端 jsonschema 再校验）
+- [Phase 03-07]: RJSF 5.24（不升 6.x）— 5.24 久经测试且 v1 schema 简单（string/number/textarea/enum），不必踩 6.x 早期坑
+- [Phase 03-07]: '/hitl/success/already-submitted' 路径语义化兜底 — DecisionForm 收到 409 时跳此路径，success page 区分文案
 
 ### Pending Todos
 
@@ -177,5 +187,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-05-17
-Stopped at: Completed 03-06-PLAN.md（HitlActionService + /hitl/page + /hitl/action FastAPI router + 4 HTML 模板 + migration 0004 + 39 测试通过 — 含 Safe Links bot 6 用例 P0 回归 + advisory_lock 并发 3 用例 P0 回归；Phase 3 服务端核心闭环）
+Stopped at: Completed 03-07-PLAN.md（HITL 决策页前端 Next.js 16/15 + RJSF 5.24 + 4 组件 + 2 路由 + 后端 JSON content negotiation 补缺 + middleware /hitl/ 白名单；10 vitest + 4 backend JSON 集成测试通过，零回归）
 Resume file: None

@@ -82,7 +82,7 @@ Plans:
 - [x] 03-04-PLAN.md — Email 投递（NotificationService + arq + Jinja2 + tenacity NOTI-10 重试，3 模板 + 18 测试，2026-05-17 完成）
 - [x] 03-05-PLAN.md — Notification node executor（NotificationNodeExecutor + generic_notification.html + 13 测试，2026-05-17 完成）
 - [x] 03-06-PLAN.md — HITL public API（HitlActionService + /hitl/page + /hitl/action + 4 HTML 模板 + migration 0004 + 39 测试 — 含 Safe Links bot 6 用例 + advisory_lock 并发 3 用例 P0 回归，2026-05-17 完成）
-- [ ] 03-07-PLAN.md — 决策页前端（form_schema RJSF render）
+- [x] 03-07-PLAN.md — 决策页前端（@rjsf/core 5.24 + 4 组件 + 2 路由 + 后端 JSON 协商补缺 + middleware /hitl/ 白名单 + 14 测试通过，2026-05-17 完成）
 - [ ] 03-08-PLAN.md — 申请人追踪页（HITL-07）
 - [ ] 03-09-PLAN.md — 超时催办 worker（arq + NOTI-09 升级）
 - [ ] 03-10-PLAN.md — E2E 验收（ROADMAP Phase 3 全 5 条 + Safe Links bot regression）
