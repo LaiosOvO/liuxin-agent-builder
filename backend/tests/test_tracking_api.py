@@ -26,6 +26,7 @@ import uuid
 from datetime import datetime, timezone
 
 import pytest
+import pytest_asyncio
 
 from sqlalchemy import text
 
@@ -58,23 +59,10 @@ async def _cleanup(db_session):
     await _cleanup_independent()
 
 
-# ── 跨测试事件循环隔离 fixture（参考 03-06 advisory_lock 测试） ─────────────
-
-
-@pytest.fixture(autouse=True)
-async def _dispose_engine_between_tests():
-    """每次测试结束后 engine.dispose()，防止跨测试事件循环污染。
-
-    SQLAlchemy + asyncio + pytest 已知交互问题：测试间复用连接池但事件循环不同，
-    导致 "attached to a different loop" 错误。dispose 后下次自动重建池。
-    """
-    yield
-    from app.agent_builder.db.engine import engine
-
-    try:
-        await engine.dispose()
-    except Exception:
-        pass
+# 注意：跨测试事件循环隔离已经在 conftest.db_session fixture 中通过
+# `await engine.dispose()` 实现；不需要本文件再加 autouse fixture，否则与
+# conftest 的隔离重叠会导致 race condition（test_instances_api 同样模式
+# 验证过 9 个用例稳定）。
 
 
 # ── 辅助：创建并发布工作流 ────────────────────────────────────────────────────
