@@ -1,0 +1,51 @@
+# Claude Code 本地设置 / 缓存
+.claude/settings.local.json
+.memsearch/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+env/
+build/
+dist/
+*.egg-info/
+
+# Node
+node_modules/
+.next/
+.turbo/
+out/
+
+# 环境变量与密钥
+.env
+.env.*
+!.env.example
+
+# 日志与临时
+*.log
+.DS_Store
+*.swp
+*.tmp
+*.bak
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# 测试覆盖率
+.coverage
+coverage/
+htmlcov/
+.pytest_cache/
+
+# 数据库与备份
+*.sqlite
+*.db
+*.dump
+backups/
