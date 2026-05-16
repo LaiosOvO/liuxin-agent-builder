@@ -23,10 +23,52 @@ Phase 4 规划了 **IM 出站通知**（飞书/企微/钉钉/Slack/Mattermost �
 
 | 节点 | 角色 | 流程位置 | 配置 |
 |---|---|---|---|
-| **Trigger Node** | workflow **起点**（替代 Start，或并存）| 第一个节点 | provider(mattermost/feishu/...) + bot_id + 触发条件 (@mention / DM / channel scope) |
+| **Trigger Node** | workflow **起点**（替代 Start，或并存）| 第一个节点 | provider(mattermost/feishu/...) + bot_id + 触发条件 (@mention / DM / channel scope / **slash command**) |
 | **Reply Node** | 把当前 state 字段回帖到**原 IM 线程** | 任意位置（通常末端，可中段汇报）| provider + thread_id (来自 trigger 节点 state) + message template (Jinja2) |
 
 **与 Notification 节点（Phase 4）的区别**：Notification 主动外推到任意指定收件人；Reply 仅在 trigger 起源的 thread 回帖（同一对话上下文）。
+
+### Slash 命令分发（用户 2026-05-16 追加需求）
+
+**目标**：单个 bot 接收多个 slash 命令（如 `/leave` `/approve` `/status` `/help`），不同命令分发到不同 workflow 或同一 workflow 的不同入口子图。
+
+**实现方式（推荐 A）**：
+
+**A. 每个 slash 命令绑定一个 Trigger 节点**（推荐 — 与 DAG 一致性高）
+- Trigger 节点配置 `slash_command: "/leave"`，仅当 IM 消息以该命令开头时触发该 workflow
+- 一个 bot 多个 slash → 多个独立 workflow 各自有自己的 Trigger 节点
+- 优点：清晰 / 每 workflow 独立 / 易理解
+- 缺点：N 个命令 = N 个 workflow 文件（适合大 IM bot 平台）
+
+**B. 单 workflow 内部 IfElse 分发**（适合命令逻辑高度同构场景）
+- 单 Trigger 节点接所有消息（无 slash 过滤）
+- 紧接一个 IfElse 节点按 `state.trigger.slash_command` 路由到不同分支
+- 优点：单 workflow 内部聚合 / 共享前后处理
+- 缺点：DSL 复杂 / 单点 workflow 跑挂全 bot down
+
+**C. Bot Dispatcher 元 workflow**（高级模式，可选）
+- 一个"Dispatcher workflow"用 Subgraph 节点封装：根据 slash 调用不同子 workflow
+- 类似 url-routing 中间件思路
+- 优点：组合性强，可以中心化管命令权限/统计
+- 缺点：抽象层多，调试链路长
+
+**v1 实现**：A（推荐）。Trigger 节点 `slash_command` 字段，单一命令绑单一 workflow。同 bot 多命令通过同一 bot account 关联多 workflow 实现。Bot 入站消息进来后，Slash Dispatcher 层根据命令前缀路由到匹配的 Trigger 节点。
+
+**Slash Dispatcher 后端架构**：
+```
+IM 消息 (e.g., "/leave 2026-05-20 sick")
+   ↓ Bot Provider 入站
+Slash Dispatcher (backend/app/agent_builder/adapters/bot/dispatcher.py)
+   ↓ 按 slash 前缀查询匹配 workflow
+   ↓ 找到匹配的 Trigger 节点
+   ↓ 启动该 workflow 实例 (thread_id / user_id / message / parsed_args 注入 state)
+LangGraph 跑起来
+```
+
+**Slash 命令注册中心**：表 `bot_slash_commands` 记 `(provider, bot_id, slash_command, workflow_id, description, help_text)`，用于：
+- IM 启动时向 Mattermost 注册 slash 命令列表（让 `/help` 自动列出可用命令）
+- 入站消息时反查路由
+- Admin UI 可视化管理（这个 bot 注册了哪些 slash → 哪个 workflow）
 
 ### Provider 抽象
 
@@ -63,14 +105,15 @@ class BotProvider(Protocol):
 | Plan | 内容 | 工作量 |
 |---|---|---|
 | 04_5-01 | Bot Provider 接口 + Trigger Node + Reply Node 节点抽象 + NodeRegistry 注册 | M |
-| 04_5-02 | Mattermost Provider 实现（WebSocket 入站 + REST 出站 + 签名验证） | L |
-| 04_5-03 | Trigger 节点 → workflow 启动集成（thread_id / user_id / message 注入 state） | M |
-| 04_5-04 | Reply 节点 → 出站回帖 + Jinja2 模板 + 长消息分段 | S-M |
-| 04_5-05 | 前端：Trigger / Reply 节点 UI + 配置面板 | M |
-| 04_5-06 | 飞书 / 企微 / 钉钉 / Slack Provider 实现（4 个 provider，可并行）| L |
-| 04_5-07 | E2E：Mattermost 主线 + 4 个其他 IM provider 各自 smoke | L |
+| 04_5-02 | **Slash Dispatcher 后端** + bot_slash_commands 表 + 路由匹配 + admin API | M |
+| 04_5-03 | Mattermost Provider 实现（WebSocket 入站 + REST 出站 + 签名验证 + slash 命令注册到 Mattermost） | L |
+| 04_5-04 | Trigger 节点 → workflow 启动集成（thread_id / user_id / message / parsed_args 注入 state） | M |
+| 04_5-05 | Reply 节点 → 出站回帖 + Jinja2 模板 + 长消息分段 | S-M |
+| 04_5-06 | 前端：Trigger / Reply 节点 UI + 配置面板 + Slash 管理页 | M |
+| 04_5-07 | 飞书 / 企微 / 钉钉 / Slack Provider 实现（4 个 provider，可并行）| L |
+| 04_5-08 | E2E：Mattermost 主线 (slash 路由 + 多命令) + 4 个其他 IM provider 各自 smoke | L |
 
-**总估算**：6-8 plans / 2-3 周
+**总估算**：7-9 plans / 3-4 周
 
 ## 与 Phase 4 / Phase 5 的关系
 

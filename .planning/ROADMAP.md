@@ -14,6 +14,7 @@
 - [ ] **Phase 2: DSL 引擎 + 基础节点** - DSL 编译执行、Postgres checkpoint、5 种内置节点、实例管理
 - [ ] **Phase 3: HITL 单节点 + Email 审批** - 四态决策、Token 即登录、邮件深链、公网回调
 - [ ] **Phase 4: 审批链 + IM 通知** - 4 种审批链模式、飞书/企微/钉钉/Slack/Mattermost 通知卡片
+- [ ] **Phase 4.5: Bot Triggers + Slash 分发 + Reply (双向 IM)** - 通用 Bot Trigger/Reply 节点 + Slash 命令路由，Mattermost 先行，飞书/企微/钉钉/Slack 后补
 - [ ] **Phase 5: IM 目录双向同步** - 三家 IM 用户/部门同步、Assignee 多形态解析、高级节点
 - [ ] **Phase 6: 插件机制** - 沙箱执行、插件安装/注册/卸载、画布动态加载
 - [ ] **Phase 7: 可观测性 + 运维工具** - 实例 Timeline、预置模板、审计日志、运维工具
@@ -89,6 +90,19 @@ Plans:
   6. 审批人能把待办任务委托给同事，委托记录写入审计日志
 **Plans**: TBD
 
+### Phase 4.5: Bot Triggers + Slash 分发 + Reply (双向 IM)
+**Goal**: 通用 IM Bot 双向接入 — 入站消息触发 workflow（含 Slash 命令分发到不同 workflow / 子图）+ 出站把 workflow 结果回帖到原 IM 线程；Mattermost 第一个 P0 落地，其它 IM (飞书/企微/钉钉/Slack) 作为可插拔 provider 后补
+**Depends on**: Phase 4 (IM 通知通道适配器框架已建)
+**Requirements**: 新增（详见 phases/04_5-bot-triggers/04_5-OUTLINE.md）
+**Success Criteria**（什么状态为完成）:
+  1. Mattermost 用户 @-mention bot 或发 `/<command>` → workflow 触发并接收消息上下文
+  2. **Slash 命令路由**：单个 bot 可注册多个 slash 命令（如 `/leave` `/approve` `/status`），不同命令分发到不同 workflow 或同一 workflow 的不同入口子图
+  3. workflow 执行结果回帖到原 thread (Mattermost bot reply to thread)
+  4. Trigger / Reply 两类节点 + Provider 接口 + Slash Dispatcher 抽象完整 — 加新 IM 仅需实现 Provider 接口
+  5. 飞书 / 企微 / 钉钉 / Slack provider 实现 (4.5.2 P1)
+  6. Bot 鉴权 / Webhook 签名验证 (防伪造)
+**Plans**: TBD (详见 OUTLINE.md, 大约 7-9 plans)
+
 ### Phase 5: IM 目录双向同步
 **Goal**: 节点 assignee 能按邮箱/用户名/部门表达式解析，IM 用户与本地账号自动匹配
 **Depends on**: Phase 4
@@ -133,6 +147,7 @@ Plans:
 | 2. DSL 引擎 + 基础节点 | 6/10 | In Progress|  |
 | 3. HITL 单节点 + Email 审批 | 0/TBD | Not started | - |
 | 4. 审批链 + IM 通知 | 0/TBD | Not started | - |
+| 4.5. Bot Triggers + Slash | 0/TBD | Not started | - |
 | 5. IM 目录双向同步 | 0/TBD | Not started | - |
 | 6. 插件机制 | 0/TBD | Not started | - |
 | 7. 可观测性 + 运维工具 | 0/TBD | Not started | - |
