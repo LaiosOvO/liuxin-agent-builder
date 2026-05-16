@@ -6,18 +6,21 @@
   - Jinja2 config 递归渲染
   - tenacity 异步重试 + asyncio 超时
   - 统一错误包装
+  - State Pointer Pattern 透明集成（防 Pitfall 1 checkpoint 写入放大）
   - LangGraph node fn 入口 __call__
 
-设计参考（Dify 阅读笔记 docs/reading-dify-02-04-base-nodes-2026-05-16.md）：
-- 参考 Dify node_factory.py 的工厂分发模式，但简化为 dict 注册表
-- 不引入 graphon 运行时上下文，保持基类纯净
-- tenacity 在节点层统一重试（Dify 也在节点层做 retry），而非委托给 LangChain provider
+设计参考（Dify 阅读笔记）：
+- docs/reading-dify-02-04-base-nodes-2026-05-16.md：节点工厂分发模式
+- docs/reading-dify-02-06-redis-pointer-2026-05-16.md：大字段旁路存储模式
+- 参考 Dify DifyGraphInitContext frozen dataclass 传递上下文的思路，
+  我们用构造参数注入 workspace_id / instance_id / redis
 """
 from __future__ import annotations
 
 import asyncio
 from abc import ABC, abstractmethod
-from typing import Any
+from typing import TYPE_CHECKING, Any
+from uuid import UUID
 
 from jinja2.sandbox import SandboxedEnvironment
 from tenacity import (
@@ -29,6 +32,9 @@ from tenacity import (
 )
 
 from app.agent_builder.workflow.jinja_env import build_jinja_env
+
+if TYPE_CHECKING:
+    from redis.asyncio import Redis
 
 
 class NodeExecutionError(Exception):
@@ -75,20 +81,45 @@ class BaseNodeExecutor(ABC):
         node_def: dict,
         *,
         jinja_env: SandboxedEnvironment | None = None,
+        workspace_id: UUID | None = None,
+        instance_id: UUID | None = None,
+        redis: Redis | None = None,
     ) -> None:
         self.node_def = node_def
         self.node_id: str = node_def["id"]
         self.node_type: str = node_def["type"]
         self.config: dict = node_def.get("config", {})
         self.jinja_env: SandboxedEnvironment = jinja_env or build_jinja_env()
+        # State Pointer Pattern 上下文（由 DSLCompiler 在 Plan 02-07 注入）
+        # 可选：未注入时 pointer 功能自动跳过，保持向后兼容
+        self.workspace_id: UUID | None = workspace_id
+        self.instance_id: UUID | None = instance_id
+        self.redis: Redis | None = redis
+
+    def _has_pointer_context(self) -> bool:
+        """检查是否注入了完整的 State Pointer 上下文。
+
+        Returns:
+            True 当且仅当 workspace_id / instance_id / redis 均已注入
+        """
+        return all(
+            getattr(self, attr, None) is not None
+            for attr in ("workspace_id", "instance_id", "redis")
+        )
 
     async def __call__(self, state: dict) -> dict:
-        """LangGraph node fn 入口。
+        """LangGraph node fn 入口（含 State Pointer Pattern 透明集成）。
 
-        接收当前 state dict，返回 {node_id: result} 让 LangGraph merge。
+        执行流程：
+        1. 入口：若已注入 pointer 上下文，先对 state 做透明解引用（read_state_with_pointers）
+        2. 渲染 config、重试、超时、执行节点 execute()
+        3. 出口：若已注入 pointer 上下文，大字段透明写 Redis（write_state_with_pointers）
+        4. 返回 {node_id: result}，LangGraph 自动 merge
+
+        节点 execute() 代码对 pointer 机制完全无感知。
 
         Args:
-            state: 当前 LangGraph state dict
+            state: 当前 LangGraph state dict（可能含 pointer 字符串）
 
         Returns:
             {self.node_id: result}，LangGraph 自动 merge
@@ -96,6 +127,17 @@ class BaseNodeExecutor(ABC):
         Raises:
             NodeExecutionError: 节点执行失败（重试耗尽或不可重试错误）
         """
+        # 1. 入口：透明解引用（下游节点看到真实值，而非 pointer 字符串）
+        if self._has_pointer_context():
+            from app.agent_builder.workflow.state_pointer import read_state_with_pointers
+            state = await read_state_with_pointers(
+                state,
+                workspace_id=self.workspace_id,  # type: ignore[arg-type]
+                instance_id=self.instance_id,  # type: ignore[arg-type]
+                redis=self.redis,  # type: ignore[arg-type]
+            )
+
+        # 2. 渲染 config + 重试执行
         rendered_config = self._render_config(state)
         retry_count = rendered_config.get("retry_count", self._default_retry_count())
         backoff = rendered_config.get("backoff_base_sec", 1)
@@ -140,6 +182,16 @@ class BaseNodeExecutor(ABC):
                 str(e),
                 original=e,
             ) from e
+
+        # 3. 出口：大字段透明写 Redis（pointer wrap），对 execute() 完全无感知
+        if isinstance(result, dict) and self._has_pointer_context():
+            from app.agent_builder.workflow.state_pointer import write_state_with_pointers
+            result = await write_state_with_pointers(
+                result,
+                workspace_id=self.workspace_id,  # type: ignore[arg-type]
+                instance_id=self.instance_id,  # type: ignore[arg-type]
+                redis=self.redis,  # type: ignore[arg-type]
+            )
 
         return {self.node_id: result}
 
