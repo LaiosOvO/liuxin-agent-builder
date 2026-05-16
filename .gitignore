@@ -25,6 +25,9 @@ out/
 .env
 .env.*
 !.env.example
+.ssh_pass
+*.pem
+*.key
 
 # 日志与临时
 *.log
