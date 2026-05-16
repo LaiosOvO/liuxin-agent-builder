@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>邀请您加入工作区</title>
+</head>
+<body style="margin:0;padding:0;font-family:'Helvetica Neue',Arial,sans-serif;background-color:#f5f5f5;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color:#f5f5f5;">
+    <tr>
+      <td align="center" style="padding:40px 20px;">
+        <table role="presentation" width="560" cellspacing="0" cellpadding="0"
+               style="max-width:560px;background-color:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08);">
+
+          <!-- 头部 -->
+          <tr>
+            <td style="background-color:#1a1a2e;padding:32px 40px;text-align:center;">
+              <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:600;letter-spacing:0.5px;">
+                agent-builder
+              </h1>
+              <p style="margin:8px 0 0;color:#a0aec0;font-size:13px;">工作流自动化平台</p>
+            </td>
+          </tr>
+
+          <!-- 正文 -->
+          <tr>
+            <td style="padding:40px 40px 32px;">
+              <h2 style="margin:0 0 16px;color:#1a202c;font-size:20px;font-weight:600;">
+                您收到一份工作区邀请
+              </h2>
+              <p style="margin:0 0 16px;color:#4a5568;font-size:15px;line-height:1.6;">
+                您好，
+              </p>
+              <p style="margin:0 0 24px;color:#4a5568;font-size:15px;line-height:1.6;">
+                <strong>{{ invited_by_name }}</strong> 邀请您以 <strong>{{ role }}</strong> 身份加入工作区
+                <strong>{{ workspace_name }}</strong>。
+                邀请链接在 <strong>24 小时</strong>内有效。
+              </p>
+
+              <!-- 邀请信息卡片 -->
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0"
+                     style="background-color:#f7fafc;border-radius:6px;margin-bottom:24px;">
+                <tr>
+                  <td style="padding:20px 24px;">
+                    <p style="margin:0 0 8px;color:#718096;font-size:13px;text-transform:uppercase;letter-spacing:0.5px;">工作区</p>
+                    <p style="margin:0 0 16px;color:#1a202c;font-size:16px;font-weight:600;">{{ workspace_name }}</p>
+                    <p style="margin:0 0 8px;color:#718096;font-size:13px;text-transform:uppercase;letter-spacing:0.5px;">邀请角色</p>
+                    <p style="margin:0;color:#1a202c;font-size:16px;font-weight:600;">{{ role }}</p>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- 接受邀请按钮 -->
+              <table role="presentation" cellspacing="0" cellpadding="0" style="margin:0 auto 32px;">
+                <tr>
+                  <td style="border-radius:6px;background-color:#4f46e5;">
+                    <a href="{{ invitation_url }}"
+                       style="display:inline-block;padding:14px 32px;color:#ffffff;text-decoration:none;font-size:15px;font-weight:600;border-radius:6px;">
+                      接受邀请
+                    </a>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- 备用链接 -->
+              <p style="margin:0 0 8px;color:#718096;font-size:13px;">
+                如果按钮无法点击，请复制以下链接到浏览器：
+              </p>
+              <p style="margin:0 0 24px;word-break:break-all;">
+                <a href="{{ invitation_url }}" style="color:#4f46e5;font-size:13px;">
+                  {{ invitation_url }}
+                </a>
+              </p>
+
+              <hr style="border:none;border-top:1px solid #e2e8f0;margin:0 0 24px;">
+
+              <p style="margin:0;color:#a0aec0;font-size:13px;line-height:1.5;">
+                如果您没有预期收到此邀请，可以忽略此邮件。邀请链接只能使用一次，过期后需要重新申请邀请。
+              </p>
+            </td>
+          </tr>
+
+          <!-- 尾部 -->
+          <tr>
+            <td style="background-color:#f7fafc;padding:20px 40px;text-align:center;border-top:1px solid #e2e8f0;">
+              <p style="margin:0;color:#a0aec0;font-size:12px;">
+                &copy; 2026 agent-builder. 保留所有权利。
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

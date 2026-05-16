@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>欢迎加入 agent-builder</title>
+</head>
+<body style="margin:0;padding:0;font-family:'Helvetica Neue',Arial,sans-serif;background-color:#f5f5f5;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color:#f5f5f5;">
+    <tr>
+      <td align="center" style="padding:40px 20px;">
+        <table role="presentation" width="560" cellspacing="0" cellpadding="0"
+               style="max-width:560px;background-color:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08);">
+
+          <!-- 头部 -->
+          <tr>
+            <td style="background-color:#1a1a2e;padding:32px 40px;text-align:center;">
+              <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:600;letter-spacing:0.5px;">
+                agent-builder
+              </h1>
+              <p style="margin:8px 0 0;color:#a0aec0;font-size:13px;">工作流自动化平台</p>
+            </td>
+          </tr>
+
+          <!-- 正文 -->
+          <tr>
+            <td style="padding:40px 40px 32px;">
+              <h2 style="margin:0 0 16px;color:#1a202c;font-size:20px;font-weight:600;">
+                欢迎加入，{{ display_name }}！
+              </h2>
+              <p style="margin:0 0 16px;color:#4a5568;font-size:15px;line-height:1.6;">
+                您的账号已成功创建并激活。现在您可以登录 agent-builder，开始创建您的工作流了。
+              </p>
+
+              <!-- 功能亮点 -->
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0"
+                     style="background-color:#f7fafc;border-radius:6px;margin-bottom:32px;">
+                <tr>
+                  <td style="padding:20px 24px;">
+                    <p style="margin:0 0 12px;color:#1a202c;font-size:14px;font-weight:600;">您可以使用 agent-builder 来：</p>
+                    <table role="presentation" cellspacing="0" cellpadding="0">
+                      <tr>
+                        <td style="padding:4px 0;color:#4a5568;font-size:14px;">
+                          &#10003;&nbsp;&nbsp;拖拽式可视化编排 LangGraph 工作流
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="padding:4px 0;color:#4a5568;font-size:14px;">
+                          &#10003;&nbsp;&nbsp;通过邮件/IM 完成人工审批（HITL）
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="padding:4px 0;color:#4a5568;font-size:14px;">
+                          &#10003;&nbsp;&nbsp;公网回调推进状态机
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- 登录按钮 -->
+              <table role="presentation" cellspacing="0" cellpadding="0" style="margin:0 auto 32px;">
+                <tr>
+                  <td style="border-radius:6px;background-color:#4f46e5;">
+                    <a href="{{ login_url }}"
+                       style="display:inline-block;padding:14px 32px;color:#ffffff;text-decoration:none;font-size:15px;font-weight:600;border-radius:6px;">
+                      立即登录
+                    </a>
+                  </td>
+                </tr>
+              </table>
+
+              <hr style="border:none;border-top:1px solid #e2e8f0;margin:0 0 24px;">
+
+              <p style="margin:0;color:#a0aec0;font-size:13px;line-height:1.5;">
+                如有任何问题，请联系您的工作区管理员。
+              </p>
+            </td>
+          </tr>
+
+          <!-- 尾部 -->
+          <tr>
+            <td style="background-color:#f7fafc;padding:20px 40px;text-align:center;border-top:1px solid #e2e8f0;">
+              <p style="margin:0;color:#a0aec0;font-size:12px;">
+                &copy; 2026 agent-builder. 保留所有权利。
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
