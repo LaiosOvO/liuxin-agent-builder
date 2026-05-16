@@ -31,7 +31,8 @@ Plan 02-04 接入方式：
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Callable
+from typing import TYPE_CHECKING, Any, Callable
+from uuid import UUID
 
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.graph import END, START, StateGraph
@@ -39,6 +40,10 @@ from langgraph.graph import END, START, StateGraph
 from app.agent_builder.workflow.jinja_env import build_jinja_env
 from app.agent_builder.workflow.types import build_state_typeddict
 from app.agent_builder.workflow.validator import DSLCompilationError, DSLValidator, ValidationError
+
+if TYPE_CHECKING:
+    from redis.asyncio import Redis
+    from app.agent_builder.workflow.event_bus import EventBus
 
 
 @dataclass
@@ -70,8 +75,20 @@ class DSLCompiler:
     8. graph.compile(checkpointer=...) 返回 CompiledGraph
     """
 
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        *,
+        workspace_id: UUID | None = None,
+        instance_id: UUID | None = None,
+        redis: Redis | None = None,
+        event_bus: EventBus | None = None,
+    ) -> None:
         self._jinja_env = build_jinja_env()
+        # 运行时上下文（Plan 02-07 新增）：注入给 BaseNodeExecutor 用于 State Pointer + EventBus
+        self._workspace_id = workspace_id
+        self._instance_id = instance_id
+        self._redis = redis
+        self._event_bus = event_bus
 
     def compile(
         self,
@@ -182,8 +199,15 @@ class DSLCompiler:
         executor_cls = NODE_EXECUTORS.get(node_type)
 
         if executor_cls is not None:
-            # 真实 executor：传入节点定义 + 共享 jinja_env
-            return executor_cls(node, jinja_env=self._jinja_env)
+            # 真实 executor：传入节点定义 + 共享 jinja_env + 运行时上下文
+            return executor_cls(
+                node,
+                jinja_env=self._jinja_env,
+                workspace_id=self._workspace_id,
+                instance_id=self._instance_id,
+                redis=self._redis,
+                event_bus=self._event_bus,
+            )
 
         # 未注册节点类型（如 llm，Plan 02-05 接入）使用占位 executor
         return self._build_placeholder_executor(node)

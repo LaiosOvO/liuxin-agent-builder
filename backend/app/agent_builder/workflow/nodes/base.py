@@ -35,6 +35,7 @@ from app.agent_builder.workflow.jinja_env import build_jinja_env
 
 if TYPE_CHECKING:
     from redis.asyncio import Redis
+    from app.agent_builder.workflow.event_bus import EventBus
 
 
 class NodeExecutionError(Exception):
@@ -84,6 +85,7 @@ class BaseNodeExecutor(ABC):
         workspace_id: UUID | None = None,
         instance_id: UUID | None = None,
         redis: Redis | None = None,
+        event_bus: EventBus | None = None,
     ) -> None:
         self.node_def = node_def
         self.node_id: str = node_def["id"]
@@ -95,6 +97,8 @@ class BaseNodeExecutor(ABC):
         self.workspace_id: UUID | None = workspace_id
         self.instance_id: UUID | None = instance_id
         self.redis: Redis | None = redis
+        # EventBus 上下文（Plan 02-07 注入）：用于 node.start / node.complete 事件
+        self.event_bus: EventBus | None = event_bus
 
     def _has_pointer_context(self) -> bool:
         """检查是否注入了完整的 State Pointer 上下文。
@@ -108,15 +112,16 @@ class BaseNodeExecutor(ABC):
         )
 
     async def __call__(self, state: dict) -> dict:
-        """LangGraph node fn 入口（含 State Pointer Pattern 透明集成）。
+        """LangGraph node fn 入口（含 State Pointer Pattern 透明集成 + EventBus 事件）。
 
         执行流程：
+        0. 发布 node.start 事件（若已注入 event_bus + instance_id）
         1. 入口：若已注入 pointer 上下文，先对 state 做透明解引用（read_state_with_pointers）
         2. 渲染 config、重试、超时、执行节点 execute()
         3. 出口：若已注入 pointer 上下文，大字段透明写 Redis（write_state_with_pointers）
         4. 返回 {node_id: result}，LangGraph 自动 merge
 
-        节点 execute() 代码对 pointer 机制完全无感知。
+        节点 execute() 代码对 pointer 机制和 EventBus 完全无感知。
 
         Args:
             state: 当前 LangGraph state dict（可能含 pointer 字符串）
@@ -127,6 +132,18 @@ class BaseNodeExecutor(ABC):
         Raises:
             NodeExecutionError: 节点执行失败（重试耗尽或不可重试错误）
         """
+        import time as _time
+        _start_mono = _time.monotonic()
+
+        # 0. 发布 node.start 事件（参考 Dify QueueNodeStartedEvent）
+        if self.event_bus is not None and self.instance_id is not None:
+            from app.agent_builder.workflow.event_bus import EVENT_NODE_START
+            await self.event_bus.publish(
+                self.instance_id,
+                EVENT_NODE_START,
+                {"node_id": self.node_id, "node_type": self.node_type},
+            )
+
         # 1. 入口：透明解引用（下游节点看到真实值，而非 pointer 字符串）
         if self._has_pointer_context():
             from app.agent_builder.workflow.state_pointer import read_state_with_pointers
