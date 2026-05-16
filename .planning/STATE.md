@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-last_updated: "2026-05-17T03:28:56Z"
+last_updated: "2026-05-17T19:40:00Z"
 progress:
   total_phases: 4
   completed_phases: 2
   total_plans: 26
-  completed_plans: 24
+  completed_plans: 25
 ---
 
 # Project State
@@ -23,11 +23,11 @@ See: .planning/PROJECT.md (updated 2026-05-16)
 ## Current Position
 
 Phase: 3 of 7 (HITL 单节点 + Email 审批) — IN PROGRESS
-Plan: 7 of 10 in current phase（03-01 / 03-02 / 03-03 / 03-04 / 03-05 / 03-06 / 03-07 完成，Wave 1+2+3+4 + Wave 5 部分交付）
-Status: Wave 5 Plan 07 完成 — Phase 3 P0 价值演示阶段前端决策页闭环 — 可继续 Wave 5（03-08 追踪页前端 / 03-09 超时催办 worker 并行）
-Last activity: 2026-05-17 — Plan 03-07 完成（HITL 决策页前端 + RJSF 5.24 + 4 组件 + 2 路由 + 后端 JSON 协商补缺 + middleware /hitl/ 白名单 + 14 测试通过）
+Plan: 8 of 10 in current phase（03-01 / 03-02 / 03-03 / 03-04 / 03-05 / 03-06 / 03-07 / 03-09 完成，Wave 1+2+3+4 全交付 + Wave 5 部分交付）
+Status: Wave 5 Plan 09 完成 — HITL 超时催办 + 升级 worker 闭环 — Wave 5 剩 03-08 追踪页前端；后续可启动 Wave 6 03-10 E2E gate
+Last activity: 2026-05-17 — Plan 03-09 完成（arq cron scan_hitl_timeouts + 三档阶梯 24h/48h/72h 催办 + EscalationService.perform_escalation + hitl_escalation.html 模板 + 21 测试通过）
 
-Progress: [███░░░░░░░] 24%
+Progress: [███░░░░░░░] 25%
 
 ## Performance Metrics
 
@@ -61,6 +61,7 @@ Progress: [███░░░░░░░] 24%
 | Phase 03-hitl-email P05 | ~10m | 3 tasks（Task0 reading doc + Task1 impl + Task2 13 测试） | 9 files |
 | Phase 03-hitl-email P06 | 25m | 5 tasks（Task 0+pre1+1+2+3+4） tasks | 16 files files |
 | Phase 03-hitl-email P07 | 17m | 6 tasks（Task0+pre1+1+2+3+4） | 17 files (13 created + 4 modified) |
+| Phase 03-hitl-email P09 | ~26m | 4 tasks（Task0 reading + Task1 scan + Task2 escalation + Task3 rounds） | 9 files (7 created + 2 modified) |
 
 ## Accumulated Context
 
@@ -172,6 +173,16 @@ Recent decisions affecting current work:
 - [Phase 03-07]: form_data 复杂类型客户端 JSON.stringify 后再 URLSearchParams 提交（后端 jsonschema 再校验）
 - [Phase 03-07]: RJSF 5.24（不升 6.x）— 5.24 久经测试且 v1 schema 简单（string/number/textarea/enum），不必踩 6.x 早期坑
 - [Phase 03-07]: '/hitl/success/already-submitted' 路径语义化兜底 — DecisionForm 收到 409 时跳此路径，success page 区分文案
+- [Phase 03-09]: arq cron 替代 Celery beat（CLAUDE.md §3 锁定 + reading doc §7 详述 6 维度对比）
+- [Phase 03-09]: 三档阶梯催办 24h/48h/72h（vs Dify 单一 TIMEOUT 终态）— 业务场景差异：审批人需主动催办，Dify 是表单等用户主动提交
+- [Phase 03-09]: [Rule 1 - Bug] _trigger_reminder 不复用 NotificationService.enqueue_hitl_email — 后者内部 commit() 提前释放 advisory_lock 破坏并发隔离；改为直接 INSERT + 上层统一 commit
+- [Phase 03-09]: [Rule 1 - Bug] _process_node 入参 ns_id（vs ORM 对象）— 锁内重新 db.get(NodeState, ns_id) 加载 fresh，避免 detached object 跨 session race
+- [Phase 03-09]: [Rule 3 - Blocking] 测试 fixture clean_phase3_tables yield 后加 engine.dispose() — scan_hitl_timeouts 用 async_session_maker 跨 fixture session，跨测试事件循环需 dispose 防污染
+- [Phase 03-09]: EscalationService.resolve_escalate_to Phase 3 简化 — node_config.escalate_to email > workspace admin > super_admin > None；Phase 5 扩展 role:admin / dept:HR
+- [Phase 03-09]: 升级邮件无决策按钮 — admin 需先看上下文（不在邮件内直接决策升级件）；催办邮件保留按钮（actor 已知上下文）
+- [Phase 03-09]: payload.escalation=True 标识 + reminder_round=3 — email_jobs._render_email_content 据此路由 hitl_escalation.html（与催办 hitl_reminder.html 解耦）
+- [Phase 03-09]: scan_hitl_timeouts cron `unique=True` + `max_tries=1` — 多 worker 唯一执行（防重复扫描）+ 失败不重试（60s 后下次 cron 再来防补发风暴）
+- [Phase 03-09]: advisory_xact_lock(hash(ns_id)) + UNIQUE 约束双保险 — lock 是性能层防 race，UNIQUE 是正确性层兜底
 
 ### Pending Todos
 
@@ -187,5 +198,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-05-17
-Stopped at: Completed 03-07-PLAN.md（HITL 决策页前端 Next.js 16/15 + RJSF 5.24 + 4 组件 + 2 路由 + 后端 JSON content negotiation 补缺 + middleware /hitl/ 白名单；10 vitest + 4 backend JSON 集成测试通过，零回归）
+Stopped at: Completed 03-09-PLAN.md（HITL 超时催办 + 升级 worker：arq cron scan_hitl_timeouts 每分钟扫超时节点 + 三档阶梯 24h/48h/72h + EscalationService.perform_escalation + hitl_escalation.html 升级模板 + payload.escalation 路由 + 21 测试通过，零回归）
 Resume file: None
