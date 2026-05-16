@@ -21,6 +21,10 @@ from app.agent_builder.models.workflow_version import WorkflowVersion
 from app.agent_builder.models.flow_instance import FlowInstance
 from app.agent_builder.models.node_state import NodeState
 
+# Phase 3 HITL + Notification 模型（2 张新表 + audit_log NET-05 alter）
+from app.agent_builder.models.hitl_token import HitlToken
+from app.agent_builder.models.notification import Notification
+
 __all__ = [
     "Base",
     # Phase 1 模型
@@ -38,4 +42,7 @@ __all__ = [
     "WorkflowVersion",
     "FlowInstance",
     "NodeState",
+    # Phase 3 HITL 模型
+    "HitlToken",
+    "Notification",
 ]
