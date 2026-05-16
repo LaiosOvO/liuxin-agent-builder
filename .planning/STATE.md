@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: in_progress
-last_updated: "2026-05-17T18:29:12Z"
+last_updated: "2026-05-17T18:46:25Z"
 progress:
   total_phases: 7
   completed_phases: 2
   total_plans: 26
-  completed_plans: 20
+  completed_plans: 21
 ---
 
 # Project State
@@ -23,11 +23,11 @@ See: .planning/PROJECT.md (updated 2026-05-16)
 ## Current Position
 
 Phase: 3 of 7 (HITL 单节点 + Email 审批) — IN PROGRESS
-Plan: 4 of 10 in current phase（03-01 / 03-02 / 03-03 / 03-04 完成，Wave 1 + Wave 2 + Wave 3 已交付）
-Status: Wave 3 Plan 04 完成 — 可启动 Wave 4（03-05 通知节点 / 03-06 HITL public API）
-Last activity: 2026-05-17 — Plan 03-04 完成（NotificationService + arq job send_hitl_email_job + tenacity 3 次重试 + 3 模板 + 18 测试通过）
+Plan: 5 of 10 in current phase（03-01 / 03-02 / 03-03 / 03-04 / 03-05 完成，Wave 1 + Wave 2 + Wave 3 + Wave 4 部分交付）
+Status: Wave 4 Plan 05 完成 — 可继续 Wave 4（03-06 HITL public API 部分已 commit 中）
+Last activity: 2026-05-17 — Plan 03-05 完成（NotificationNodeExecutor + 通用通知模板 + 13 集成测试通过；与 HITL 节点完全解耦）
 
-Progress: [██░░░░░░░░] 21%
+Progress: [███░░░░░░░] 22%
 
 ## Performance Metrics
 
@@ -57,6 +57,7 @@ Progress: [██░░░░░░░░] 21%
 | Phase 03-hitl-email P03 | 6m | 3 tasks | 5 files |
 | Phase 03-hitl-email P02 | 17m | 4 tasks | 15 files |
 | Phase 03-hitl-email P04 | ~10m | 3 tasks（+Task0 已 commit） | 10 files |
+| Phase 03-hitl-email P05 | ~10m | 3 tasks（Task0 reading doc + Task1 impl + Task2 13 测试） | 9 files |
 
 ## Accumulated Context
 
@@ -139,6 +140,14 @@ Recent decisions affecting current work:
 - [Phase 03-04]: job 入参 notification_id（vs payload）：自包含 + 幂等（status=='sent' 跳过）+ 标记 'sending' 防并发抢
 - [Phase 03-04]: job 用独立 async_session_maker session（不复用调用方 session）：arq worker 上下文隔离 + 测试 fixture 干净
 - [Phase 03-04]: deeplinks 在模板内拼装（payload 只存 jti+action）：PUBLIC_BASE_URL 变化不需要回填历史
+- [Phase 03-05]: Dify 没有独立 Notification 节点（通知耦合在 HumanInputForm 投递链），本项目按 CONTEXT §NODE-07 解耦：3 独立节点类 + 独立 schema + 独立 NODE_EXECUTORS key
+- [Phase 03-05]: NotificationNodeExecutor 走 BaseNodeExecutor.execute 路径（vs HITL override __call__）：不抛 GraphInterrupt，可享受 retry/timeout 装饰器（_retryable_exceptions 返回空 tuple 避免重复重试）
+- [Phase 03-05]: 复用 send_hitl_email_job worker（不新建 arq function）：通过 payload.generic=True 字段路由到 generic_notification.html，避免 WorkerSettings.functions 注册爆炸
+- [Phase 03-05]: 失败不阻断模式：单 recipient 入队失败 → db.rollback() + failed_count + 1；graph 仍走完所有 recipient（vs HITL fail-stop）
+- [Phase 03-05]: 节点自管 node_state_id（SELECT or INSERT 满足 FK 约束）vs HITL 要求 ExecutionEngine 预创建 + 注入 _node_state_id 到 state
+- [Phase 03-05]: subject CR/LF 净化二次过滤：Jinja 渲染后 + 进 SMTP 前 replace('\\r', ' ').replace('\\n', ' ')[:200] 防 SMTP 头注入
+- [Phase 03-05]: recipients oneOf list|string + 节点层规范化为 list：DSL UI 友好（单 recipient 时用户可直接写 string）
+- [Phase 03-05]: 节点层 _is_valid_email 兜底过滤（正则简易匹配），service 不再二次校验（trust the boundary 原则）
 
 ### Pending Todos
 
@@ -154,5 +163,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-05-17
-Stopped at: Completed 03-04-PLAN.md（NotificationService + arq job send_hitl_email_job + tenacity 3 次重试 + 3 邮件模板 + 18 测试通过）
+Stopped at: Completed 03-05-PLAN.md（NotificationNodeExecutor 独立通知节点 NODE-07 + enqueue_generic_email + generic_notification.html + 13 集成测试通过；与 HITL 节点完全解耦）
 Resume file: None
