@@ -2,13 +2,13 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: in_progress
-last_updated: "2026-05-16T14:15:00.000Z"
+status: unknown
+last_updated: "2026-05-16T14:31:32.032Z"
 progress:
-  total_phases: 7
+  total_phases: 2
   completed_phases: 1
   total_plans: 16
-  completed_plans: 7
+  completed_plans: 8
 ---
 
 # Project State
@@ -23,9 +23,9 @@ See: .planning/PROJECT.md (updated 2026-05-16)
 ## Current Position
 
 Phase: 2 of 7 (DSL 引擎 + 基础节点)
-Plan: 1 of 10 in current phase（02-01 完成，Phase 2 Wave 1 前置升级完成）
+Plan: 2 of 10 in current phase（02-02 完成，DSL Schema + 验证器 + 编译器骨架 + Jinja2 沙箱）
 Status: In Progress
-Last activity: 2026-05-16 — Plan 02-01 完成（langgraph 1.2.0 升级 + checkpoint-postgres 3.1.0 + Phase 2 业务表 + 25 个测试通过）
+Last activity: 2026-05-16 — Plan 02-02 完成（DSL Schema + Jinja2 沙箱 + DSLValidator 4 类全检 + DSLCompiler 骨架 + 81 个测试通过）
 
 Progress: [███░░░░░░░] 30%
 
@@ -47,6 +47,7 @@ Progress: [███░░░░░░░] 30%
 - Trend: 稳定
 
 *Updated after each plan completion*
+| Phase 02-dsl P02 | 12 | 3 tasks | 17 files |
 
 ## Accumulated Context
 
@@ -78,6 +79,8 @@ Recent decisions affecting current work:
 - M4 (Phase 1): rbac.denied 审计用独立 session（HTTPException 回滚主 session，需独立 session 确保审计提交）
 - M4 (Phase 1): GET verify-email 消费 jti（与 HITL GET 不消费不同，代码注释明确区分）
 - M4 (Phase 1): autouse pytest fixture 重置 slowapi limiter + app.state.limiter（防止 importlib.reload 后双 limiter 不一致）
+- [Phase 02-dsl]: TopologicalSorter 使用入边依赖图（非出边），static_order() 返回正确执行顺序 start→...→end
+- [Phase 02-dsl]: 孤立节点 E_ORPHAN_NODE 定为 warning 级别（可放行），不阻断工作流发布
 
 ### Pending Todos
 
@@ -92,5 +95,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-05-16
-Stopped at: Completed 02-01-PLAN.md（langgraph 1.2.0 + checkpoint-postgres 3.1.0 + Phase 2 业务表 + 25 个测试通过）
+Stopped at: Completed 02-02-PLAN.md（DSL Schema + Jinja2 沙箱 + DSLValidator 4 类全检 + DSLCompiler 骨架 + 81 个测试通过）
 Resume file: None
