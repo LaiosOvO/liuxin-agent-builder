@@ -231,7 +231,7 @@ async def _seed_overdue_node_for_escalation(
 
 @pytest.mark.asyncio
 async def test_resolve_escalate_to_email_format(db_session, clean_phase3_tables):
-    """node_config.escalate_to='user@x.com' → 直接返回该 email。"""
+    """node_config.escalate_to='user@x.com' → 返回 [email]（Phase 4 list 兼容）。"""
     ws_id, _ = await _seed_workspace_with_admin(db_session)
     es = EscalationService(db_session)
 
@@ -239,14 +239,15 @@ async def test_resolve_escalate_to_email_format(db_session, clean_phase3_tables)
         node_config={"escalate_to": "manager@company.com"},
         workspace_id=ws_id,
     )
-    assert result == "manager@company.com"
+    # Phase 4: 返回类型从 str 改为 list[str]
+    assert result == ["manager@company.com"]
 
 
 @pytest.mark.asyncio
 async def test_resolve_escalate_to_fallback_to_workspace_admin(
     db_session, clean_phase3_tables
 ):
-    """无 escalate_to → 取 workspace 下 admin 角色用户的 email。"""
+    """无 escalate_to → 取 workspace 下 admin 角色用户的 email 列表。"""
     ws_id, admin_email = await _seed_workspace_with_admin(
         db_session, admin_email="ws_admin@test.com"
     )
@@ -257,7 +258,8 @@ async def test_resolve_escalate_to_fallback_to_workspace_admin(
         node_config={"other_field": "abc"},
         workspace_id=ws_id,
     )
-    assert result == "ws_admin@test.com"
+    # Phase 4: list[str]
+    assert result == ["ws_admin@test.com"]
 
 
 @pytest.mark.asyncio
@@ -307,7 +309,9 @@ async def test_perform_escalation_writes_records(db_session, clean_phase3_tables
     assert record["action"] == "escalate"
     assert record["actor_email"] == "system"
     assert record["reason"] == "timeout_72h"
-    assert record["escalate_to"] == "escalate@test.com"
+    # Phase 4: records.escalate_to 改为 list[str] + 新增 escalate_count
+    assert record["escalate_to"] == ["escalate@test.com"]
+    assert record["escalate_count"] == 1
     assert "ts" in record
 
 

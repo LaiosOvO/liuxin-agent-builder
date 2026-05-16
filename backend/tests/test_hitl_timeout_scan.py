@@ -361,7 +361,9 @@ async def test_scan_overdue_72h_triggers_escalation(db_session, clean_phase3_tab
     escalate_records = [r for r in records if r.get("action") == "escalate"]
     assert len(escalate_records) == 1, f"escalate record 缺失，records={records}"
     assert escalate_records[0]["actor_email"] == "system"
-    assert escalate_records[0]["escalate_to"] == "escalate@test.com"
+    # Phase 4 04-04: records.escalate_to 改为 list[str]
+    assert escalate_records[0]["escalate_to"] == ["escalate@test.com"]
+    assert escalate_records[0]["escalate_count"] == 1
 
 
 @pytest.mark.asyncio

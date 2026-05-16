@@ -1,20 +1,27 @@
-"""HITL 节点超时升级服务（Plan 03-09）。
+"""HITL 节点超时升级服务（Phase 3 03-09 + Phase 4 04-04 扩展）。
 
-设计参考 docs/reading-dify-03-09-timeout-worker-2026-05-17.md §4：
+设计参考 docs/reading-dify-03-09-timeout-worker-2026-05-17.md §4
++ docs/reading-dify-04-04-escalation-expressions-2026-05-17.md：
 - Dify 没有"主动升级到上级"逻辑（仅标记 TIMEOUT 让流程走 timeout 分支）
 - 本项目独创：超过 72h 时换 actor 为 escalate_to 用户 + 发升级邮件 + 写 audit_log
+- 本项目独创：4 表达式 prefix 路由（email / user:<uuid> / role:<code> / dept:<name>）
 
-Phase 3 简化（HITL-04 single 模式部分）：
-- node_def.config.escalate_to 直接接收 user_email 字符串
-- 找不到 escalate_to 时 fallback 到 workspace super_admin 的 email
-- Phase 5 expand: role:admin / dept:HR / dynamic_expr 三态（依赖 IM 目录同步）
+Phase 4 04-04 扩展（HITL-04 完整 4 表达式）:
+- email: 'user@example.com' 或 'manager@company.com' （Phase 3 兼容）
+- user:<uuid> — 解析为单个用户 email（同 workspace + active）
+- role:<code> — 解析为 workspace 内 role.code 用户 emails（可能多人）
+- dept:<name> — 抛 NotImplementedError（Phase 5 IM 目录双向同步后实现）
+
+返回类型变更（向后兼容）:
+- Phase 3: str | None（单 email）
+- Phase 4: list[str] | None（兼容 role: 多匹配；email/user: 仍返回单元素 list）
 
 CLAUDE.md immutability：
 - 不修改入参 payload dict — 用 append_record 风格生成新 dict
 - node_state.payload 字段赋值后由 SQLAlchemy ORM 持久化（外层 commit 时落 PG）
 
 CLAUDE.md 2.4 多租户：
-- 通过 ns.workspace_id 取 super_admin fallback
+- 所有 helper 查询显式 workspace_id WHERE 注入（防越权拿其他 ws 用户 email）
 - 写入 audit_log 时 workspace_id 显式传入
 """
 from __future__ import annotations
@@ -31,19 +38,23 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.agent_builder.models.audit_log import AuditLog
 from app.agent_builder.models.flow_instance import FlowInstance
 from app.agent_builder.models.node_state import NodeState
+from app.agent_builder.models.role import Role
 from app.agent_builder.models.user import User
 from app.agent_builder.models.user_workspace_role import UserWorkspaceRole
-from app.agent_builder.models.role import Role
 
 log = logging.getLogger(__name__)
 
 
+class EscalationExprError(Exception):
+    """超时升级表达式解析错误（非配置错误时使用，目前未使用 — 保留扩展位）。"""
+
+
 class EscalationService:
-    """节点超时升级服务。
+    """节点超时升级服务（Phase 3 落地 + Phase 4 4 表达式扩展）。
 
     职责：
-    - resolve_escalate_to: 解析升级人 email
-    - perform_escalation: 执行升级（发邮件 + 写 records + audit_log + 替换 current_actor）
+    - resolve_escalate_to: 解析升级人 email 列表（4 表达式路由）
+    - perform_escalation: 执行升级（多 email fan-out 发邮件 + 多条 audit_log）
 
     用法：
         es = EscalationService(db, arq_pool=arq_redis)
@@ -66,60 +77,157 @@ class EscalationService:
         *,
         node_config: dict[str, Any] | None,
         workspace_id: UUID,
-    ) -> str | None:
-        """解析升级人 email。
+    ) -> list[str] | None:
+        """解析升级人 email 列表（Phase 4 4 表达式路由）。
 
-        Phase 3 简化：
-        1. 优先：node_config.escalate_to 直接是 email 字符串
-        2. fallback: workspace 下 super_admin 的 email
-        3. 都没找到：None（调用方决定是否跳过）
-
-        Phase 5 expand（暂不实现）:
-        - 'role:admin' → 查询 workspace admin
-        - 'dept:HR' → 查询 department='HR' 的用户
-        - 'dynamic_expr' → Jinja 模板渲染
+        优先级：dept: (raise) > user: > role: > email > fallback workspace admin
 
         Args:
-            node_config: 节点 DSL config（包含 'escalate_to' 字段或缺失）
-            workspace_id: 工作区 UUID（fallback 查询用）
+            node_config: 节点 DSL config（可能含 'escalate_to' 字段）
+            workspace_id: 工作区 UUID（fallback 查询 + 越权防护）
 
         Returns:
-            升级人 email 字符串；找不到时返回 None。
+            list[email] — 升级人 email 列表（可能 1 个或多个）
+            None — 表达式无法解析 + fallback 也无 admin
+
+        Raises:
+            NotImplementedError: dept:<name> 表达式（Phase 5 IM 目录同步后实现）
         """
-        # Phase 3 简化：仅接受 email 字符串
-        if node_config:
-            escalate_to = node_config.get("escalate_to")
-            if isinstance(escalate_to, str) and "@" in escalate_to:
-                log.info("resolve_escalate_to: 用 node_config.escalate_to=%s", escalate_to)
-                return escalate_to
+        # 1. 无 node_config：直接 fallback
+        if not node_config:
+            emails = await self._fallback_workspace_admin_emails(workspace_id)
+            return emails or None
 
-        # fallback: workspace 下 super_admin email
-        # 注意：is_super_admin=True 是 platform 级，不是 workspace 级；
-        # 这里取 workspace 下任意 admin 角色用户的 email 作为 fallback
-        # Phase 5 expand: 通过 UserWorkspaceRole + Role 关联表查 workspace admin
-        admin_email = await self._fallback_workspace_admin_email(workspace_id)
-        if admin_email:
-            log.info(
-                "resolve_escalate_to: fallback 到 workspace admin email=%s",
-                admin_email,
+        expr = node_config.get("escalate_to")
+        # 2. 空表达式或非字符串：fallback
+        if not expr or not isinstance(expr, str):
+            emails = await self._fallback_workspace_admin_emails(workspace_id)
+            return emails or None
+
+        expr = expr.strip()
+
+        # 3. dept:<name> — Phase 5 实现
+        if expr.startswith("dept:"):
+            raise NotImplementedError(
+                f"dept: 表达式（{expr}）将于 Phase 5（IM 目录双向同步）实现",
             )
-            return admin_email
 
+        # 4. user:<uuid>
+        if expr.startswith("user:"):
+            uid_raw = expr[5:].strip()
+            try:
+                uid = UUID(uid_raw)
+            except ValueError:
+                log.warning(
+                    "resolve_escalate_to: 非法 user: 表达式 %r（UUID parse fail）",
+                    expr,
+                )
+                return None
+            email = await self._get_user_email(uid, workspace_id)
+            if email is None:
+                log.warning(
+                    "resolve_escalate_to: user:%s 在 workspace %s 未找到 active 用户",
+                    uid,
+                    workspace_id,
+                )
+                return None
+            log.info("resolve_escalate_to: 解析 user: → %s", email)
+            return [email]
+
+        # 5. role:<code>
+        if expr.startswith("role:"):
+            role_code = expr[5:].strip()
+            emails = await self._get_emails_by_role(role_code, workspace_id)
+            if not emails:
+                log.warning(
+                    "resolve_escalate_to: role:%s 在 workspace %s 未匹配任何 active 用户 → 走 fallback",
+                    role_code,
+                    workspace_id,
+                )
+                # role: 未命中 → fallback admin（与 Phase 3 一致行为）
+                fb_emails = await self._fallback_workspace_admin_emails(workspace_id)
+                return fb_emails or None
+            log.info(
+                "resolve_escalate_to: 解析 role:%s → %d 人",
+                role_code,
+                len(emails),
+            )
+            return emails
+
+        # 6. email (含 @ 且不含 :) — Phase 3 兼容
+        if "@" in expr and ":" not in expr:
+            log.info("resolve_escalate_to: 解析 email → %s", expr)
+            return [expr]
+
+        # 7. 都不匹配 → fallback
         log.warning(
-            "resolve_escalate_to: 节点配置无 escalate_to + workspace=%s 无 admin，无法升级",
-            workspace_id,
+            "resolve_escalate_to: 未识别表达式 %r，走 fallback admin",
+            expr,
         )
-        return None
+        emails = await self._fallback_workspace_admin_emails(workspace_id)
+        return emails or None
 
-    async def _fallback_workspace_admin_email(
+    async def _get_user_email(
         self,
+        user_id: UUID,
         workspace_id: UUID,
     ) -> str | None:
-        """查 workspace 下 admin 角色用户的 email（fallback 用）。
+        """查 user_id 用户的 email（必须属于 workspace_id + active）。
 
-        优先级：admin > super_admin（platform 级）
+        多租户隔离：JOIN UserWorkspaceRole 强制 workspace_id 匹配，
+        防止 attacker 配置 user:<其他 ws uuid> 越权拿到他人 email。
         """
-        # 查 workspace 下 role.code='admin' 的用户
+        stmt = (
+            select(User.email)
+            .join(UserWorkspaceRole, UserWorkspaceRole.user_id == User.id)
+            .where(
+                User.id == user_id,
+                UserWorkspaceRole.workspace_id == workspace_id,
+                User.status == "active",
+            )
+            .limit(1)
+        )
+        result = await self.db.execute(stmt)
+        email = result.scalar_one_or_none()
+        return str(email) if email else None
+
+    async def _get_emails_by_role(
+        self,
+        role_code: str,
+        workspace_id: UUID,
+    ) -> list[str]:
+        """查 workspace 内具有 role_code 的所有 active 用户 email 列表。
+
+        distinct() 防同一 user 多角色重复（PK 约束已防，distinct 是兜底）。
+        """
+        stmt = (
+            select(User.email)
+            .join(UserWorkspaceRole, UserWorkspaceRole.user_id == User.id)
+            .join(Role, Role.id == UserWorkspaceRole.role_id)
+            .where(
+                UserWorkspaceRole.workspace_id == workspace_id,
+                Role.code == role_code,
+                User.status == "active",
+            )
+            .distinct()
+        )
+        result = await self.db.execute(stmt)
+        return [str(e) for e in result.scalars().all()]
+
+    async def _fallback_workspace_admin_emails(
+        self,
+        workspace_id: UUID,
+    ) -> list[str]:
+        """fallback：workspace 下 admin 角色用户 emails；空时再 fallback platform super_admin。
+
+        Phase 4 改造（vs Phase 3 单 email 版本）：
+        - 不再 limit(1)，返回全部 admin
+        - 二级 fallback 仍保留 super_admin（单元素列表）
+
+        Returns:
+            list[email] — 可能空列表（无 admin 也无 super_admin 时）
+        """
+        # 第一级：workspace 下 role.code='admin' 的全部 active 用户
         stmt = (
             select(User.email)
             .join(UserWorkspaceRole, UserWorkspaceRole.user_id == User.id)
@@ -129,34 +237,36 @@ class EscalationService:
                 Role.code == "admin",
                 User.status == "active",
             )
-            .limit(1)
+            .distinct()
         )
         result = await self.db.execute(stmt)
-        email = result.scalar_one_or_none()
-        if email:
-            return str(email)
+        emails = [str(e) for e in result.scalars().all()]
+        if emails:
+            return emails
 
-        # 再 fallback：platform super_admin（不限 workspace）
+        # 第二级 fallback：platform super_admin（不限 workspace）
         sa_stmt = (
             select(User.email)
-            .where(User.is_super_admin.is_(True), User.status == "active")
+            .where(
+                User.is_super_admin.is_(True),
+                User.status == "active",
+            )
             .limit(1)
         )
         sa_result = await self.db.execute(sa_stmt)
         sa_email = sa_result.scalar_one_or_none()
-        return str(sa_email) if sa_email else None
+        return [str(sa_email)] if sa_email else []
 
     async def perform_escalation(self, ns: NodeState) -> None:
-        """执行升级。
+        """执行升级（Phase 4 多 email fan-out 适配）。
 
         步骤：
         1. 加载 flow_instance（拿 node config + DSL）
-        2. 解析升级人 email
-        3. 写 records 加 escalate 记录
-        4. （Phase 3 简化）records 添加后，**保留 current_actor 字段**仅追加升级人到记录链
-           — Phase 4 多人审批链时才动态切换 current_actor
-        5. 入队 NotificationService.enqueue_hitl_email（reminder_round=3，模板用 hitl_escalation.html）
-        6. 写 audit_log（NET-05）
+        2. 解析升级人 email 列表（resolve_escalate_to）
+           - dept: → catch NotImplementedError 跳过升级（配置错误不阻断 worker）
+        3. 写 records 加 escalate 记录（escalate_to 改为 list；新增 escalate_count）
+        4. 对每个 email 独立发邮件 + 独立 audit_log（多人各自审计行）
+        5. 结构化日志 hitl.escalation.resolved（含 expression / matched_count）
 
         Args:
             ns: NodeState 实例（advisory_lock 由调用方持有）
@@ -172,14 +282,24 @@ class EscalationService:
 
         node_config = self._extract_node_config(flow_instance, ns.node_id)
 
-        # 2. 解析升级人 email
-        escalate_email = await self.resolve_escalate_to(
-            node_config=node_config,
-            workspace_id=ns.workspace_id,
-        )
-        if escalate_email is None:
+        # 2. 解析升级人 email 列表
+        try:
+            escalate_emails = await self.resolve_escalate_to(
+                node_config=node_config,
+                workspace_id=ns.workspace_id,
+            )
+        except NotImplementedError as e:
+            # dept: 表达式 — Phase 5 才实现；Phase 4 catch 后跳过升级（配置错误不阻断）
             log.error(
-                "perform_escalation: 节点 %s 无法解析升级人，跳过（需 admin 配置）",
+                "perform_escalation: 节点 %s 配置了 Phase 5 表达式（%s），跳过升级",
+                ns.id,
+                e,
+            )
+            return
+
+        if not escalate_emails:
+            log.error(
+                "perform_escalation: 节点 %s 无法解析升级人（resolve 返回 None），跳过",
                 ns.id,
             )
             return
@@ -197,26 +317,49 @@ class EscalationService:
             "ts": now.isoformat(),
             "ip": "system",
             "ua": "system:hitl_timeout_worker",
-            "escalate_to": escalate_email,
+            "escalate_to": list(escalate_emails),  # Phase 4: list
+            "escalate_count": len(escalate_emails),
         }
         new_records = old_records + [new_record]
         new_payload = dict(old_payload)  # 浅拷贝防修改入参
         new_payload["records"] = new_records
-        # Phase 3 简化：保留原 current_actor（Phase 4 多人审批链才动态切换）
-        # 但记录 escalate_to 字段以便邮件模板渲染
-        new_payload["escalate_to"] = escalate_email
+        # Phase 4 简化：保留原 current_actor（Phase 4 多人审批链才动态切换 actor）
+        # 记录 escalate_to list 以便邮件模板渲染（兼容数组 Jinja for-loop）
+        new_payload["escalate_to"] = list(escalate_emails)
         ns.payload = new_payload
 
-        # 4. 发升级邮件
-        await self._send_escalation_email(ns, escalate_email, old_payload)
+        # 4. 对每个 email 独立发邮件 + 独立 audit_log（多人各自审计行）
+        successful_emails: list[str] = []
+        for email in escalate_emails:
+            try:
+                await self._send_escalation_email(ns, email, old_payload)
+                await self._write_audit_log(ns, email)
+                successful_emails.append(email)
+            except Exception:
+                # 单 email 失败不阻塞其他升级人 — 借鉴 Dify timeout task try/except 包住单条
+                log.exception(
+                    "perform_escalation: 单 email %s 升级失败（节点 %s），继续其他",
+                    email,
+                    ns.id,
+                )
 
-        # 5. 写 audit_log（NET-05）
-        await self._write_audit_log(ns, escalate_email)
-
+        # 5. 结构化日志（Phase 4 新增 — 表达式命中可观测性）
         log.info(
-            "perform_escalation: 节点 %s 已升级到 %s",
+            "hitl.escalation.resolved",
+            extra={
+                "expression": (node_config or {}).get("escalate_to"),
+                "matched_count": len(escalate_emails),
+                "successful_count": len(successful_emails),
+                "workspace_id": str(ns.workspace_id),
+                "node_state_id": str(ns.id),
+                "instance_id": str(ns.instance_id),
+            },
+        )
+        log.info(
+            "perform_escalation: 节点 %s 已升级到 %d 人：%s",
             ns.id,
-            escalate_email,
+            len(escalate_emails),
+            ", ".join(escalate_emails),
         )
 
     def _extract_node_config(
@@ -242,20 +385,16 @@ class EscalationService:
         escalate_email: str,
         old_payload: dict[str, Any],
     ) -> None:
-        """发送升级邮件 — 复用 NotificationService.enqueue_hitl_email + reminder_round=3。
+        """发送单封升级邮件 — 复用 NotificationService.enqueue_hitl_email + reminder_round=3。
 
-        模板路由（email_jobs.py）：reminder_round > 0 → hitl_reminder.html
-        本 plan 额外引入 hitl_escalation.html 作为 round=3 专用红色升级模板。
+        模板路由（email_jobs.py）：payload.escalation=True → hitl_escalation.html
 
-        Phase 3 简化：worker 仅入队，不主动重签发 token —
-        升级邮件给的是 admin/super_admin 的"通知"邮件，他们决定下一步处理
-        （v1 不要求 admin 在邮件内直接决策，因 admin 通常需先看上下文）。
+        Phase 4 多 email 适配：
+        - 每个 email 独立 INSERT notifications 行（UNIQUE 约束按 recipient 区分）
+        - 失败抛异常，由调用方 catch 不阻塞其他 email
         """
         from app.agent_builder.models.notification import Notification
 
-        # 直接 INSERT notifications（不走 enqueue_hitl_email — 因升级邮件无 tokens）
-        # 模板路径：hitl_escalation.html（reminder_round=3 时 email_jobs.py 会自动选）
-        # 这里 payload 不带 tokens（升级邮件不需要决策按钮）— 让 worker 用专用模板渲染
         original_actor = old_payload.get("current_actor") or {}
         original_actor_email = original_actor.get("email", "unknown")
         deadline_at_str = old_payload.get("deadline_at", "")
@@ -275,7 +414,7 @@ class EscalationService:
                 pass
 
         notif_payload = {
-            "escalation": True,  # 标识：worker 据此选 hitl_escalation.html
+            "escalation": True,
             "flow_title": old_payload.get("flow_title", ""),
             "node_title": old_payload.get("node_title", ""),
             "applicant_name": old_payload.get("applicant_name", ""),
@@ -300,10 +439,11 @@ class EscalationService:
         try:
             await self.db.flush()
         except sa.exc.IntegrityError:
-            # UNIQUE 冲突 — 已发过升级邮件（防多 worker 重发）
+            # UNIQUE 冲突 — 已发过升级邮件给此 recipient（防多 worker 重发）
             log.info(
-                "_send_escalation_email: 节点 %s 升级邮件已发过（UNIQUE 冲突），跳过",
+                "_send_escalation_email: 节点 %s recipient=%s 升级邮件已发过（UNIQUE 冲突），跳过",
                 ns.id,
+                escalate_email,
             )
             await self.db.rollback()
             return
@@ -314,7 +454,7 @@ class EscalationService:
             escalate_email,
         )
 
-        # 入队 arq job — 复用 send_hitl_email_job worker（payload.escalation 路由到 hitl_escalation.html）
+        # 入队 arq job
         if self.arq is not None:
             await self.arq.enqueue_job("send_hitl_email_job", str(notif.id))
         else:
@@ -330,7 +470,7 @@ class EscalationService:
         ns: NodeState,
         escalate_email: str,
     ) -> None:
-        """写 audit_log（NET-05 升级审计）。
+        """写单条 audit_log（每个升级人独立一行 NET-05 审计）。
 
         action='hitl.escalate'
         decision='escalate'
@@ -338,6 +478,12 @@ class EscalationService:
         """
         old_payload = ns.payload or {}
         original_actor = old_payload.get("current_actor") or {}
+        # 计算 escalate_count（基于 records 中最新一条 escalate 的 list 长度）
+        escalate_to_list = old_payload.get("escalate_to")
+        if isinstance(escalate_to_list, list):
+            escalate_count = len(escalate_to_list)
+        else:
+            escalate_count = 1
         audit = AuditLog(
             workspace_id=ns.workspace_id,
             actor_user_id=None,  # system 触发
@@ -352,7 +498,8 @@ class EscalationService:
             meta={
                 "instance_id": str(ns.instance_id),
                 "original_actor_email": original_actor.get("email", "unknown"),
-                "escalate_to": escalate_email,
+                "escalate_to": escalate_email,  # 单行只记本人，便于多人审计聚合
+                "escalate_count": escalate_count,  # 总人数
                 "reason": "timeout_72h",
             },
         )
