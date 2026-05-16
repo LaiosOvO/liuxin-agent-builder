@@ -25,6 +25,7 @@
 - [ ] **EDIT-02**：每种节点类型有专属配置面板（动态表单）
 - [ ] **EDIT-03**：工作流保存草稿 / 发布版本（草稿与发布分离）
 - [ ] **EDIT-04**：导出 / 导入工作流 DSL（JSON）
+- [ ] **EDIT-05**：节点步进调试（Debug 模式：选定节点 → 输入测试数据 → 看输出 + 状态变更）
 
 #### 节点类型
 - [ ] **NODE-01**：Start / End 节点
@@ -43,6 +44,7 @@
 - [ ] **EXEC-02**：PostgresSaver checkpoint 持久化（thread_id = flow_instance_id）
 - [ ] **EXEC-03**：实例运行/暂停/恢复/中止
 - [ ] **EXEC-04**：Web 实时查看实例状态与节点时间线
+- [ ] **EXEC-05**：运行实例列表页（按工作流/状态过滤，搜索，分页）
 
 #### HITL 四态决策
 - [ ] **HITL-01**：HITL 节点四态：执行人 submit/return/reject → 审核人 approve/return/reject
@@ -50,6 +52,8 @@
 - [ ] **HITL-03**：单 interrupt + 自管审批链状态（payload 内 records / current_idx）
 - [ ] **HITL-04**：节点级超时与超时升级策略
 - [ ] **HITL-05**：决策表单可配置（JSON Schema 描述字段）
+- [ ] **HITL-06**：任务委托/转交（审批人能把待办转给同事，含审计）
+- [ ] **HITL-07**：申请人流程追踪页（提交人可看自己实例的当前状态和历史）
 
 #### 通知通道
 - [ ] **NOTI-01**：Email 通道（SMTP，Jinja2 模板，4 个独立 token 链接按钮）
@@ -60,6 +64,8 @@
 - [ ] **NOTI-06**：Mattermost 通道（Incoming Webhook）
 - [ ] **NOTI-07**：Webhook 通道（通用 POST JSON）
 - [ ] **NOTI-08**：HITL 节点可同时配置多个通道（并行推送）
+- [ ] **NOTI-09**：催办/提醒通知（超时升级前定时再推一次）
+- [ ] **NOTI-10**：通知发送失败重试队列（arq + 指数退避）
 
 #### IM L3 双向同步
 - [ ] **IM-01**：飞书 contact API 拉取用户 / 部门 / 汇报关系
@@ -134,7 +140,7 @@
 
 ## Constraints
 
-- **Tech stack**：Python 3.11+ / FastAPI / LangGraph / Postgres 15+ / Redis 7+ / Next.js 14+ / React Flow — fork flock 的栈
+- **Tech stack**：Python 3.11+ / FastAPI 0.136+ / LangGraph 1.2+ / langgraph-checkpoint-postgres 3.1+（**psycopg3** 驱动） / SQLAlchemy 2.0.49（asyncpg 驱动） / Postgres 15+ / Redis 7+ / arq 0.28+ / Next.js 16.2+ / @xyflow/react 12+ / Zustand 5+ — fork flock 的栈基础上升级
 - **Deployment**：Docker Compose 单机优先，K8s 留到 v2
 - **License**：Apache-2.0（与 flock 一致）
 - **Language**：核心代码注释 / 文档 / 提交信息中文；UI v1 中文 only
@@ -158,6 +164,10 @@
 | 自建账号体系 + 部门 + 角色 | 用户自填部门 / 邮箱，预留 OAuth 后扩 | — Pending |
 | 公网部署 + nginx 仅放行 HITL/IM 回调路径 | 最小公网暴露面 | — Pending |
 | v1 不对齐父项目 hr/PRD（三态 vs 四态） | hr/ 后续可作为预置模板，按 v1 四态规范来 | — Pending |
+| Token GET 不消费 jti、POST 才消费 | 防御 Outlook/Defender Safe Links 邮件扫描器预 GET 导致首次访问失效 | — Pending (P0 by PITFALLS.md) |
+| LangGraph state schema 强制区分值字段 vs 引用字段（重型数据走 Redis pointer） | 防 checkpoint 写入放大（15 步 × 100KB = 1.5MB/次），WAL 复制延迟可降 99% | — Pending |
+| 多租户所有查询显式带 workspace_id WHERE + SQLAlchemy checkout 时 DISCARD ALL | 防 PgBouncer 连接池上下文污染（CVE-2024-10976 类） | — Pending |
+| Fork flock 后所有改动集中新增模块，不改 flock 上游文件 | 防上游 diverge 超过 30% 后无法 merge | — Pending |
 
 ---
-*Last updated: 2026-05-16 after initialization*
+*Last updated: 2026-05-16 after research synthesis (added 6 gap requirements + 4 P0 key decisions)*

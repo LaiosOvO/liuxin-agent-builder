@@ -1,0 +1,174 @@
+# Requirements: agent-builder
+
+**Defined:** 2026-05-16
+**Core Value:** 让非编码人员通过拖拽 5 分钟搭出"多通道审批 + 公网回调"的 LangGraph 工作流，并真实跑起来。
+
+## v1 Requirements
+
+### Editor (编辑器与 DSL)
+
+- [ ] **EDIT-01**：用户能在 Web 画布上拖拽节点 / 连接 / 删除 / 重命名节点
+- [ ] **EDIT-02**：每种节点类型有专属配置面板（动态表单，按 schema 渲染）
+- [ ] **EDIT-03**：工作流保存草稿 / 发布版本（草稿与发布分离）
+- [ ] **EDIT-04**：导出 / 导入工作流 DSL（JSON）
+- [ ] **EDIT-05**：节点步进调试模式（选定节点 → 输入测试数据 → 看输出与状态变更）
+
+### Node Types (节点类型)
+
+- [ ] **NODE-01**：Start / End 节点
+- [ ] **NODE-02**：HITL 节点（详见 HITL 类目）
+- [ ] **NODE-03**：If-Else 条件分支节点
+- [ ] **NODE-04**：Parallel FanOut / FanIn 并行节点
+- [ ] **NODE-05**：LLM 节点（参数化模板 + 模型选择）
+- [ ] **NODE-06**：Tool 节点（HTTP API / Python function 调用）
+- [ ] **NODE-07**：Notification 节点（独立通知节点，不阻塞）
+- [ ] **NODE-08**：Subgraph 节点（嵌套子工作流）
+- [ ] **NODE-09**：Code 节点（受限 Python 沙箱）
+- [ ] **NODE-10**：Loop 节点（for-each）
+
+### Engine (执行引擎)
+
+- [ ] **EXEC-01**：DSL → LangGraph StateGraph 编译执行（解释器模式，热更新）
+- [ ] **EXEC-02**：PostgresSaver checkpoint 持久化（thread_id = flow_instance_id）
+- [ ] **EXEC-03**：实例运行 / 暂停 / 恢复 / 中止
+- [ ] **EXEC-04**：Web 实时查看单实例状态与节点时间线
+- [ ] **EXEC-05**：运行实例列表页（按工作流/状态过滤、搜索、分页）
+
+### HITL (四态决策)
+
+- [ ] **HITL-01**：HITL 节点四态：执行人 submit / return / reject → 审核人 approve / return / reject
+- [ ] **HITL-02**：审批链 4 种模式：单人 / 顺序会签 / 并行会签（全员同意）/ 或签（任一同意）
+- [ ] **HITL-03**：单 interrupt + 自管审批链状态（payload 内 records / current_idx）
+- [ ] **HITL-04**：节点级超时与超时升级策略
+- [ ] **HITL-05**：决策表单可配置（JSON Schema 描述字段）
+- [ ] **HITL-06**：任务委托 / 转交（审批人能把待办转给同事，含审计日志）
+- [ ] **HITL-07**：申请人流程追踪页（提交人可看自己实例的状态与历史）
+
+### Notification (通知通道)
+
+- [ ] **NOTI-01**：Email 通道（SMTP，Jinja2 模板，4 个独立 token 链接按钮）
+- [ ] **NOTI-02**：飞书通道（卡片 2.0 + Bot 推送）
+- [ ] **NOTI-03**：企业微信通道（应用消息 + 模板卡片）
+- [ ] **NOTI-04**：钉钉通道（ActionCard + 工作通知）
+- [ ] **NOTI-05**：Slack 通道（Block Kit）
+- [ ] **NOTI-06**：Mattermost 通道（Incoming Webhook）
+- [ ] **NOTI-07**：通用 Webhook 通道（POST JSON）
+- [ ] **NOTI-08**：HITL 节点可同时配置多个通道（并行推送）
+- [ ] **NOTI-09**：催办 / 提醒通知（超时升级前定时再推一次）
+- [ ] **NOTI-10**：通知发送失败重试队列（arq + 指数退避）
+
+### IM Directory (双向同步 L3)
+
+- [ ] **IM-01**：飞书 contact API 拉取用户 / 部门 / 汇报关系
+- [ ] **IM-02**：企微 contact API 拉取用户 / 部门
+- [ ] **IM-03**：钉钉 contact API 拉取用户 / 部门
+- [ ] **IM-04**：IM 用户匹配本地账号（按邮箱）+ 写入 users.im_bindings
+- [ ] **IM-05**：节点 assignee 支持多形态（email / @username / dept:研发部 / dynamic_expr）
+
+### Auth (认证与权限)
+
+- [ ] **AUTH-01**：自建账号体系（邮箱注册 + 密码 bcrypt）
+- [ ] **AUTH-02**：用户 profile（部门 + 显示名 + 角色 + IM 绑定）
+- [ ] **AUTH-03**：RBAC（admin / editor / viewer / external）
+- [ ] **AUTH-04**：HITL Token 即登录（JWT 解码 → session cookie）
+- [ ] **AUTH-05**：Token jti 一次性消费（GET 不消费，POST 才消费）
+- [ ] **AUTH-06**：Workspace 级多租户隔离（所有查询显式 workspace_id WHERE）
+
+### Network (公网入口与安全)
+
+- [ ] **NET-01**：配置 PUBLIC_BASE_URL + nginx 反代
+- [ ] **NET-02**：公网仅暴露 `/hitl/page/*` `/hitl/action/*` `/api/im/webhook/*`
+- [ ] **NET-03**：Rate limit（每 token / 每 IP 限频）
+- [ ] **NET-04**：HMAC 密钥从 env 读，启动校验 ≥ 32 字节
+- [ ] **NET-05**：决策审计日志（IP / UA / 时间 / 决策）
+
+### Plugin (节点扩展)
+
+- [ ] **PLUG-01**：插件包格式（zip：manifest.yaml + schema.json + node.py + requirements.txt）
+- [ ] **PLUG-02**：上传 / dry-run / 注册 / 卸载
+- [ ] **PLUG-03**：沙箱执行（子进程 + cgroups v2 + 网络白名单）
+- [ ] **PLUG-04**：插件注册到 NodeRegistry 后在画布节点面板出现
+
+### Deploy (部署)
+
+- [ ] **DEPL-01**：docker-compose 一键起来（api / worker / web / postgres / redis / nginx）
+- [ ] **DEPL-02**：`.env.example` + secret manager 兼容
+- [ ] **DEPL-03**：内置 hr 离职流程预置模板
+
+## v2 Requirements
+
+Deferred to future release. Tracked but not in current roadmap.
+
+### Editor
+
+- **EDIT-V2-01**：工作流版本时间线 + diff 比较
+- **EDIT-V2-02**：协作编辑（多人同画布）
+
+### HITL
+
+- **HITL-V2-01**：IM 内一键决策（飞书/企微/钉钉 卡片按钮直接消费 token）
+- **HITL-V2-02**：决策子流程嵌套（审核人触发再审）
+
+### IM
+
+- **IM-V2-01**：Slack 双向账号同步
+- **IM-V2-02**：Mattermost 双向账号同步
+
+### Auth
+
+- **AUTH-V2-01**：OAuth2 第三方登录（Google / GitHub / 飞书 / 企微 SSO）
+- **AUTH-V2-02**：SAML 2.0 接入
+
+### Plugin
+
+- **PLUG-V2-01**：插件市场前台（分类 / 评分 / 一键安装）
+- **PLUG-V2-02**：插件 PKI 签名验证
+
+### LLM
+
+- **LLM-V2-01**：多模型 Provider 池（OpenAI / Anthropic / DeepSeek / 千问 / GLM）
+- **LLM-V2-02**：模型路由与成本控制
+
+### Observability
+
+- **OBS-V2-01**：Langfuse / Phoenix 集成
+- **OBS-V2-02**：Prometheus 指标 + Grafana 看板
+
+### Workflow
+
+- **WF-V2-01**：模板市场（导入 / 评分 / 分享）
+- **WF-V2-02**：跑到一半改 DSL 的半自动热迁移工具
+- **WF-V2-03**：定时触发节点（cron schedule）
+
+## Out of Scope
+
+Explicitly excluded. Documented to prevent scope creep.
+
+| Feature | Reason |
+|---------|--------|
+| 节点级 CPU/内存 quota 配置 UI | 沙箱本身有限制，配置 UI 复杂度高，留到 v2 |
+| 完整 i18n | v1 中文 only，国际化推迟 |
+| 工作流跑到一半改 DSL 的热迁移 | 实例锁定创建时 DSL 版本，避免状态机不一致；半自动迁移工具留 v2 |
+| 完整插件 PKI 签名验证 | v1 由管理员手动审核插件 zip，签名 PKI 留 v2 |
+| 移动端 App | Web 优先，移动端可通过响应式适配，原生 App 留 v2+ |
+| 多语言 SDK | Python 后端 + Web 前端足够 v1 场景 |
+| LangGraph 代码生成（导出独立项目） | 决策板 #2 锁定 DSL 解释执行，导出代码留 v2 |
+| 实时协作编辑（多人同画布） | 复杂度高，单人编辑 + 锁定即可 |
+| 复杂表达式引擎（CEL / OPA） | 用简单 JsonPath + Jinja 子集即可 |
+
+## Traceability
+
+Empty initially. Populated by gsd-roadmapper.
+
+| Requirement | Phase | Status |
+|-------------|-------|--------|
+| (待 roadmap 阶段填充) | — | Pending |
+
+**Coverage:**
+- v1 requirements: **56** total
+- Mapped to phases: 0 (待 roadmap)
+- Unmapped: 56 ⚠️
+
+---
+*Requirements defined: 2026-05-16*
+*Last updated: 2026-05-16 after research synthesis*
