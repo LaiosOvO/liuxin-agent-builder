@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: in_progress
-last_updated: "2026-05-17T17:30:00Z"
+last_updated: "2026-05-17T17:40:00Z"
 progress:
   total_phases: 7
   completed_phases: 2
   total_plans: 26
-  completed_plans: 17
+  completed_plans: 18
 ---
 
 # Project State
@@ -23,11 +23,11 @@ See: .planning/PROJECT.md (updated 2026-05-16)
 ## Current Position
 
 Phase: 3 of 7 (HITL 单节点 + Email 审批) — IN PROGRESS
-Plan: 2 of 10 in current phase（03-01 完成，HITL DB schema + Redis 黑名单存储）
-Status: Plan Complete — 03-02 HITL node executor 可启动
-Last activity: 2026-05-17 — Plan 03-01 完成（2 张新表 + audit_logs NET-05 字段 + HitlTokenStore + 20 测试通过）
+Plan: 3 of 10 in current phase（03-03 完成，HitlTokenService JWT + Safe Links bot 检测器）
+Status: Plan Complete — 可并行启动 03-02（同 Wave 2）/ 03-04（Wave 3）
+Last activity: 2026-05-17 — Plan 03-03 完成（HitlTokenService HS256 + bot_detector 15 patterns + 44 单元测试通过）
 
-Progress: [█░░░░░░░░░] 10%
+Progress: [█░░░░░░░░░] 12%
 
 ## Performance Metrics
 
@@ -54,6 +54,8 @@ Progress: [█░░░░░░░░░] 10%
 | Phase 02-dsl P08 | 26m | 4 tasks | 25 files |
 | Phase 02-dsl P07 | ~3h | 4 tasks | 10 files |
 | Phase 03-hitl-email P01 | 50m | 3 tasks | 10 files |
+| Phase 03-hitl-email P03 | 6m | 3 tasks | 5 files |
+| Phase 03-hitl-email P03 | 6m | 3 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -115,6 +117,11 @@ Recent decisions affecting current work:
 - [Phase 03-01]: is_consumed 未知 jti 返回 True（防伪造，与 consume 零行返回 None 语义一致）
 - [Phase 03-01]: invalidate_siblings used_ip 写 'system:sibling-invalidate' 标识系统级失效（与真实用户消费区分）
 - [Phase 03-01]: HitlTokenStore Redis-first + PG 权威双层存储模式（is_consumed 命中 Redis 走 hot path；miss 回查 PG + 回填）
+- [Phase 03-03]: HitlTokenService 复用 Phase 1 _get_jwt_secret，aud='hitl' 单密钥多 audience 隔离（vs Dify 单一 SECRET_KEY 无 aud 校验）
+- [Phase 03-03]: JWT decode options.require=['jti','exp','iat','aud','iss'] 强校验关键字段；Phase 1 session token 走 HitlTokenService.decode 必抛 HitlTokenError（隔离测试覆盖）
+- [Phase 03-03]: service 层异常细分（InvalidSignature/TokenExpired/InvalidAudience/HitlTokenError）便于 API 层差异化错误页（vs Dify PassportService 单一 Unauthorized）
+- [Phase 03-03]: BOT_UA_PATTERNS 15 项 = CONTEXT 13 + 'safelinks' 通用前缀 + 'ac-detector-tool'（Outlook 真实 UA from §Specific Ideas）
+- [Phase 03-03]: bot_detector 纯函数 + 元组常量；None/空/unicode/超长 UA 鲁棒；O(n*m) 复杂度但 m=15 + 仅 GET 路径调用可接受
 
 ### Pending Todos
 
@@ -130,5 +137,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-05-17
-Stopped at: Completed 03-01-PLAN.md（HITL DB schema + HitlTokenStore — 2 张新表 + audit_logs NET-05 字段 + 20 测试通过）
+Stopped at: Completed 03-03-PLAN.md（HitlTokenService JWT HS256 + Safe Links bot_detector 15 patterns — 44 单元测试通过）
 Resume file: None
