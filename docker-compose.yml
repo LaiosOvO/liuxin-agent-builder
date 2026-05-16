@@ -1,0 +1,150 @@
+# agent-builder Phase 1 docker-compose
+# 6 个 service：postgres / redis / api / worker / web / nginx
+# 一键启动：docker compose up -d
+version: "3.9"
+
+name: agent-builder
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: agent-builder-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: agent_builder
+    volumes:
+      - agent-builder-postgres-data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - agent-builder-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d agent_builder"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: agent-builder-redis
+    command: redis-server --appendonly yes
+    volumes:
+      - agent-builder-redis-data:/data
+    ports:
+      - "6379:6379"
+    networks:
+      - agent-builder-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: agent-builder-api
+    env_file:
+      - .env
+    environment:
+      POSTGRES_DSN: postgresql+asyncpg://postgres:postgres@postgres:5432/agent_builder
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - agent-builder-net
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8000/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    restart: unless-stopped
+
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: agent-builder-worker
+    command: ["python", "-c", "import arq; print('arq worker ready')"]
+    env_file:
+      - .env
+    environment:
+      POSTGRES_DSN: postgresql+asyncpg://postgres:postgres@postgres:5432/agent_builder
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - agent-builder-net
+    healthcheck:
+      test: ["CMD", "python", "-c", "import arq"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+
+  web:
+    build:
+      context: ./web
+      dockerfile: Dockerfile
+    container_name: agent-builder-web
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      NEXT_PUBLIC_API_BASE: /api
+      INTERNAL_API_BASE: http://api:8000
+    depends_on:
+      api:
+        condition: service_healthy
+    networks:
+      - agent-builder-net
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/ || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    restart: unless-stopped
+
+  nginx:
+    image: nginx:1.25-alpine
+    container_name: agent-builder-nginx
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./nginx/snippets:/etc/nginx/snippets:ro
+    ports:
+      - "80:80"      # 公网入口（Phase 1 仅本地映射，生产环境对外暴露）
+      - "8080:8080"  # 内网管理端
+    depends_on:
+      api:
+        condition: service_healthy
+      web:
+        condition: service_started
+    networks:
+      - agent-builder-net
+    healthcheck:
+      test: ["CMD-SHELL", "nginx -t && wget -qO- http://localhost:8080/ -t 1 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+networks:
+  agent-builder-net:
+    driver: bridge
+
+volumes:
+  agent-builder-postgres-data:
+  agent-builder-redis-data:
