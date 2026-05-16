@@ -1,0 +1,53 @@
+# agent-builder 测试环境覆盖文件
+# 使用方式: docker compose -f docker-compose.yml -f docker-compose.test.yml up -d
+#
+# 主要改动:
+#   - postgres 使用独立测试数据库（agent_builder_test）
+#   - mailhog 替代真实 SMTP（可重复的邮件捕获测试）
+#   - api/worker 指向测试 DB + mailhog SMTP
+#   - 不启动 nginx（E2E 测试直连 api:8000）
+version: "3.9"
+
+services:
+  postgres:
+    environment:
+      POSTGRES_DB: agent_builder_test
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d agent_builder_test"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  mailhog:
+    image: mailhog/mailhog:latest
+    container_name: agent-builder-mailhog-test
+    ports:
+      - "1025:1025"   # SMTP 端口
+      - "8025:8025"   # Web UI / API
+    networks:
+      - agent-builder-net
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8025/api/v1/messages 2>&1 | grep -q '\\[\\|{' || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  api:
+    environment:
+      POSTGRES_DSN: postgresql+asyncpg://postgres:postgres@postgres:5432/agent_builder_test
+      SMTP_HOST: mailhog
+      SMTP_PORT: 1025
+      SMTP_USERNAME: ""
+      SMTP_PASSWORD: ""
+      SMTP_FROM: "noreply@agent-builder.test"
+      SMTP_USE_TLS: "false"
+      ENVIRONMENT: test
+    depends_on:
+      mailhog:
+        condition: service_healthy
+
+  worker:
+    environment:
+      POSTGRES_DSN: postgresql+asyncpg://postgres:postgres@postgres:5432/agent_builder_test
+      ENVIRONMENT: test
