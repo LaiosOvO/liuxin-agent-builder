@@ -30,7 +30,15 @@
   3. docker-compose up 一键启动所有服务（api/worker/web/postgres/redis/nginx），浏览器能打开画布页
   4. nginx 只放行 `/hitl/page/*` `/hitl/action/*` `/api/im/webhook/*` 三条路径；扫描工具验证其他路径 403
   5. HMAC_SECRET 长度 < 32 字节时服务启动失败并打印明确错误信息
-**Plans**: TBD
+**Plans**: 6 plans
+
+Plans:
+- [ ] 01-01-PLAN.md — Fork flock + rebrand + docker-compose + 三层测试基线（Wave 1）
+- [ ] 01-02-PLAN.md — DB schema + Alembic + WorkspaceScopedQuery + DISCARD ALL hook（Wave 2）
+- [ ] 01-03-PLAN.md — nginx 双 server_block + HMAC 启动校验 + slowapi 限频（Wave 2）
+- [ ] 01-04-PLAN.md — Auth Service + API（setup/auth/invites/me）+ 集成测试（Wave 3）
+- [ ] 01-05-PLAN.md — Next.js 前端（setup/login/invite/dashboard）+ RoleGate（Wave 3）
+- [ ] 01-06-PLAN.md — E2E 端到端验收 + MailHog + ROADMAP 5 条 success criteria 覆盖（Wave 4）
 
 ### Phase 2: DSL 引擎 + 基础节点
 **Goal**: 简单 DAG 工作流（Start→LLM→Tool→IfElse→End）能端到端运行并持久化
@@ -109,7 +117,7 @@
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Skeleton + 账号体系 | 0/TBD | Not started | - |
+| 1. Skeleton + 账号体系 | 0/6 | Planned | - |
 | 2. DSL 引擎 + 基础节点 | 0/TBD | Not started | - |
 | 3. HITL 单节点 + Email 审批 | 0/TBD | Not started | - |
 | 4. 审批链 + IM 通知 | 0/TBD | Not started | - |
