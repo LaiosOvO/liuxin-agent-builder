@@ -77,9 +77,9 @@ Plans:
   5. 申请人能在追踪页查看自己实例的当前节点状态和历史决策记录
 **Plans**:
 - [x] 03-01-PLAN.md — HITL DB schema + Redis 黑名单（HitlToken/Notification ORM + audit_logs NET-05 + HitlTokenStore，2026-05-17 完成）
-- [ ] 03-02-PLAN.md — HITL node executor
-- [ ] 03-03-PLAN.md — HITL Token Service（JWT 签发 + Safe Links bot detector）
-- [ ] 03-04-PLAN.md — Email 投递（arq + Jinja2 + NOTI-10 重试）
+- [x] 03-02-PLAN.md — HITL node executor（HITLNodeExecutor + hitl_payload 4 纯函数 + HitlService + 38 测试，2026-05-17 完成）
+- [x] 03-03-PLAN.md — HITL Token Service（JWT 签发 + Safe Links bot detector，HitlTokenService + bot_detector + 44 测试，2026-05-17 完成）
+- [x] 03-04-PLAN.md — Email 投递（NotificationService + arq + Jinja2 + tenacity NOTI-10 重试，3 模板 + 18 测试，2026-05-17 完成）
 - [ ] 03-05-PLAN.md — Notification node executor（NODE-07）
 - [ ] 03-06-PLAN.md — HITL public API（/hitl/page + /hitl/action + cookie session）
 - [ ] 03-07-PLAN.md — 决策页前端（form_schema RJSF render）

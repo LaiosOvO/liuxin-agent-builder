@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: in_progress
-last_updated: "2026-05-17T17:54:09Z"
+last_updated: "2026-05-17T18:29:12Z"
 progress:
   total_phases: 7
   completed_phases: 2
   total_plans: 26
-  completed_plans: 19
+  completed_plans: 20
 ---
 
 # Project State
@@ -23,11 +23,11 @@ See: .planning/PROJECT.md (updated 2026-05-16)
 ## Current Position
 
 Phase: 3 of 7 (HITL 单节点 + Email 审批) — IN PROGRESS
-Plan: 3 of 10 in current phase（03-01 / 03-02 / 03-03 完成，Wave 1 + Wave 2 全部交付）
-Status: Wave 2 Complete — 可启动 Wave 3（03-04 邮件投递 / 03-05 通知节点）
-Last activity: 2026-05-17 — Plan 03-02 完成（HITLNodeExecutor LangGraph interrupt + hitl_payload 4 纯函数 + HitlService + 38 测试通过）
+Plan: 4 of 10 in current phase（03-01 / 03-02 / 03-03 / 03-04 完成，Wave 1 + Wave 2 + Wave 3 已交付）
+Status: Wave 3 Plan 04 完成 — 可启动 Wave 4（03-05 通知节点 / 03-06 HITL public API）
+Last activity: 2026-05-17 — Plan 03-04 完成（NotificationService + arq job send_hitl_email_job + tenacity 3 次重试 + 3 模板 + 18 测试通过）
 
-Progress: [██░░░░░░░░] 19%
+Progress: [██░░░░░░░░] 21%
 
 ## Performance Metrics
 
@@ -56,6 +56,7 @@ Progress: [██░░░░░░░░] 19%
 | Phase 03-hitl-email P01 | 50m | 3 tasks | 10 files |
 | Phase 03-hitl-email P03 | 6m | 3 tasks | 5 files |
 | Phase 03-hitl-email P02 | 17m | 4 tasks | 15 files |
+| Phase 03-hitl-email P04 | ~10m | 3 tasks（+Task0 已 commit） | 10 files |
 
 ## Accumulated Context
 
@@ -128,6 +129,16 @@ Recent decisions affecting current work:
 - [Phase 03-02]: hitl_payload 与 HitlService 解耦：前者无 DB 依赖纯函数单测，后者集成测试用真实 PG，加快 TDD feedback loop
 - [Phase 03-02]: form_schema 用 jsonschema Draft-7（与前端 RJSF AJV-8 兼容），空 schema {} 视为不约束
 - [Phase 03-02]: HitlService.batch_create_tokens flush 不 commit（保持事务可组合，外层 API handler 决定提交时机）
+- [Phase 03-04]: Dify Celery shared_task → arq async function（CLAUDE.md §3 锁定 + asyncio 原生 + aiosmtplib 同构）
+- [Phase 03-04]: Dify 三层 ORM (Form/Delivery/Recipient) → 单层 notifications + JSONB payload（v1 单人审批不复用）
+- [Phase 03-04]: Jinja autoescape=html 单模式（Sandbox 三模式留 Phase 6 插件，用户不写模板）
+- [Phase 03-04]: subject 代码组装 f-string 不走 Jinja（不含用户字段，防 SMTP 头注入风险）
+- [Phase 03-04]: tenacity AsyncRetrying wait_exponential(multiplier=1, min=1, max=4) 实现 1s/2s/4s 公比 2 退避
+- [Phase 03-04]: _RETRYABLE_EXCEPTIONS 加 OSError：aiosmtplib 底层 socket 错误兜底（实测发现）
+- [Phase 03-04]: 失败写 notifications.status='failed' + error_message + audit_log（NOTI-10 显式可观测，vs Dify 仅 logger.exception）
+- [Phase 03-04]: job 入参 notification_id（vs payload）：自包含 + 幂等（status=='sent' 跳过）+ 标记 'sending' 防并发抢
+- [Phase 03-04]: job 用独立 async_session_maker session（不复用调用方 session）：arq worker 上下文隔离 + 测试 fixture 干净
+- [Phase 03-04]: deeplinks 在模板内拼装（payload 只存 jti+action）：PUBLIC_BASE_URL 变化不需要回填历史
 
 ### Pending Todos
 
@@ -143,5 +154,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-05-17
-Stopped at: Completed 03-02-PLAN.md（HITLNodeExecutor LangGraph interrupt + hitl_payload 4 纯函数 + HitlService + 38 测试通过）
+Stopped at: Completed 03-04-PLAN.md（NotificationService + arq job send_hitl_email_job + tenacity 3 次重试 + 3 邮件模板 + 18 测试通过）
 Resume file: None
