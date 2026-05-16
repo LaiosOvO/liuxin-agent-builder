@@ -10,7 +10,7 @@
 
 ## Phases
 
-- [ ] **Phase 1: Skeleton + 账号体系** - Fork flock、多租户隔离、自建账号/RBAC、公网最小暴露面
+- [x] **Phase 1: Skeleton + 账号体系** - Fork flock、多租户隔离、自建账号/RBAC、公网最小暴露面 ✓ 2026-05-16
 - [ ] **Phase 2: DSL 引擎 + 基础节点** - DSL 编译执行、Postgres checkpoint、5 种内置节点、实例管理
 - [ ] **Phase 3: HITL 单节点 + Email 审批** - 四态决策、Token 即登录、邮件深链、公网回调
 - [ ] **Phase 4: 审批链 + IM 通知** - 4 种审批链模式、飞书/企微/钉钉/Slack/Mattermost 通知卡片
@@ -117,7 +117,7 @@ Plans:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Skeleton + 账号体系 | 3/6 | In Progress|  |
+| 1. Skeleton + 账号体系 | 6/6 | ✓ Complete | 2026-05-16 |
 | 2. DSL 引擎 + 基础节点 | 0/TBD | Not started | - |
 | 3. HITL 单节点 + Email 审批 | 0/TBD | Not started | - |
 | 4. 审批链 + IM 通知 | 0/TBD | Not started | - |
