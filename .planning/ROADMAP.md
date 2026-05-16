@@ -118,7 +118,7 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Skeleton + 账号体系 | 6/6 | ✓ Complete | 2026-05-16 |
-| 2. DSL 引擎 + 基础节点 | 0/TBD | Not started | - |
+| 2. DSL 引擎 + 基础节点 | 1/10 | In Progress | - |
 | 3. HITL 单节点 + Email 审批 | 0/TBD | Not started | - |
 | 4. 审批链 + IM 通知 | 0/TBD | Not started | - |
 | 5. IM 目录双向同步 | 0/TBD | Not started | - |
