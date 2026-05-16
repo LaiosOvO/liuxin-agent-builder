@@ -119,15 +119,26 @@ E2E 是**第一公民**，不是"可选的最后一步"。验收准则：**所�
 | **WebSocket / 实时同步** | `api/core/app/apps/workflow/workflow_app_runner.py` (stream 逻辑) | `web/app/components/workflow/run/` |
 | **Plugin Daemon / 节点扩展** | `api/services/plugin/`, dify-plugin-daemon 仓库 | `web/app/components/plugins/` |
 
-**执行流程（每个 plan 内必须做）**：
+**执行流程（每个 plan 内必须做，违反即返工）**：
 
-1. **Read 阶段**：用 `Read` 工具至少打开映射表中**对应行的 1 个前端 + 1 个后端**文件
-2. **Note 阶段**：在 plan 的 `<reference>` 段（或 task `<action>` 开头）写 3-5 行说明：
-   - Dify 的核心设计模式是什么（一句话）
-   - 我们的实现哪里**沿用** Dify 思路（明确列出）
-   - 哪里**故意偏离**（明确列出，含理由）
-3. **Implement 阶段**：再写代码
-4. **Verify 阶段**：测试 + SUMMARY 中含 "Dify 参考点" 小节
+1. **声明阶段**：在 plan 工作开始时，用一句话写下「我实现的是什么模块」+「Dify 有没有类似功能」
+2. **Read 阶段**：用 `Read` 工具至少打开映射表中**对应行的 1 个前端 + 1 个后端**文件
+3. **🚦 阅读文档阶段（硬性 GATE）**：将阅读结果写入 `docs/reading-dify-{plan-slug}-{date}.md`，**并先 commit 此文档**才能继续写代码。文档格式遵循 `~/.claude/rules/common/reference-projects.md` 模板：
+   ```
+   # Dify 阅读笔记 — {模块名}
+   > 日期: YYYY-MM-DD
+   > 仓库: https://github.com/langgenius/dify (commit c0bdd679, local clone /Users/admin/ai/ref/dify/repo/)
+   > Stars: ~141k
+   ## 项目概述（一句话）
+   ## 技术栈（关键技术选择）
+   ## 架构要点（核心架构模式，用简图说明）
+   ## 可借鉴的设计模式（具体文件路径 + 模式名 + 一句话说明）
+   ## 与本项目的关系（如何应用到当前 plan）
+   ```
+4. **Implement 阶段**：阅读文档已 commit ✓ → 才允许写代码
+5. **Verify 阶段**：测试 + SUMMARY.md 中含 "Dify 参考点" 小节（指回 reading doc）
+
+**Reading doc 是 plan 的第一个 commit（Task 0），后续任何代码 commit 必须在它之后**。CI/code review 可机械化检查：plan 内第一个 feat/refactor commit 之前必须有对应的 reading doc commit。
 
 **反模式（违反规则）**：
 - 完全闭门造车，未读任何 Dify 模块
