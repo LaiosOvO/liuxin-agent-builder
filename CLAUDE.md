@@ -86,6 +86,58 @@ E2E 是**第一公民**，不是"可选的最后一步"。验收准则：**所�
 
 ---
 
+### 2.7 Dify 参考实现优先（Reference-First）
+
+**强制规则**：实现任何节点 / 编排引擎 / 画布 UI / 工作流 API 之前，**必须先读对应 Dify 模块代码**，把发现的设计模式 / 数据结构 / 边界情况记入 plan 的 `<reference>` 段。
+
+**Why**：Dify 是国内最成熟的开源工作流平台，2 年 + 数百贡献者的生产打磨。从零设计同类系统等于走它走过的坑。我们 fork 的 flock 已带 Dify 路径但许多接口非完整复刻；本项目可视化编排定位与 Dify 高度重叠，**参考其工程实现是减少 bug 与设计弯路的最快方式**。
+
+**适用范围**：**前端 + 后端都强制**。
+
+**Dify 仓库路径**：`/Users/admin/ai/ref/dify/repo/` (Phase 1 已 clone, 含 commit `c0bdd679`)
+
+**模块映射表（实现这些功能前必读对应 Dify 路径）**：
+
+| 我们要实现的 | Dify 后端必读 | Dify 前端必读 |
+| ---- | ---- | ---- |
+| **DSL Schema / Workflow 模型** | `api/core/workflow/workflow_entry.py`, `api/models/workflow.py`, `api/core/workflow/entities/` | `web/app/components/workflow/types.ts` (BlockEnum 等) |
+| **DSL 编译 / 节点工厂** | `api/core/workflow/node_factory.py`, `api/core/workflow/graph_engine/` | — |
+| **节点执行运行时** | `api/core/workflow/node_runtime.py`, `api/core/workflow/nodes/` 各节点子目录 | — |
+| **Start 节点** | `api/core/workflow/nodes/start/` | `web/app/components/workflow/nodes/start/` |
+| **End 节点** | `api/core/workflow/nodes/end/` | `web/app/components/workflow/nodes/end/` |
+| **LLM 节点** | `api/core/workflow/nodes/llm/` | `web/app/components/workflow/nodes/llm/` |
+| **Tool 节点 / HTTP** | `api/core/workflow/nodes/tool/`, `api/core/workflow/nodes/http_request/` | `web/app/components/workflow/nodes/tool/`, `web/app/components/workflow/nodes/http/` |
+| **IfElse / 条件分支** | `api/core/workflow/nodes/if_else/` | `web/app/components/workflow/nodes/if-else/` |
+| **HITL / Human Input** | `api/core/workflow/human_input_adapter.py`, `api/models/human_input.py`, `api/core/workflow/nodes/human_input/` | `web/app/components/workflow/nodes/human-input/` |
+| **Notification / Email 模板** | `api/core/workflow/email_delivery/` (含 `mail_human_input_delivery_task.py`) | — |
+| **变量引用 / Jinja 渲染** | `api/core/workflow/utils/variable_template_parser.py` | `web/app/components/workflow/variable-template-input/` |
+| **画布 Canvas 主组件** | — | `web/app/components/workflow/index.tsx` (28KB), `custom-edge.tsx` |
+| **节点面板 / Palette** | — | `web/app/components/workflow/nodes/components.ts`（NodeComponentMap） |
+| **节点配置 Panel** | — | `web/app/components/workflow/panel/` 下各节点子目录 |
+| **DSL 校验 / Issue UI** | `api/services/workflow_service.py` 中 validate 部分 | `web/app/components/workflow/hooks/` 验证 hooks |
+| **Workflow 列表 / 实例列表** | `api/controllers/console/app/workflow.py`, `api/controllers/console/app/workflow_run.py` | `web/app/components/workflow-app/`, `web/app/components/app/workflow-log/` |
+| **WebSocket / 实时同步** | `api/core/app/apps/workflow/workflow_app_runner.py` (stream 逻辑) | `web/app/components/workflow/run/` |
+| **Plugin Daemon / 节点扩展** | `api/services/plugin/`, dify-plugin-daemon 仓库 | `web/app/components/plugins/` |
+
+**执行流程（每个 plan 内必须做）**：
+
+1. **Read 阶段**：用 `Read` 工具至少打开映射表中**对应行的 1 个前端 + 1 个后端**文件
+2. **Note 阶段**：在 plan 的 `<reference>` 段（或 task `<action>` 开头）写 3-5 行说明：
+   - Dify 的核心设计模式是什么（一句话）
+   - 我们的实现哪里**沿用** Dify 思路（明确列出）
+   - 哪里**故意偏离**（明确列出，含理由）
+3. **Implement 阶段**：再写代码
+4. **Verify 阶段**：测试 + SUMMARY 中含 "Dify 参考点" 小节
+
+**反模式（违反规则）**：
+- 完全闭门造车，未读任何 Dify 模块
+- 读了但没在 plan / SUMMARY 中记录借鉴点
+- 抄袭 Dify 代码不留 attribution（**不要直接复制 Dify 源码** — 它是 AGPL；只借鉴**设计模式 / 数据结构 / 边界考虑**，自己写实现）
+
+**许可证注意**：Dify 是 **AGPL-3.0**，我们的 agent-builder 是 **Apache-2.0**（与 flock 一致）。**严禁拷贝 Dify 源码**到我们仓库；仅允许参考设计模式 / 命名规范 / 数据结构思路。如果某段实现你觉得"几乎一样"，**重写一遍换语法**确保是独立创作。
+
+---
+
 ## 3. 技术栈锁定（不可换）
 
 详见 `.planning/research/STACK.md`。摘要：
