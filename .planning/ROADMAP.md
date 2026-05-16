@@ -142,9 +142,16 @@ Plans:
 **Depends on**: Phase 6
 **Requirements**: EXEC-04（增强）, NET-05（增强）, DEPL-03（增强）
 **Success Criteria**（什么状态为完成）:
-  1. 实例详情页显示节点时间线（每个节点的进入时间/耗时/状态），支持 WebSocket 实时刷新
-  2. 审计日志记录每次决策的 IP/UA/时间/决策内容，管理员可查询和导出
-  3. hr 离职预置模板可一键导入，填写员工信息后能完整跑通所有审批节点
+  1. **每节点可视化执行链路（参考 Dify `web/app/components/workflow/run/`）** — 用户要求 2026-05-17 加入：
+     - 工作流 Run Viewer：DAG 上每节点叠加状态（pending/running/success/failed/skipped/interrupted）+ 颜色码
+     - 节点详情抽屉：输入 / 输出 / 日志 stdout+stderr / 耗时 ms / 重试次数 / 错误堆栈 / LLM token cost（如适用）
+     - 流式日志：SSE 推送每节点执行 chunk（参考 Dify `workflow_app_runner.py` stream 逻辑）
+     - 时间线视图（横向 Gantt）+ DAG 视图（@xyflow/react 复用画布组件）双视角切换
+     - 历史回放：选任意历史 run 重看每步执行细节（state diff 高亮）
+  2. 实例详情页显示节点时间线（每个节点的进入时间/耗时/状态），支持 SSE 实时刷新
+  3. 审计日志记录每次决策的 IP/UA/时间/决策内容，管理员可查询和导出（NET-05 强化）
+  4. hr 离职预置模板可一键导入，填写员工信息后能完整跑通所有审批节点
+  5. 节点失败回放：执行失败的实例支持"从失败节点重试"（Phase 2 已有局部，Phase 7 全链路）
 **Plans**: TBD
 
 ## 进度
