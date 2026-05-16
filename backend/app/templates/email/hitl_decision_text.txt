@@ -1,0 +1,29 @@
+{# HITL 决策邮件明文 fallback — Plan 03-04
+   主流邮件客户端在不支持 HTML 时降级显示此版本。
+   4 段：标题 / 上下文 / 描述 / URL 列表（每行一个）
+#}审批待办：{{ flow_title }} — {{ node_title }}
+
+==============================================
+申请人：{{ applicant_name }}
+审批人：{{ actor_name }}
+截止时间：{{ deadline_at }}
+==============================================
+
+{{ description }}
+
+请通过以下链接做出您的决策：
+
+{% for link in deeplinks -%}
+{% if link.action == "submit" -%}
+[提交] {{ link.url }}
+{% elif link.action == "approve" -%}
+[通过] {{ link.url }}
+{% elif link.action == "return" -%}
+[退回] {{ link.url }}
+{% elif link.action == "reject" -%}
+[拒绝] {{ link.url }}
+{% endif -%}
+{% endfor %}
+
+==============================================
+这是系统业务邮件，不可退订。如有疑问请联系管理员。

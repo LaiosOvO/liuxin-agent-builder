@@ -1,0 +1,125 @@
+<!--
+HITL 决策邮件模板 — Plan 03-04
+
+设计参考 docs/reading-dify-03-04-email-delivery-2026-05-17.md：
+- Dify _build_form_link → 我们 _build_deeplink(jti) 生成 PUBLIC_BASE_URL/hitl/page/<jti>
+- autoescape=html 防 XSS（Jinja2 Environment 默认开启）
+- 多 deeplink 按 action 颜色区分：submit/approve=绿，return=黄，reject=红
+- 不可退订（业务邮件，CONTEXT §邮件模板）
+
+预期 context（NotificationService.enqueue_hitl_email 写入 payload）：
+- flow_title: 流程标题
+- node_title: 节点标题
+- applicant_name: 申请人姓名
+- actor_name: 审批人姓名
+- deadline_at: 截止时间字符串
+- description: 描述（来自 form_schema.description）
+- deeplinks: list[{action, url}]，action ∈ {submit, approve, return, reject}
+-->
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ flow_title }} - 审批待办</title>
+</head>
+<body style="margin:0;padding:0;font-family:'Helvetica Neue',Arial,sans-serif;background-color:#f5f5f5;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color:#f5f5f5;">
+    <tr>
+      <td align="center" style="padding:40px 20px;">
+        <table role="presentation" width="600" cellspacing="0" cellpadding="0"
+               style="max-width:600px;background-color:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08);">
+
+          <!-- 品牌头 -->
+          <tr>
+            <td style="background-color:#2563eb;padding:24px 32px;text-align:left;">
+              <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:600;">
+                Agent Builder
+              </h1>
+              <p style="margin:4px 0 0;color:#dbeafe;font-size:13px;">审批待办通知</p>
+            </td>
+          </tr>
+
+          <!-- 正文 -->
+          <tr>
+            <td style="padding:32px 32px 24px;">
+              <h2 style="margin:0 0 20px;color:#1a202c;font-size:18px;font-weight:600;">
+                {{ flow_title }} — {{ node_title }}
+              </h2>
+
+              <table role="presentation" cellspacing="0" cellpadding="0" style="width:100%;margin-bottom:16px;">
+                <tr>
+                  <td style="padding:4px 0;color:#4a5568;font-size:14px;width:90px;"><strong>申请人：</strong></td>
+                  <td style="padding:4px 0;color:#1a202c;font-size:14px;">{{ applicant_name }}</td>
+                </tr>
+                <tr>
+                  <td style="padding:4px 0;color:#4a5568;font-size:14px;"><strong>审批人：</strong></td>
+                  <td style="padding:4px 0;color:#1a202c;font-size:14px;">{{ actor_name }}</td>
+                </tr>
+                <tr>
+                  <td style="padding:4px 0;color:#4a5568;font-size:14px;"><strong>截止时间：</strong></td>
+                  <td style="padding:4px 0;color:#1a202c;font-size:14px;">{{ deadline_at }}</td>
+                </tr>
+              </table>
+
+              <!-- 描述区 -->
+              <div style="background-color:#f9fafb;border-left:3px solid #2563eb;padding:12px 16px;margin:16px 0;">
+                <p style="margin:0;color:#4a5568;font-size:14px;line-height:1.6;">{{ description }}</p>
+              </div>
+
+              <p style="margin:24px 0 16px;color:#4a5568;font-size:14px;line-height:1.6;">
+                请点击下方按钮完成您的决策：
+              </p>
+
+              <!-- 按钮区（3 个 token deeplink） -->
+              <table role="presentation" cellspacing="0" cellpadding="0" style="margin:0 auto;">
+                <tr>
+                  {% for link in deeplinks %}
+                    <td style="padding:4px;">
+                      {% if link.action == "submit" or link.action == "approve" %}
+                        <a href="{{ link.url }}"
+                           style="display:inline-block;padding:12px 28px;background-color:#10b981;color:#ffffff;text-decoration:none;font-size:14px;font-weight:600;border-radius:6px;">
+                          {% if link.action == "submit" %}提交{% else %}通过{% endif %}
+                        </a>
+                      {% elif link.action == "return" %}
+                        <a href="{{ link.url }}"
+                           style="display:inline-block;padding:12px 28px;background-color:#f59e0b;color:#ffffff;text-decoration:none;font-size:14px;font-weight:600;border-radius:6px;">
+                          退回
+                        </a>
+                      {% elif link.action == "reject" %}
+                        <a href="{{ link.url }}"
+                           style="display:inline-block;padding:12px 28px;background-color:#ef4444;color:#ffffff;text-decoration:none;font-size:14px;font-weight:600;border-radius:6px;">
+                          拒绝
+                        </a>
+                      {% endif %}
+                    </td>
+                  {% endfor %}
+                </tr>
+              </table>
+
+              <hr style="border:none;border-top:1px solid #e2e8f0;margin:24px 0 16px;">
+
+              <p style="margin:0;color:#718096;font-size:12px;line-height:1.5;">
+                如按钮无法点击，请将以下任一链接复制到浏览器：<br>
+                {% for link in deeplinks %}
+                  <a href="{{ link.url }}" style="color:#2563eb;font-size:12px;word-break:break-all;">{{ link.url }}</a><br>
+                {% endfor %}
+              </p>
+            </td>
+          </tr>
+
+          <!-- 尾部 -->
+          <tr>
+            <td style="background-color:#f7fafc;padding:16px 32px;text-align:center;border-top:1px solid #e2e8f0;">
+              <p style="margin:0;color:#a0aec0;font-size:12px;line-height:1.5;">
+                这是系统业务邮件，不可退订。如有疑问请联系管理员。
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
