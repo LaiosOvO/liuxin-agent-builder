@@ -80,8 +80,8 @@ Plans:
 - [x] 03-02-PLAN.md — HITL node executor（HITLNodeExecutor + hitl_payload 4 纯函数 + HitlService + 38 测试，2026-05-17 完成）
 - [x] 03-03-PLAN.md — HITL Token Service（JWT 签发 + Safe Links bot detector，HitlTokenService + bot_detector + 44 测试，2026-05-17 完成）
 - [x] 03-04-PLAN.md — Email 投递（NotificationService + arq + Jinja2 + tenacity NOTI-10 重试，3 模板 + 18 测试，2026-05-17 完成）
-- [ ] 03-05-PLAN.md — Notification node executor（NODE-07）
-- [ ] 03-06-PLAN.md — HITL public API（/hitl/page + /hitl/action + cookie session）
+- [x] 03-05-PLAN.md — Notification node executor（NotificationNodeExecutor + generic_notification.html + 13 测试，2026-05-17 完成）
+- [x] 03-06-PLAN.md — HITL public API（HitlActionService + /hitl/page + /hitl/action + 4 HTML 模板 + migration 0004 + 39 测试 — 含 Safe Links bot 6 用例 + advisory_lock 并发 3 用例 P0 回归，2026-05-17 完成）
 - [ ] 03-07-PLAN.md — 决策页前端（form_schema RJSF render）
 - [ ] 03-08-PLAN.md — 申请人追踪页（HITL-07）
 - [ ] 03-09-PLAN.md — 超时催办 worker（arq + NOTI-09 升级）
@@ -155,7 +155,7 @@ Plans:
 |-------|----------------|--------|-----------|
 | 1. Skeleton + 账号体系 | 6/6 | ✓ Complete | 2026-05-16 |
 | 2. DSL 引擎 + 基础节点 | 10/10 | ✓ Complete | 2026-05-17 |
-| 3. HITL 单节点 + Email 审批 | 5/10 | In Progress|  |
+| 3. HITL 单节点 + Email 审批 | 6/10 | In Progress |  |
 | 4. 审批链 + IM 通知 | 0/TBD | Not started | - |
 | 4.5. Bot Triggers + Slash | 0/TBD | Not started | - |
 | 5. IM 目录双向同步 | 0/TBD | Not started | - |

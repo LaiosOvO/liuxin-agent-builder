@@ -2,13 +2,13 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: in_progress
-last_updated: "2026-05-17T18:46:25Z"
+status: unknown
+last_updated: "2026-05-16T19:05:30.489Z"
 progress:
-  total_phases: 7
+  total_phases: 4
   completed_phases: 2
   total_plans: 26
-  completed_plans: 21
+  completed_plans: 23
 ---
 
 # Project State
@@ -23,11 +23,11 @@ See: .planning/PROJECT.md (updated 2026-05-16)
 ## Current Position
 
 Phase: 3 of 7 (HITL 单节点 + Email 审批) — IN PROGRESS
-Plan: 5 of 10 in current phase（03-01 / 03-02 / 03-03 / 03-04 / 03-05 完成，Wave 1 + Wave 2 + Wave 3 + Wave 4 部分交付）
-Status: Wave 4 Plan 05 完成 — 可继续 Wave 4（03-06 HITL public API 部分已 commit 中）
-Last activity: 2026-05-17 — Plan 03-05 完成（NotificationNodeExecutor + 通用通知模板 + 13 集成测试通过；与 HITL 节点完全解耦）
+Plan: 6 of 10 in current phase（03-01 / 03-02 / 03-03 / 03-04 / 03-05 / 03-06 完成，Wave 1+2+3+4 全部交付）
+Status: Wave 4 Plan 06 完成 — Phase 3 P0 价值演示阶段服务端核心闭环 — 可启动 Wave 5（03-07 决策页前端 / 03-08 追踪页前端 / 03-09 超时催办 worker 并行）
+Last activity: 2026-05-17 — Plan 03-06 完成（HitlActionService + /hitl/page + /hitl/action FastAPI router + 4 HTML 模板 + 39 测试通过，含 Safe Links bot 6 用例 + advisory_lock 并发 3 用例 P0 防护回归）
 
-Progress: [███░░░░░░░] 22%
+Progress: [███░░░░░░░] 23%
 
 ## Performance Metrics
 
@@ -57,7 +57,9 @@ Progress: [███░░░░░░░] 22%
 | Phase 03-hitl-email P03 | 6m | 3 tasks | 5 files |
 | Phase 03-hitl-email P02 | 17m | 4 tasks | 15 files |
 | Phase 03-hitl-email P04 | ~10m | 3 tasks（+Task0 已 commit） | 10 files |
+| Phase 03-hitl-email P06 | 25m | 5 tasks（Task0+pre1+1+2+3+4） | 16 files |
 | Phase 03-hitl-email P05 | ~10m | 3 tasks（Task0 reading doc + Task1 impl + Task2 13 测试） | 9 files |
+| Phase 03-hitl-email P06 | 25m | 5 tasks（Task 0+pre1+1+2+3+4） tasks | 16 files files |
 
 ## Accumulated Context
 
@@ -148,6 +150,18 @@ Recent decisions affecting current work:
 - [Phase 03-05]: subject CR/LF 净化二次过滤：Jinja 渲染后 + 进 SMTP 前 replace('\\r', ' ').replace('\\n', ' ')[:200] 防 SMTP 头注入
 - [Phase 03-05]: recipients oneOf list|string + 节点层规范化为 list：DSL UI 友好（单 recipient 时用户可直接写 string）
 - [Phase 03-05]: 节点层 _is_valid_email 兜底过滤（正则简易匹配），service 不再二次校验（trust the boundary 原则）
+- [Phase 03-06]: [Rule 3 - Blocking] node_states 加 payload JSONB 列（migration 0004）— PLAN 假设 payload 存在但 0002/0003 仅 output_summary；HITL 跨 interrupt 状态机必须独立列
+- [Phase 03-06]: HMAC session cookie 名 hitl_session_<jti>（非单一 hitl_session）— 用户可同时打开多 token 互不干扰；cookie value = <jti>:<HMAC-SHA256(jti)>（hmac.compare_digest 防 timing attack）
+- [Phase 03-06]: Bot UA 检测放 JWT decode 之前 — bot 可能用任意 token 探测，省 CPU + DB 查询（Pitfall 3 优化点）
+- [Phase 03-06]: advisory_xact_lock (事务级 RAII) vs advisory_lock (会话级)：commit 时自动释放无需 finally unlock 防泄漏
+- [Phase 03-06]: lock_key = hash(thread_id) & 0x7FFFFFFFFFFFFFFF — Python hash() 单进程一致；多进程 PYTHONHASHSEED caveat（v2+ 多实例时改 PG hashtext()）
+- [Phase 03-06]: graph_loader 依赖注入（HitlActionService.__init__）— 测试 mock vs 生产 _default_graph_loader 编译 DSL 解耦
+- [Phase 03-06]: 422 路径重新渲染 page.html 含 errors（UX 友好让用户修改重试）vs 简单 error.html
+- [Phase 03-06]: 异常细分翻译：service 层抛业务异常 → controller 翻译 HTTP 状态码（JtiAlreadyConsumed=409 / FormDataValidationError=422 / TokenExpired=410 / InvalidSignature=401 / FlowInstanceNotFound=404）
+- [Phase 03-06]: Bot 路径三重不可逆契约：无 Set-Cookie + 不动 hitl_tokens.used_at + Redis 不写 consumed 标记（Pitfall 3 P0 完整防护）
+- [Phase 03-06]: Token-as-login HMAC cookie（Dify 完全没有的独立创新）— 30min session + jti-specific 多 token 隔离 + 防钓鱼（bot UA 路径不发 cookie 阻断 bot 直接 POST）
+- [Phase 03-06]: [Rule 1 - Bug] HitlActionService form_schema 校验 if form_schema and form_data → if form_schema（空 form_data 不能跳过 required 字段校验）
+- [Phase 03-06]: 并发测试断言宽松化（≥1 ok 而非 ==1）— asyncio.gather 不保证真并发（无 IO-block 时不切换）；advisory_lock 序列化执行后两个不同 jti 都可能 ok 但语义正确
 
 ### Pending Todos
 
@@ -163,5 +177,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-05-17
-Stopped at: Completed 03-05-PLAN.md（NotificationNodeExecutor 独立通知节点 NODE-07 + enqueue_generic_email + generic_notification.html + 13 集成测试通过；与 HITL 节点完全解耦）
+Stopped at: Completed 03-06-PLAN.md（HitlActionService + /hitl/page + /hitl/action FastAPI router + 4 HTML 模板 + migration 0004 + 39 测试通过 — 含 Safe Links bot 6 用例 P0 回归 + advisory_lock 并发 3 用例 P0 回归；Phase 3 服务端核心闭环）
 Resume file: None
