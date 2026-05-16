@@ -1,0 +1,72 @@
+<!--
+通用通知邮件模板 — Plan 03-05（独立 Notification 节点 NODE-07）
+
+设计参考 docs/reading-dify-03-05-notification-node-2026-05-17.md §4：
+- 极简模板：subject 在外层（_render_email_content 拼装）+ body 在主体
+- autoescape=html 自动生效（Jinja2 Environment 选项）— 用户输入安全渲染
+- 不可退订（业务邮件，与 hitl_decision.html 一致）
+
+预期 context（NotificationService.enqueue_generic_email 写入 payload）：
+- subject: 邮件主题
+- body: 邮件正文（已经 Jinja 渲染过，包含真实内容）
+- recipient_email: 收件人邮箱（仅页脚展示，不参与状态机）
+
+注意：本模板不包含 deeplinks（vs HITL 决策模板），因为 Notification 节点不创建任何
+token / callback URL — 通知是单向广播，无需用户回调。
+-->
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ subject }}</title>
+</head>
+<body style="margin:0;padding:0;font-family:'Helvetica Neue',Arial,sans-serif;background-color:#f5f5f5;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color:#f5f5f5;">
+    <tr>
+      <td align="center" style="padding:40px 20px;">
+        <table role="presentation" width="600" cellspacing="0" cellpadding="0"
+               style="max-width:600px;background-color:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08);">
+
+          <!-- 品牌头 -->
+          <tr>
+            <td style="background-color:#0ea5e9;padding:24px 32px;text-align:left;">
+              <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:600;">
+                Agent Builder
+              </h1>
+              <p style="margin:4px 0 0;color:#e0f2fe;font-size:13px;">通知</p>
+            </td>
+          </tr>
+
+          <!-- 主题 -->
+          <tr>
+            <td style="padding:32px 32px 12px;">
+              <h2 style="margin:0;color:#1a202c;font-size:18px;font-weight:600;">
+                {{ subject }}
+              </h2>
+            </td>
+          </tr>
+
+          <!-- 正文（用户配置的 body，已经 Jinja autoescape） -->
+          <tr>
+            <td style="padding:8px 32px 32px;">
+              <div style="color:#4a5568;font-size:14px;line-height:1.7;white-space:pre-wrap;">{{ body }}</div>
+            </td>
+          </tr>
+
+          <!-- 尾部 -->
+          <tr>
+            <td style="background-color:#f7fafc;padding:16px 32px;text-align:center;border-top:1px solid #e2e8f0;">
+              <p style="margin:0;color:#a0aec0;font-size:12px;line-height:1.5;">
+                这是系统业务邮件，不可退订。<br>
+                收件人：{{ recipient_email }}
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

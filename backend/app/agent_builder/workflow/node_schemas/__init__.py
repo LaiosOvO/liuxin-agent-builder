@@ -16,6 +16,10 @@ from app.agent_builder.workflow.node_schemas.end import END_NODE_SCHEMA, END_OUT
 from app.agent_builder.workflow.node_schemas.hitl_schema import HITL_NODE_SCHEMA, HITL_OUTPUT_FIELDS
 from app.agent_builder.workflow.node_schemas.if_else import IF_ELSE_NODE_SCHEMA, IF_ELSE_OUTPUT_FIELDS
 from app.agent_builder.workflow.node_schemas.llm import LLM_NODE_SCHEMA, LLM_OUTPUT_FIELDS
+from app.agent_builder.workflow.node_schemas.notification_schema import (
+    NOTIFICATION_NODE_SCHEMA,
+    NOTIFICATION_OUTPUT_FIELDS,
+)
 from app.agent_builder.workflow.node_schemas.start import START_NODE_SCHEMA, START_OUTPUT_FIELDS
 from app.agent_builder.workflow.node_schemas.tool import TOOL_NODE_SCHEMA, TOOL_OUTPUT_FIELDS
 
@@ -28,6 +32,7 @@ NODE_SCHEMAS: dict[str, tuple[dict, frozenset[str]]] = {
     "tool": (TOOL_NODE_SCHEMA, TOOL_OUTPUT_FIELDS),
     "if_else": (IF_ELSE_NODE_SCHEMA, IF_ELSE_OUTPUT_FIELDS),
     "hitl": (HITL_NODE_SCHEMA, HITL_OUTPUT_FIELDS),
+    "notification": (NOTIFICATION_NODE_SCHEMA, NOTIFICATION_OUTPUT_FIELDS),
 }
 
 
@@ -77,4 +82,6 @@ __all__ = [
     "IF_ELSE_OUTPUT_FIELDS",
     "HITL_NODE_SCHEMA",
     "HITL_OUTPUT_FIELDS",
+    "NOTIFICATION_NODE_SCHEMA",
+    "NOTIFICATION_OUTPUT_FIELDS",
 ]

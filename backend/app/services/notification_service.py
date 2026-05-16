@@ -154,6 +154,81 @@ class NotificationService:
 
         return notif
 
+    async def enqueue_generic_email(
+        self,
+        *,
+        workspace_id: UUID,
+        instance_id: UUID,
+        node_state_id: UUID,
+        recipient_email: str,
+        subject: str,
+        body: str,
+    ) -> Notification:
+        """通用邮件入队（Plan 03-05 / NODE-07 独立 Notification 节点用）。
+
+        与 enqueue_hitl_email 的区别：
+        - 不携带 tokens / form_schema / deadline_at（无回调）
+        - 不参与催办循环：reminder_round 恒为 0
+        - payload 仅 {subject, body, recipient_email}（极简）
+
+        channel='email' + reminder_round=0，与 enqueue_hitl_email 走同一 send_hitl_email_job
+        worker；worker 根据 payload 字段决定模板（含 tokens=有 → hitl_decision.html，
+        含 generic=True → generic_notification.html）。
+
+        Args:
+            workspace_id: 工作区 UUID（多租户隔离）
+            instance_id: 流程实例 UUID
+            node_state_id: 节点状态 UUID（必须已存在；FK 约束）
+            recipient_email: 收件人邮箱（已经 Jinja 渲染 + 格式校验过）
+            subject: 邮件主题（已经 Jinja 渲染）
+            body: 邮件正文（已经 Jinja 渲染 + autoescape）
+
+        Returns:
+            Notification 行（status='pending'，已 commit）
+
+        Raises:
+            sqlalchemy.exc.IntegrityError: UNIQUE 约束冲突
+                （相同 instance + node_state + email + recipient + round=0 重复入队）
+        """
+        # 极简 payload（vs HITL 邮件 payload 含 tokens/form_schema/deadline 等 8 字段）
+        payload: dict[str, Any] = {
+            "generic": True,  # 标识：worker 据此选择 generic_notification.html 模板
+            "subject": subject,
+            "body": body,
+            "recipient_email": recipient_email,
+        }
+
+        notif = Notification(
+            workspace_id=workspace_id,
+            instance_id=instance_id,
+            node_state_id=node_state_id,
+            channel="email",
+            recipient=recipient_email,
+            reminder_round=0,  # 通用通知节点：不参与催办，恒为 0
+            status="pending",
+            payload=payload,
+        )
+        self.db.add(notif)
+        await self.db.flush()
+        await self.db.commit()
+        await self.db.refresh(notif)
+
+        log.info(
+            "已入队通用通知 notification_id=%s recipient=%s",
+            notif.id,
+            recipient_email,
+        )
+
+        if self.arq is not None:
+            await self.arq.enqueue_job("send_hitl_email_job", str(notif.id))
+        else:
+            # 测试 / dev fallback：直接 asyncio.create_task（不依赖 Redis）
+            from app.jobs.email_jobs import send_hitl_email_job
+
+            asyncio.create_task(send_hitl_email_job(None, str(notif.id)))
+
+        return notif
+
     async def mark_sent(self, notification_id: int, sent_at: datetime) -> None:
         """标记通知发送成功。
 

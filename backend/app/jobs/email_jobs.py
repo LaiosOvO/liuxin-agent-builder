@@ -83,14 +83,21 @@ def _render_email_content(
 
     Args:
         notif_payload: notifications.payload（含 tokens / form_schema / flow_title / ...）
-        template_name: 模板文件名（如 'hitl_decision.html'）
+        template_name: 模板文件名（如 'hitl_decision.html' / 'generic_notification.html'）
 
     Returns:
         渲染后的字符串（HTML 已 autoescape，text 不 escape）
     """
     env = _get_jinja_env()
     template = env.get_template(template_name)
-    # 为 tokens 拼接 deeplinks（每个 token 一条带 URL 的记录）
+    # Plan 03-05 通用通知模板（NotificationNode）— payload 仅含 subject/body/recipient_email
+    if notif_payload.get("generic") is True:
+        return template.render(
+            subject=notif_payload.get("subject", ""),
+            body=notif_payload.get("body", ""),
+            recipient_email=notif_payload.get("recipient_email", ""),
+        )
+    # HITL 决策 / 催办模板：为 tokens 拼接 deeplinks（每个 token 一条带 URL 的记录）
     deeplinks = [
         {"action": t["action"], "url": _build_deeplink(t["jti"])}
         for t in notif_payload.get("tokens", [])
@@ -144,15 +151,27 @@ async def send_hitl_email_job(ctx: dict | None, notification_id: str) -> None:
         notif.status = "sending"
         await db.commit()
 
-        # 选择模板：催办 vs 首发
+        # 选择模板（Plan 03-05 新增 generic 路径）：
+        # - payload.generic=True → generic_notification.html（Notification 节点，NODE-07）
+        # - reminder_round>0 → hitl_reminder.html（催办）
+        # - 否则 → hitl_decision.html（HITL 首发）
+        is_generic = notif.payload.get("generic") is True
         is_reminder = notif.reminder_round > 0
-        html_template = "hitl_reminder.html" if is_reminder else "hitl_decision.html"
-        text_template = "hitl_decision_text.txt"  # 明文 fallback 共用一份
+        if is_generic:
+            html_template = "generic_notification.html"
+        else:
+            html_template = "hitl_reminder.html" if is_reminder else "hitl_decision.html"
+        text_template = "hitl_decision_text.txt"  # 明文 fallback 仅 HITL 路径使用
 
         # 渲染（autoescape 防 XSS）
         try:
             html_body = _render_email_content(notif.payload, html_template)
-            text_body = _render_email_content(notif.payload, text_template)
+            # Notification 节点无明文 fallback 需求（body 已是用户输入）
+            text_body = (
+                None
+                if is_generic
+                else _render_email_content(notif.payload, text_template)
+            )
         except Exception as exc:
             log.exception(
                 "send_hitl_email_job: 模板渲染失败 notification_id=%s", notification_id
@@ -163,10 +182,16 @@ async def send_hitl_email_job(ctx: dict | None, notification_id: str) -> None:
             return
 
         # 主题组装（不走 Jinja 模板 — 防注入风险）
-        subject_prefix = "[催办] " if is_reminder else ""
-        flow_title = notif.payload.get("flow_title", "")
-        node_title = notif.payload.get("node_title", "")
-        subject = f"{subject_prefix}审批待办：{flow_title} - {node_title}"
+        if is_generic:
+            # Plan 03-05 通用通知节点：subject 已经在节点 execute 阶段 Jinja 渲染过
+            # 这里只做 CR/LF 防注入清理（防止 Jinja 渲染结果意外含换行）
+            raw_subject = notif.payload.get("subject", "通知")
+            subject = raw_subject.replace("\r", " ").replace("\n", " ")[:200]
+        else:
+            subject_prefix = "[催办] " if is_reminder else ""
+            flow_title = notif.payload.get("flow_title", "")
+            node_title = notif.payload.get("node_title", "")
+            subject = f"{subject_prefix}审批待办：{flow_title} - {node_title}"
 
         # tenacity AsyncRetrying 3 次指数退避
         last_error: Exception | None = None

@@ -13,11 +13,13 @@
 - "tool"    → ToolNodeExecutor
 - "llm"     → LLMNodeExecutor（Plan 02-05）
 - "hitl"    → HITLNodeExecutor（Plan 03-02：interrupt + Command(resume)）
+- "notification" → NotificationNodeExecutor（Plan 03-05：独立通知节点 NODE-07，不暂停 graph）
 
 Plan 接入说明：
 - Plan 02-04：start / end / if_else / tool
 - Plan 02-05：llm 节点（init_chat_model 多 provider）
 - Plan 03-02：hitl 节点（LangGraph 1.2 interrupt + Command(resume)）
+- Plan 03-05：notification 节点（独立通知节点 NODE-07，复用 03-04 NotificationService）
 
 设计参考（Dify 阅读笔记 docs/reading-dify-02-04-base-nodes-2026-05-16.md）：
 - Dify 用 pkgutil.walk_packages 自动发现，我们手动 import（项目规模小，可读性优先）
@@ -30,6 +32,7 @@ from app.agent_builder.workflow.nodes.end import EndNodeExecutor
 from app.agent_builder.workflow.nodes.hitl import HITLNodeExecutor
 from app.agent_builder.workflow.nodes.if_else import IfElseNodeExecutor
 from app.agent_builder.workflow.nodes.llm import LLMNodeExecutor
+from app.agent_builder.workflow.nodes.notification import NotificationNodeExecutor
 from app.agent_builder.workflow.nodes.start import StartNodeExecutor
 from app.agent_builder.workflow.nodes.tool import ToolNodeExecutor
 
@@ -42,6 +45,7 @@ NODE_EXECUTORS: dict[str, type[BaseNodeExecutor]] = {
     "tool": ToolNodeExecutor,
     "llm": LLMNodeExecutor,
     "hitl": HITLNodeExecutor,
+    "notification": NotificationNodeExecutor,
 }
 
 __all__ = [
@@ -53,4 +57,5 @@ __all__ = [
     "ToolNodeExecutor",
     "LLMNodeExecutor",
     "HITLNodeExecutor",
+    "NotificationNodeExecutor",
 ]
