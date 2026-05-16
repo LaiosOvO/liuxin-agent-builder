@@ -166,48 +166,62 @@ class TestSuccessCase:
 
 
 class TestErrorMessageQuality:
-    """错误信息质量测试：中文、包含关键字段。"""
+    """错误信息质量测试：中文、包含关键字段。
+
+    使用 unittest.mock.patch 拦截 log.error 调用，
+    避免 pytest-asyncio 跨事件循环后 caplog 捕获失效的问题。
+    """
 
     def test_error_message_contains_chinese_length_keyword(
-        self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+        self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """错误日志应包含"长度不足"中文字样，让运维快速定位问题。"""
+        from unittest.mock import patch
+
         for key, value in VALID_ENV.items():
             monkeypatch.setenv(key, value)
         monkeypatch.setenv("HMAC_SECRET", "short")
 
         from app.agent_builder.security.startup_checks import run_startup_checks
 
-        with caplog.at_level(logging.ERROR, logger="app.agent_builder.security.startup_checks"):
+        with patch("app.agent_builder.security.startup_checks.log") as mock_log:
             with pytest.raises(SystemExit):
                 run_startup_checks()
 
-        assert "长度不足" in caplog.text, (
-            f"错误日志应包含「长度不足」，实际日志：{caplog.text}"
+        # 验证 log.error 被调用，且参数中含"长度不足"
+        assert mock_log.error.called, "log.error 未被调用"
+        call_args = str(mock_log.error.call_args)
+        assert "长度不足" in call_args, (
+            f"错误日志应包含「长度不足」，实际调用参数：{call_args}"
         )
 
     def test_error_message_contains_field_name(
-        self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+        self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """错误日志应包含具体的字段名（HMAC_SECRET），便于定位。"""
+        from unittest.mock import patch
+
         for key, value in VALID_ENV.items():
             monkeypatch.setenv(key, value)
         monkeypatch.setenv("HMAC_SECRET", "x" * 10)
 
         from app.agent_builder.security.startup_checks import run_startup_checks
 
-        with caplog.at_level(logging.ERROR, logger="app.agent_builder.security.startup_checks"):
+        with patch("app.agent_builder.security.startup_checks.log") as mock_log:
             with pytest.raises(SystemExit):
                 run_startup_checks()
 
-        assert "HMAC_SECRET" in caplog.text, (
-            f"错误日志应包含字段名「HMAC_SECRET」，实际日志：{caplog.text}"
+        call_args = str(mock_log.error.call_args)
+        assert "HMAC_SECRET" in call_args, (
+            f"错误日志应包含字段名「HMAC_SECRET」，实际调用参数：{call_args}"
         )
 
     def test_multiple_errors_reported_together(
-        self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+        self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """多个错误同时存在时，应在一条日志中全部列出（不要只报第一个）。"""
+        from unittest.mock import patch
+
         for key, value in VALID_ENV.items():
             monkeypatch.setenv(key, value)
         monkeypatch.setenv("HMAC_SECRET", "short")
@@ -215,10 +229,11 @@ class TestErrorMessageQuality:
 
         from app.agent_builder.security.startup_checks import run_startup_checks
 
-        with caplog.at_level(logging.ERROR, logger="app.agent_builder.security.startup_checks"):
+        with patch("app.agent_builder.security.startup_checks.log") as mock_log:
             with pytest.raises(SystemExit):
                 run_startup_checks()
 
-        # 两个密钥错误应都出现在日志中
-        assert "HMAC_SECRET" in caplog.text
-        assert "JWT_SECRET" in caplog.text
+        # 两个密钥错误应都出现在日志中（同一条 log.error 调用）
+        call_args = str(mock_log.error.call_args)
+        assert "HMAC_SECRET" in call_args, f"应包含 HMAC_SECRET，实际：{call_args}"
+        assert "JWT_SECRET" in call_args, f"应包含 JWT_SECRET，实际：{call_args}"

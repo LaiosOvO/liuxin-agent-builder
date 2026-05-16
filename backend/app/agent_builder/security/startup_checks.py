@@ -14,13 +14,6 @@ import logging
 import os
 import sys
 
-# 确保 basicConfig 已配置，避免错误被吞
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s  %(levelname)-8s  %(name)s — %(message)s",
-    datefmt="%Y-%m-%dT%H:%M:%SZ",
-)
-
 log = logging.getLogger(__name__)
 
 # 需要校验长度的密钥名（任一不足 32 字节则拒绝启动）

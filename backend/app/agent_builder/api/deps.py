@@ -242,22 +242,26 @@ def require_role(*allowed_codes: str):
                 role_code,
                 allowed_codes,
             )
-            # 写 audit_log
+            # 写 audit_log：使用独立 session 确保在 HTTPException 回滚前提交
+            # （get_db 遇到异常会 rollback，不能复用请求 session）
             try:
+                from app.agent_builder.db.engine import async_session_maker
                 from app.services.audit import log as audit_log
 
-                await audit_log(
-                    db,
-                    action="rbac.denied",
-                    workspace_id=ws_id,
-                    actor_user_id=current_user.id,
-                    meta={
-                        "role": role_code,
-                        "required": list(allowed_codes),
-                        "path": str(request.url),
-                    },
-                    request=request,
-                )
+                async with async_session_maker() as audit_session:
+                    await audit_log(
+                        audit_session,
+                        action="rbac.denied",
+                        workspace_id=ws_id,
+                        actor_user_id=current_user.id,
+                        meta={
+                            "role": role_code,
+                            "required": list(allowed_codes),
+                            "path": str(request.url),
+                        },
+                        request=request,
+                    )
+                    await audit_session.commit()
             except Exception:
                 pass
 
