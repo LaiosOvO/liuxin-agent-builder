@@ -3,9 +3,9 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "flock"
+name = "agent-builder"
 version = "0.1.0"
-description = "Flock project"
+description = "agent-builder — 通用拖拽式 LangGraph 编排平台 (fork from Onelevenvy/flock)"
 requires-python = ">=3.12"
 dependencies = [
     "httpx>=0.28.1",

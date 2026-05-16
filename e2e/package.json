@@ -1,0 +1,17 @@
+{
+  "name": "agent-builder-e2e",
+  "version": "0.1.0",
+  "private": true,
+  "description": "agent-builder E2E 测试 (Playwright via webapp-testing skill / CLAUDE.md 2.2)",
+  "scripts": {
+    "test": "playwright test",
+    "test:headed": "playwright test --headed",
+    "test:debug": "playwright test --debug",
+    "report": "playwright show-report",
+    "install-browsers": "playwright install chromium webkit"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.55.0",
+    "typescript": "^5.5.0"
+  }
+}
