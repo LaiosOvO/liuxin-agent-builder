@@ -1,10 +1,12 @@
-"""arq worker 入口（Phase 2 引入，Phase 1 不含此文件）。
+"""arq worker 入口（Phase 2 引入，Phase 3 加 HITL email jobs）。
 
 启动命令：
     arq app.agent_builder.worker.WorkerSettings
 
 功能：
 - run_instance_arq：接收 arq 任务，调用 workflow.runner.run_instance
+- send_hitl_email_job：HITL 决策邮件投递（Plan 03-04，NOTI-01 + NOTI-10）
+- send_hitl_reminder_job：HITL 催办邮件投递（Plan 03-04，NOTI-09，03-09 plan 调用）
 - WorkerSettings：arq worker 配置（Redis 连接 / 注册函数 / keep_result）
 
 重启恢复：
@@ -21,6 +23,9 @@ from __future__ import annotations
 import logging
 import os
 from uuid import UUID
+
+# Plan 03-04: HITL email job 注册（Phase 3）
+from app.jobs.email_jobs import send_hitl_email_job, send_hitl_reminder_job
 
 logger = logging.getLogger(__name__)
 
@@ -74,7 +79,11 @@ class WorkerSettings:
     """
     from arq.connections import RedisSettings
 
-    functions = [run_instance_arq]
+    functions = [
+        run_instance_arq,
+        send_hitl_email_job,      # Plan 03-04: HITL 决策邮件（NOTI-01 + NOTI-10）
+        send_hitl_reminder_job,   # Plan 03-04: HITL 催办邮件（NOTI-09，03-09 plan 调用）
+    ]
     on_startup = on_startup
     redis_settings = RedisSettings.from_dsn(
         os.environ.get("REDIS_URL", "redis://localhost:6379/0")
