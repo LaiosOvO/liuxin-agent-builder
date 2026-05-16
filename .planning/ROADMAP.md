@@ -50,7 +50,19 @@ Plans:
   3. 服务重启后运行中的实例能从 Postgres checkpoint 恢复继续执行
   4. 实例列表页能按工作流/状态过滤，支持分页搜索
   5. DSL 成环或变量引用错误时画布前端拒绝保存并显示具体错误位置
-**Plans**: TBD
+**Plans**: 10 plans
+
+Plans:
+- [x] 02-01-PLAN.md — LangGraph 1.2.0 + checkpoint-postgres 3.1.0 + Phase 2 业务表（Wave 1）
+- [x] 02-02-PLAN.md — DSL Schema + Jinja2 沙箱 + DSLValidator + DSLCompiler 骨架（Wave 1）
+- [x] 02-03-PLAN.md — React Flow Canvas + 5 节点 + NodePalette + ConfigPanel + DSL 双向转换（Wave 2）
+- [ ] 02-04-PLAN.md — TBD
+- [ ] 02-05-PLAN.md — TBD
+- [ ] 02-06-PLAN.md — TBD
+- [ ] 02-07-PLAN.md — TBD
+- [ ] 02-08-PLAN.md — 工作流持久化 API（workflowsApi 真实后端）
+- [ ] 02-09-PLAN.md — DSL 实时校验（IssueList 接入）
+- [ ] 02-10-PLAN.md — E2E 验收（拖拽 DAG + 发布 + 运行 + 时间线）
 
 ### Phase 3: HITL 单节点 + Email 审批
 **Goal**: 审批人收到邮件深链，点击链接完成四态决策，流程继续推进

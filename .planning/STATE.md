@@ -23,9 +23,9 @@ See: .planning/PROJECT.md (updated 2026-05-16)
 ## Current Position
 
 Phase: 2 of 7 (DSL 引擎 + 基础节点)
-Plan: 2 of 10 in current phase（02-02 完成，DSL Schema + 验证器 + 编译器骨架 + Jinja2 沙箱）
+Plan: 3 of 10 in current phase（02-03 完成，React Flow Canvas + 5 节点 + DSL 双向转换 + 21 个测试）
 Status: In Progress
-Last activity: 2026-05-16 — Plan 02-02 完成（DSL Schema + Jinja2 沙箱 + DSLValidator 4 类全检 + DSLCompiler 骨架 + 81 个测试通过）
+Last activity: 2026-05-16 — Plan 02-03 完成（@xyflow/react 12.10 + canvas-store + 5 自定义节点 + NodePalette + ConfigPanel + 21 个 vitest 测试）
 
 Progress: [███░░░░░░░] 30%
 
@@ -81,6 +81,9 @@ Recent decisions affecting current work:
 - M4 (Phase 1): autouse pytest fixture 重置 slowapi limiter + app.state.limiter（防止 importlib.reload 后双 limiter 不一致）
 - [Phase 02-dsl]: TopologicalSorter 使用入边依赖图（非出边），static_order() 返回正确执行顺序 start→...→end
 - [Phase 02-dsl]: 孤立节点 E_ORPHAN_NODE 定为 warning 级别（可放行），不阻断工作流发布
+- [Phase 02-dsl, 02-03]: workflowsApi 先定义签名不接后端，?mock=1 降级到 localStorage 离线体验（Plan 02-08 兑现）
+- [Phase 02-dsl, 02-03]: ConfigPanel 按 nodeType switch 独立子组件（5 种表单差异大，可维护性优于泛型方案）
+- [Phase 02-dsl, 02-03]: flock pre-existing TS 错误（Members/index.tsx）不修复（fork discipline），记录 deferred-items.md
 
 ### Pending Todos
 
@@ -95,5 +98,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-05-16
-Stopped at: Completed 02-02-PLAN.md（DSL Schema + Jinja2 沙箱 + DSLValidator 4 类全检 + DSLCompiler 骨架 + 81 个测试通过）
+Stopped at: Completed 02-03-PLAN.md（@xyflow/react 12.10 画布 + 5 自定义节点 + DSL 双向转换 + 21 个测试通过）
 Resume file: None
