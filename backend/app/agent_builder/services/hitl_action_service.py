@@ -165,9 +165,11 @@ class HitlActionService:
 
         ns_payload = node_state.payload or {}
         form_schema = ns_payload.get("form_schema", {})
-        if form_schema and form_data:
+        # 空 schema {} 视为不约束（hitl_payload.validate_form_data 内已处理）
+        # 非空 schema 必须校验 form_data（即使 form_data 为空 dict，required 字段缺失也要报）
+        if form_schema:
             try:
-                validate_form_data(form_schema, form_data)
+                validate_form_data(form_schema, form_data or {})
             except JsonSchemaError as e:
                 # 不消费 jti，让用户修改后重试
                 raise FormDataValidationError([str(e.message)]) from e
