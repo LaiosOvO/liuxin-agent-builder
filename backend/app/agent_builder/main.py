@@ -10,10 +10,13 @@ Fork discipline：不修改 flock 原文件，所有改动作为新增模块。
 4. 路由（setup/auth/invites/me）
 
 startup_checks 在模块 import 时立即执行（不放 lifespan，lifespan 触发太晚）。
+lifespan 用于 Phase 2+ 的异步初始化：LangGraph checkpoint 表创建。
 """
 from __future__ import annotations
 
+import logging
 import os
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 # 1. 加载 .env（优先于所有其他代码）
@@ -37,8 +40,33 @@ from app.agent_builder.security.rate_limit import limiter
 from app.agent_builder.db.checkout_hook import register_discard_all_hook
 from app.agent_builder.db.engine import engine
 
+_logger = logging.getLogger(__name__)
+
 # 注册 DISCARD ALL checkout hook
 register_discard_all_hook(engine)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """FastAPI lifespan：启动时初始化异步资源，关闭时清理。
+
+    Phase 2+：创建 LangGraph checkpoint 表（ensure_checkpoint_tables 幂等）。
+    """
+    # ── 启动阶段 ──────────────────────────────────────────────────────────────
+    try:
+        from app.agent_builder.workflow.checkpoint import ensure_checkpoint_tables
+        await ensure_checkpoint_tables()
+        _logger.info("LangGraph checkpoint 表初始化完成")
+    except Exception as exc:
+        # checkpoint 表创建失败不阻断启动（测试环境可能无 DB），仅记录警告
+        _logger.warning("LangGraph checkpoint 表初始化失败（非阻断）: %s", exc)
+
+    yield  # 应用运行中
+
+    # ── 关闭阶段 ──────────────────────────────────────────────────────────────
+    await engine.dispose()
+    _logger.info("数据库连接池已释放")
+
 
 # 创建 FastAPI 应用
 agent_builder_app = FastAPI(
@@ -47,6 +75,7 @@ agent_builder_app = FastAPI(
     version="1.0.0",
     docs_url="/api/docs",
     openapi_url="/api/openapi.json",
+    lifespan=lifespan,
 )
 
 # ── 中间件挂载（顺序重要）────────────────────────────────────────────────────────
