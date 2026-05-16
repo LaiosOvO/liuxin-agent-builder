@@ -82,6 +82,7 @@ dependencies = [
     "slowapi==0.1.9",
     "greenlet>=3.5.0",
     "pytest-httpx>=0.36.2",
+    "fakeredis[aioredis]>=2.0",
 ]
 
 [project.optional-dependencies]

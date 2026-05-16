@@ -98,41 +98,41 @@ def _map_provider_error(exc: Exception) -> LLMClientError:
 
     # 认证错误（不重试）
     if class_name in ("AuthenticationError",):
-        return LLMAuthError(f"认证失败: {exc}") from exc
+        return LLMAuthError(f"认证失败: {exc}")
 
     # 速率限制（可重试）
     if class_name in ("RateLimitError",):
-        return LLMRateLimitError(f"速率限制: {exc}") from exc
+        return LLMRateLimitError(f"速率限制: {exc}")
 
     # 超时（可重试）
     if "timeout" in class_name.lower() or "TimeoutException" in class_name:
-        return LLMTimeoutError(f"请求超时: {exc}") from exc
+        return LLMTimeoutError(f"请求超时: {exc}")
     # httpx 超时
     if "httpx" in module and "timeout" in class_name.lower():
-        return LLMTimeoutError(f"请求超时（httpx）: {exc}") from exc
+        return LLMTimeoutError(f"请求超时（httpx）: {exc}")
 
     # 上下文过长（不重试）
     if "ContextLength" in class_name or "context_length" in str(exc).lower():
-        return LLMContextTooLongError(f"上下文超出窗口: {exc}") from exc
+        return LLMContextTooLongError(f"上下文超出窗口: {exc}")
 
     # 坏请求（不重试）
     if class_name in ("BadRequestError", "UnprocessableEntityError", "InvalidRequestError"):
-        return LLMBadRequestError(f"请求参数错误: {exc}") from exc
+        return LLMBadRequestError(f"请求参数错误: {exc}")
 
     # 服务端错误（5xx 状态码，可重试）
     status_code: int | None = getattr(exc, "status_code", None)
     if status_code is not None and status_code >= 500:
-        return LLMServerError(f"服务端错误 ({status_code}): {exc}") from exc
+        return LLMServerError(f"服务端错误 ({status_code}): {exc}")
 
     # APIStatusError 兜底：按状态码分类
     if "APIStatusError" in class_name or "APIError" in class_name:
         if status_code == 401:
-            return LLMAuthError(f"认证失败 (401): {exc}") from exc
+            return LLMAuthError(f"认证失败 (401): {exc}")
         if status_code == 429:
-            return LLMRateLimitError(f"速率限制 (429): {exc}") from exc
+            return LLMRateLimitError(f"速率限制 (429): {exc}")
         if status_code is not None and status_code >= 500:
-            return LLMServerError(f"服务端错误 ({status_code}): {exc}") from exc
-        return LLMBadRequestError(f"API 错误: {exc}") from exc
+            return LLMServerError(f"服务端错误 ({status_code}): {exc}")
+        return LLMBadRequestError(f"API 错误: {exc}")
 
     # 兜底：包装为 LLMServerError（触发重试比静默失败更安全）
     log.warning(
@@ -141,7 +141,7 @@ def _map_provider_error(exc: Exception) -> LLMClientError:
         class_name,
         exc,
     )
-    return LLMServerError(f"未知 LLM 错误: {exc}") from exc
+    return LLMServerError(f"未知 LLM 错误: {exc}")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
