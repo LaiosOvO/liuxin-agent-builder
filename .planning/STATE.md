@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-last_updated: "2026-05-17T19:40:00Z"
+last_updated: "2026-05-16T19:44:00.774Z"
 progress:
   total_phases: 4
   completed_phases: 2
@@ -23,11 +23,11 @@ See: .planning/PROJECT.md (updated 2026-05-16)
 ## Current Position
 
 Phase: 3 of 7 (HITL 单节点 + Email 审批) — IN PROGRESS
-Plan: 8 of 10 in current phase（03-01 / 03-02 / 03-03 / 03-04 / 03-05 / 03-06 / 03-07 / 03-09 完成，Wave 1+2+3+4 全交付 + Wave 5 部分交付）
-Status: Wave 5 Plan 09 完成 — HITL 超时催办 + 升级 worker 闭环 — Wave 5 剩 03-08 追踪页前端；后续可启动 Wave 6 03-10 E2E gate
-Last activity: 2026-05-17 — Plan 03-09 完成（arq cron scan_hitl_timeouts + 三档阶梯 24h/48h/72h 催办 + EscalationService.perform_escalation + hitl_escalation.html 模板 + 21 测试通过）
+Plan: 8 of 10 in current phase（03-01 / 03-02 / 03-03 / 03-04 / 03-05 / 03-06 / 03-07 / 03-08 / 03-09 完成，Wave 1+2+3+4+5 全交付）
+Status: Wave 5 全部完成 — HITL-07 申请人追踪页（节点可视化全套字段）— 后续可启动 Wave 6 03-10 E2E gate
+Last activity: 2026-05-17 — Plan 03-08 完成（GET /instances/<id>/tracking + TrackingTimeline + ApplicantOnlyRecords + DeadlineCountdown + 32 测试通过；申请人 vs admin 数据脱敏正确；节点可视化覆盖 user feedback_node_visualization 强制要求）
 
-Progress: [███░░░░░░░] 25%
+Progress: [███░░░░░░░] 27%
 
 ## Performance Metrics
 
@@ -62,6 +62,7 @@ Progress: [███░░░░░░░] 25%
 | Phase 03-hitl-email P06 | 25m | 5 tasks（Task 0+pre1+1+2+3+4） tasks | 16 files files |
 | Phase 03-hitl-email P07 | 17m | 6 tasks（Task0+pre1+1+2+3+4） | 17 files (13 created + 4 modified) |
 | Phase 03-hitl-email P09 | ~26m | 4 tasks（Task0 reading + Task1 scan + Task2 escalation + Task3 rounds） | 9 files (7 created + 2 modified) |
+| Phase 03-hitl-email P08 | 28min | 3 tasks | 12 files |
 
 ## Accumulated Context
 
@@ -183,6 +184,15 @@ Recent decisions affecting current work:
 - [Phase 03-09]: payload.escalation=True 标识 + reminder_round=3 — email_jobs._render_email_content 据此路由 hitl_escalation.html（与催办 hitl_reminder.html 解耦）
 - [Phase 03-09]: scan_hitl_timeouts cron `unique=True` + `max_tries=1` — 多 worker 唯一执行（防重复扫描）+ 失败不重试（60s 后下次 cron 再来防补发风暴）
 - [Phase 03-09]: advisory_xact_lock(hash(ns_id)) + UNIQUE 约束双保险 — lock 是性能层防 race，UNIQUE 是正确性层兜底
+- [Phase 03-08]: Service 层脱敏 vs schema/controller 层 — OpenAPI 文档统一，前端无角色分支，DB 数据始终完整（admin 见 ip/ua，申请人置 None）
+- [Phase 03-08]: 跨 workspace → 404 (WorkspaceScopedQuery 过滤即等同'实例不存在') vs 同 ws 非 applicant → 403 (CONTEXT 明确要求) — 双 status 防泄漏存在性
+- [Phase 03-08]: current_node 优先 HITL active 节点 (waiting_human/in_review) — 申请人最关心当前等谁
+- [Phase 03-08]: 节点可视化字段全套实现 (user feedback_node_visualization 2026-05-17): id/title/status/node_type/actor/deadline_at 全部暴露
+- [Phase 03-08]: DeadlineCountdown 3 级颜色 urgent (<1h or overdue red) / warning (<6h amber) / normal (green) — 视觉紧迫感分层；前端 setInterval(1s) 不轮询后端
+- [Phase 03-08]: 前端 sanitizeRecord 双重保险 — 即使后端漏脱敏 ip/ua，组件强制丢弃；CONTEXT 隐私契约 defense-in-depth
+- [Phase 03-08]: useQuery refetchInterval 仅在 active 节点存在时 30s — 终态实例不浪费带宽
+- [Phase 03-08]: 403/404 自动跳回 /dashboard/instances (1.2s 延时) — 给用户读错误信息但不卡死
+- [Phase 03-08]: [Rule 1 - Bug] 移除多余 autouse engine.dispose fixture — 与 conftest.db_session 重叠 race（test_instances_api 同样模式 pre-existing 待 Phase 7 修复）
 
 ### Pending Todos
 
@@ -198,5 +208,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-05-17
-Stopped at: Completed 03-09-PLAN.md（HITL 超时催办 + 升级 worker：arq cron scan_hitl_timeouts 每分钟扫超时节点 + 三档阶梯 24h/48h/72h + EscalationService.perform_escalation + hitl_escalation.html 升级模板 + payload.escalation 路由 + 21 测试通过，零回归）
+Stopped at: Completed 03-08-PLAN.md（HITL-07 申请人追踪页：GET /instances/<id>/tracking endpoint + applicant/admin 双轨权限 + service 层脱敏 ip/ua + tracking-timeline 节点可视化（user feedback 强制要求）+ applicant-only-records 前端双重脱敏 + DeadlineCountdown 3 级颜色 + 32 测试通过；Wave 5 全部完成）
 Resume file: None
