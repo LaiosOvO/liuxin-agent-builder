@@ -94,7 +94,7 @@ E2E 是**第一公民**，不是"可选的最后一步"。验收准则：**所�
 
 **适用范围**：**前端 + 后端都强制**。
 
-**Dify 仓库路径**：`/Users/admin/ai/ref/dify/repo/` (Phase 1 已 clone, 含 commit `c0bdd679`)
+**Dify 仓库路径**：`/Users/admin/ai/ref/dify/repo/` (Phase 1 已 clone, 含 commit `e7e6fe88` (auto-pulled 2026-05-16))
 
 **模块映射表（实现这些功能前必读对应 Dify 路径）**：
 
