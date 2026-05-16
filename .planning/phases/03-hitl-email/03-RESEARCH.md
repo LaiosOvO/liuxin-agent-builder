@@ -195,23 +195,23 @@
 
 ---
 
-## 五、Plan 拆分建议（10 plans / 7 waves）
+## 五、Plan 拆分建议（10 plans / 6 waves，已压缩）
 
 ```
 Wave 1: 03-01 DB schema (hitl_tokens + notifications + audit_log 加固) + Alembic 0003
 Wave 2: 03-02 HITL node executor (interrupt + resume integration)
         03-03 HITL Token Service (JWT + Safe Links bot detector)
-        [并行：无写入冲突，03-02 用 nodes/hitl.py + 03-03 用 services/hitl_token_service.py]
+        [并行：03-02 用 nodes/hitl.py + 03-03 用 services/hitl_token_service.py]
 Wave 3: 03-04 Email enhanced (arq queue + Jinja2 HITL templates + NOTI-10 重试)
-        03-05 Notification node executor (NODE-07 独立通知节点)
-        [并行：03-04 改 email_service.py + 03-05 用 nodes/notification.py]
-Wave 4: 03-06 HITL public API (/hitl/page + /hitl/action + cookie session + advisory lock)
-        [串行：依赖 03-01 + 03-02 + 03-03]
-Wave 5: 03-07 决策页前端 (form_schema RJSF render + 4 button)
+        [独立 — 创建 notification_service.py 主干，03-05 在 W4 再加 enqueue_generic_email]
+Wave 4: 03-05 Notification node executor (NODE-07 独立通知节点)
+        03-06 HITL public API (/hitl/page + /hitl/action + cookie session + advisory lock)
+        [并行：03-05 改 nodes/__init__.py + notification_service.py 新方法；03-06 用 api/hitl.py + services/hitl_action_service.py 全部新建]
+Wave 5: 03-07 决策页前端 (form_schema RJSF render + 3 button)
         03-08 申请人追踪页前端 (HITL-07)
-        [并行：03-07 用 web/app/hitl/* + 03-08 用 web/app/dashboard/instances/[id]/tracking]
-Wave 6: 03-09 超时催办 worker (arq + NOTI-09 escalation + records audit)
-Wave 7: 03-10 E2E gate (ROADMAP Phase 3 全 5 条 + Safe Links bot regression)
+        03-09 超时催办 worker (arq + NOTI-09 escalation)
+        [并行：03-07/08 全部 web/* 文件，03-09 全部 backend/jobs + services/escalation_service.py 新建文件]
+Wave 6: 03-10 E2E gate (ROADMAP Phase 3 全 5 条 + Safe Links bot regression)
 ```
 
 依赖图：
@@ -294,4 +294,4 @@ Verifier 闭环
 
 ## RESEARCH COMPLETE
 
-10 plans 拆分清晰、7 waves 依赖图无环、Dify reading doc 映射 1:1、3 层测试模式与 Phase 1/2 对齐、Pitfall 2/3/4 P0 防护到位。
+10 plans 拆分清晰、6 waves 依赖图无环、Dify reading doc 映射 1:1、3 层测试模式与 Phase 1/2 对齐、Pitfall 2/3/4 P0 防护到位。
