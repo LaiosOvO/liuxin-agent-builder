@@ -16,6 +16,26 @@ import sys
 
 log = logging.getLogger(__name__)
 
+
+def _check_llm_providers() -> None:
+    """检查 LLM provider 配置，无 provider 时发出 WARNING（不 abort）。
+
+    延迟导入 check_llm_provider_envs 以避免循环依赖和过早加载 langchain。
+    """
+    try:
+        from app.agent_builder.workflow.llm_client import check_llm_provider_envs
+
+        configured = check_llm_provider_envs()
+        if not configured:
+            log.warning(
+                "无 LLM provider 配置，LLM 节点将不可用；"
+                "仅 Start/End/IfElse/Tool 节点可跑"
+            )
+        else:
+            log.info("已配置 LLM provider：%s", ", ".join(configured))
+    except Exception as exc:  # noqa: BLE001
+        log.warning("LLM provider 检查跳过（%s）", exc)
+
 # 需要校验长度的密钥名（任一不足 32 字节则拒绝启动）
 REQUIRED_SECRETS: list[str] = ["HMAC_SECRET", "JWT_SECRET"]
 
@@ -67,3 +87,6 @@ def run_startup_checks() -> None:
         len(REQUIRED_SECRETS),
         len(REQUIRED_ENV),
     )
+
+    # 4. 检查 LLM provider 配置（告警不 abort，允许仅用非 LLM 节点）
+    _check_llm_providers()

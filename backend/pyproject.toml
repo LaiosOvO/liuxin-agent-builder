@@ -12,6 +12,8 @@ dependencies = [
     "langchain-community>=0.3.19",
     "langchain-experimental>=0.3.4",
     "langchain-openai>=0.3.8",
+    "langchain-anthropic>=0.3.0",
+    "langchain-deepseek>=0.1.0",
     "langgraph==1.2.0",
     "readabilipy>=0.3.0",
     "python-dotenv>=1.0.1",
@@ -79,6 +81,7 @@ dependencies = [
     "langchain-ollama>=0.2.2",
     "slowapi==0.1.9",
     "greenlet>=3.5.0",
+    "pytest-httpx>=0.36.2",
 ]
 
 [project.optional-dependencies]
