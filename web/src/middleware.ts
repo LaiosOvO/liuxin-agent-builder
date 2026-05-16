@@ -16,6 +16,8 @@ const BYPASS_PREFIXES = [
   '/favicon',
   '/logo',
   '/bg.',
+  // HITL 公网路径（Phase 1 NET-02 nginx 已开放，不依赖 setup 状态）
+  '/hitl/',
 ];
 
 /** 检查路径是否应跳过 middleware */
