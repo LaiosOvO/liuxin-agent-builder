@@ -11,6 +11,46 @@ Phase 4 规划了 **IM 出站通知**（飞书/企微/钉钉/Slack/Mattermost �
 
 例：在 Mattermost 频道里 `@AgentBuilder 帮我查一下离职流程进度` → workflow 跑「查流程」节点 → bot 回帖结果到该 thread。
 
+## 参考实现（Reference Projects — 实现前必读，遵循 CLAUDE.md 2.7）
+
+### Reference 1：`hr/offboarding-flow`（同仓库姐妹项目，部署在 .44）
+
+用户已用此模式跑通了 Mattermost bot 接入 — 是**最直接的参考**。
+
+**两文件架构**：
+
+```
+backend/src/offboarding_flow/services/
+├── bot_command_parser.py      # parser：识别 + 校验
+└── bot_service.py             # service：分发到 handler
+
+backend/src/offboarding_flow/
+├── workers/mattermost_listener.py   # WebSocket 入口（bot 在线）
+└── api/mattermost_webhook.py        # Outgoing Webhook 入口（备用）
+```
+
+**关键设计点（实现 Phase 4.5 时直接借鉴）**：
+
+| 维度 | hr/offboarding-flow 实现 | agent-builder 对应方案 |
+|---|---|---|
+| **命令白名单** | `ALL_COMMANDS: Final[tuple]` 含 8 个硬编码命令（start/status/report/suggest/list/help/simulate-*） | **动态**：从 `bot_slash_commands` 表读 — workflow Trigger 节点注册时写入 |
+| **Parser flow** | `parse_command(raw) -> BotCommand` 5 步：剥 @mention / 自然语言短路 / tokenize / 白名单 / 参数正则 | 同 5 步，但白名单从表里查 + 参数 schema 来自 Trigger 节点 config |
+| **Service dispatch** | `if cmd.name == CMD_START: return await handle_start(...)` 硬编码 if/elif 链 | 路由到对应 workflow Trigger 节点 → 启动 LangGraph 实例 |
+| **Handler 注册** | 每个命令对应一个 `handle_xxx()` 方法（如 `handle_start` / `handle_status`） | 每个 slash = 一个 workflow（用户拖拽的图就是 handler） |
+| **加新命令** | 改 2 个文件：parser 加常量 + 分支；service 加 handle 方法 + dispatch 分支 | **零代码**：用户拖出新 workflow + Trigger 节点配置 `slash_command="/cancel"` → 即生效 |
+| **两入口共用** | listener (WS) + webhook (HTTP) 都调 `parse_command` + `BotService.dispatch` | 同：Provider 适配层封装 listener / webhook，调通用 `slash_dispatcher` |
+| **自然语言触发** | parser 内 `_PHRASES = ("我要离职", "申请离职", ...)` 短路为 `start <speaker>` | Trigger 节点 config 支持 `natural_language_aliases: ["我要离职", ...]` |
+| **Help 命令** | `handle_help()` 返回硬编码命令清单 | 自动生成：从 `bot_slash_commands` 表聚合当前 bot 已注册的所有 slash + description |
+
+### Reference 2：Dify `api/core/tools/` + `api/services/conversation_service.py`
+
+Dify 的 tool framework 也有命令分发概念（user message → 解析 → 路由 → tool 执行），可对比设计模式。具体路径见 CLAUDE.md 2.7 模块映射表。
+
+### Reference 3：Mattermost Slash Commands 官方文档
+
+- https://developers.mattermost.com/integrate/slash-commands/
+- Mattermost slash command 要在 admin 后台**预注册** trigger 词；动态注册需用 Mattermost API。`bot_slash_commands` 表写入时同步调 `POST /api/v4/commands` 注册到 MM。
+
 ## Goal
 
 通用 IM Bot 双向接入，加新 IM 仅需实现 Provider 接口。
@@ -54,15 +94,37 @@ Phase 4 规划了 **IM 出站通知**（飞书/企微/钉钉/Slack/Mattermost �
 
 **v1 实现**：A（推荐）。Trigger 节点 `slash_command` 字段，单一命令绑单一 workflow。同 bot 多命令通过同一 bot account 关联多 workflow 实现。Bot 入站消息进来后，Slash Dispatcher 层根据命令前缀路由到匹配的 Trigger 节点。
 
-**Slash Dispatcher 后端架构**：
+**Slash Dispatcher 后端架构（沿用 hr/offboarding-flow 两文件模式）**：
+
 ```
-IM 消息 (e.g., "/leave 2026-05-20 sick")
-   ↓ Bot Provider 入站
-Slash Dispatcher (backend/app/agent_builder/adapters/bot/dispatcher.py)
-   ↓ 按 slash 前缀查询匹配 workflow
-   ↓ 找到匹配的 Trigger 节点
-   ↓ 启动该 workflow 实例 (thread_id / user_id / message / parsed_args 注入 state)
-LangGraph 跑起来
+backend/app/agent_builder/adapters/bot/
+├── parser.py        ← 类比 hr 的 bot_command_parser.py
+│                      parse_command(raw) -> BotCommand
+│                      解析 / 校验 / 自然语言短路 / 动态白名单
+├── dispatcher.py    ← 类比 hr 的 bot_service.py
+│                      async def dispatch(cmd, ctx) -> WorkflowInstance
+│                      根据 cmd.name 查 bot_slash_commands 表 → 启动 workflow
+└── providers/
+    ├── base.py            # BotProvider Protocol
+    ├── mattermost.py      # WebSocket listener + Outgoing Webhook 入口
+    │                        都调 parser + dispatcher (与 hr 同模式)
+    ├── feishu.py
+    └── ...
+```
+
+**流程（与 hr 一致 + agent-builder 扩展）**：
+
+```
+IM 消息 ("/leave 2026-05-20 sick" 或 "@bot 我要请假")
+   ↓ Bot Provider 入站 (WebSocket / Webhook 两路)
+parser.parse_command(raw)
+   ↓ 剥 @mention / 自然语言短路 / tokenize / 白名单（从 bot_slash_commands 表读）/ 参数 schema 校验
+BotCommand(name="leave", args=("2026-05-20", "sick"), thread_id, user_id, ...)
+   ↓
+dispatcher.dispatch(cmd, ctx)
+   ↓ SELECT workflow_id FROM bot_slash_commands WHERE provider=? AND bot_id=? AND command=?
+   ↓ 启动该 workflow 实例 (thread_id / user_id / args / raw_message 注入 state)
+LangGraph 跑起来 → Reply 节点回帖到 thread_id
 ```
 
 **Slash 命令注册中心**：表 `bot_slash_commands` 记 `(provider, bot_id, slash_command, workflow_id, description, help_text)`，用于：
