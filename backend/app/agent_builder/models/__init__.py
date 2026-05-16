@@ -15,8 +15,15 @@ from app.agent_builder.models.invite import Invite
 from app.agent_builder.models.email_verification import EmailVerification
 from app.agent_builder.models.audit_log import AuditLog
 
+# Phase 2 工作流相关模型（4 张新表）
+from app.agent_builder.models.workflow import Workflow
+from app.agent_builder.models.workflow_version import WorkflowVersion
+from app.agent_builder.models.flow_instance import FlowInstance
+from app.agent_builder.models.node_state import NodeState
+
 __all__ = [
     "Base",
+    # Phase 1 模型
     "Workspace",
     "User",
     "UserStatus",
@@ -26,4 +33,9 @@ __all__ = [
     "Invite",
     "EmailVerification",
     "AuditLog",
+    # Phase 2 工作流模型
+    "Workflow",
+    "WorkflowVersion",
+    "FlowInstance",
+    "NodeState",
 ]

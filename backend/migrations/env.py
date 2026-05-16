@@ -35,10 +35,14 @@ from app.agent_builder.db.base import Base  # noqa: E402
 from app.agent_builder.models import (  # noqa: E402,F401
     AuditLog,
     EmailVerification,
+    FlowInstance,
     Invite,
+    NodeState,
     Role,
     User,
     UserWorkspaceRole,
+    Workflow,
+    WorkflowVersion,
     Workspace,
 )
 
@@ -51,6 +55,34 @@ if config.config_file_name is not None:
 
 # 目标 metadata（用于 autogenerate 比对）
 target_metadata = Base.metadata
+
+# ── LangGraph checkpoint 表排除钩子 ──────────────────────────────────────────
+# LangGraph PostgresSaver 自管这些表（通过 setup() 创建），Alembic 不应感知
+# 参考：PLAN.md 02-01 migration_schema 段 + CONTEXT.md Phase 2 决策
+_LANGGRAPH_CHECKPOINT_TABLES = frozenset({
+    "checkpoints",
+    "checkpoint_writes",
+    "checkpoint_blobs",
+    "checkpoint_migrations",
+})
+
+
+def include_object(object, name, type_, reflected, compare_to):  # noqa: A002
+    """autogenerate 对象过滤钩子：排除 LangGraph checkpoint 表。
+
+    Args:
+        object: SQLAlchemy schema 对象
+        name: 对象名称（表名 / 列名等）
+        type_: 对象类型（'table' / 'column' 等）
+        reflected: 是否来自数据库反射
+        compare_to: 对比目标对象
+
+    Returns:
+        True = 纳入 autogenerate；False = 跳过
+    """
+    if type_ == "table" and name in _LANGGRAPH_CHECKPOINT_TABLES:
+        return False
+    return True
 
 
 def get_url() -> str:
@@ -86,6 +118,7 @@ def run_migrations_offline() -> None:
         literal_binds=True,
         compare_type=True,
         dialect_opts={"paramstyle": "named"},
+        include_object=include_object,
     )
 
     with context.begin_transaction():
@@ -98,6 +131,7 @@ def do_run_migrations(connection: Connection) -> None:
         connection=connection,
         target_metadata=target_metadata,
         compare_type=True,
+        include_object=include_object,
     )
 
     with context.begin_transaction():
