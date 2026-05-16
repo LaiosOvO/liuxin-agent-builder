@@ -2,13 +2,13 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: in_progress
-last_updated: "2026-05-17T05:36:00.000Z"
+status: unknown
+last_updated: "2026-05-16T21:54:43.753Z"
 progress:
   total_phases: 5
   completed_phases: 3
   total_plans: 38
-  completed_plans: 27
+  completed_plans: 28
 ---
 
 # Project State
@@ -23,11 +23,11 @@ See: .planning/PROJECT.md (updated 2026-05-16)
 ## Current Position
 
 Phase: 4 of 7 (审批链 + IM 通知)
-Plan: 1 of 12 in current phase（Wave 1 04-01 完成）
-Status: ⏳ Phase 4 Wave 1 启动 — 04-01 chain payload + invalidate_chain + Alembic 0005 partial index 完成；下一步 Wave 2 (04-02 chain executor + 04-03 delegation + 04-04 escalation 可并行)
-Last activity: 2026-05-17 — Plan 04-01 完成（ChainAdvanceResult frozen dataclass + compute_chain_advance 纯函数 4 mode × 3 action 状态机 + HitlTokenStore.invalidate_chain 跨实例失效 + Alembic 0005 partial index ix_hitl_tokens_instance_used ON (instance_id, used_at) WHERE used_at IS NULL；40 个测试通过：29 unit + 11 integration；hitl_payload.py 模块覆盖率 98%；HITL-02 + HITL-06 需求向后兼容；Phase 3 既有 invalidate_siblings regression test 全过）
+Plan: 2 of 12 in current phase（Wave 2 04-04 完成；04-02/04-03 并行进行中）
+Status: ⏳ Phase 4 Wave 2 进行 — 04-04 escalation 4 表达式 resolve + perform fan-out 完成；04-02 chain executor / 04-03 delegation 并行 dispatch 中
+Last activity: 2026-05-17 — Plan 04-04 完成（HITL-04 完整 4 表达式 prefix 路由 email/user:/role:/dept:NotImpl + perform_escalation 多 email fan-out 多 audit_log + structured logger hitl.escalation.resolved；19 个新测试通过 + 21 个 Phase 3 向后兼容测试全绿 = 40 个 escalation 测试；返回类型 str → list[str] 向后兼容；多租户越权防护 JOIN UserWorkspaceRole 强制 workspace_id；dept: Phase 5 hook NotImpl）
 
-Progress: [████░░░░░░] 43%（3/7 phases complete; Phase 4 1/12 plans done）
+Progress: [█████░░░░░] 44%（3/7 phases complete; Phase 4 2/12 plans done）
 
 ## Performance Metrics
 
@@ -65,6 +65,8 @@ Progress: [████░░░░░░] 43%（3/7 phases complete; Phase 4 1/
 | Phase 03-hitl-email P08 | 28min | 3 tasks | 12 files |
 | Phase 03-hitl-email P10 | 10min | 4 tasks | 10 files |
 | Phase 04-approval-chain-im P01 | 10min | 3 tasks | 6 files |
+| Phase 04-approval-chain-im P04 | 9min | 3 tasks | 6 files |
+| Phase 04-approval-chain-im P04 | 9 min | 3 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -214,6 +216,14 @@ Recent decisions affecting current work:
 - [Phase 04-01]: 0005 partial index `WHERE used_at IS NULL` — invalidate_chain 仅扫未消费 token，partial index 体积更小、更新代价更低
 - [Phase 04-01]: 严格 immutability 测试：copy.deepcopy(payload) 前后 deep equal 断言 + result.new_payload["approval_chain"] is not payload["approval_chain"] 对象 identity 断言（4 测试覆盖三模式）
 - [Phase 04-01]: _advance_single 包装 Phase 3 行为 + 返回 ChainAdvanceResult — 调用方对 4 模式统一处理无特殊分支（invalidate_others=False）
+- [Phase 04-04]: resolve_escalate_to 返回类型 str → list[str] 向后兼容（role: 可能匹配多人，单 email 也包成 [email] 统一处理逻辑）
+- [Phase 04-04]: Expression Prefix Routing — startswith('dept:'/'user:'/'role:') 顺序判断 + email (含 @ 无 :) + fallback workspace admin 五分支
+- [Phase 04-04]: dept:<name> raise NotImplementedError + perform 层 catch 跳过升级 — Phase 5 IM 目录同步留 hook，worker 健壮性优先
+- [Phase 04-04]: _get_user_email JOIN UserWorkspaceRole 强制 workspace_id WHERE — 多租户隔离防 attacker 配 user:<其他 ws uuid> 越权拿 email
+- [Phase 04-04]: audit_log per-row vs 合并一行 — N 升级人写 N 条 audit，便于"我作为升级人收到过哪些"聚合查询；meta.escalate_to 单 email（本行）+ meta.escalate_count（总数）
+- [Phase 04-04]: role: miss → fallback admin（与无 escalate_to 一致行为）—  不是「role: 必须命中」严格模式，保持 fallback chain 单一可预测
+- [Phase 04-04]: structured logger.info('hitl.escalation.resolved', extra={expression, matched_count, successful_count, ws_id, ns_id, instance_id}) — Phase 7 ELK / Loki 表达式命中可观测性输入
+- [Phase 04-04]: 单 email try/except 包住 — 一人发邮件失败不阻塞其他升级人（借鉴 Dify timeout task：单 form 异常不阻塞 worker）
 
 ### Pending Todos
 
@@ -229,6 +239,6 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-05-17
-Stopped at: Completed 04-01-PLAN.md（Phase 4 Wave 1 — chain payload + invalidate_chain + Alembic 0005 partial index）
+Stopped at: Completed 04-04-PLAN.md（Phase 4 Wave 2 — escalation 4 表达式 resolve + perform 多 email fan-out + 19 新测试通过）
 Resume file: None
-Next action: 继续 Phase 4 Wave 2 — 04-02 chain executor + 04-03 delegation + 04-04 escalation 可并行 dispatch
+Next action: 等待 Wave 2 同时并行的 04-02 chain executor + 04-03 delegation 完成 → Wave 3 04-05+ IM Provider 抽象
