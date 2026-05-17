@@ -1,0 +1,13 @@
+# Phase 5.A Plan 04 测试 fixture — 含 typo（extra 字段）
+# 验证 extra=forbid 模式触发 ManifestValidationError
+
+name: bad
+version: 1.0.0
+description: "manifest with typo — extra=forbid should reject"
+runtime:
+  type: python
+  entry: bad.entry
+capabilities:
+  - im
+config_schema: {}
+typo_field: "this should raise extra=forbid"

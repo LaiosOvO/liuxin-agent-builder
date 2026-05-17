@@ -1,0 +1,11 @@
+# Phase 5.A Plan 04 测试 fixture — 空 capabilities
+# 验证 @field_validator at_least_one_capability 触发 ValidationError
+
+name: empty
+version: 1.0.0
+description: "no capabilities — validator should reject"
+runtime:
+  type: python
+  entry: empty.entry
+capabilities: []
+config_schema: {}

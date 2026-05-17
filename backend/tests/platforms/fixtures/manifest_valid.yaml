@@ -1,0 +1,51 @@
+# Phase 5.A Plan 04 测试 fixture — 合法 manifest (huly 风格)
+# 用途：test_manifest_schema.py + test_registry.py 共享
+# Reference: docs/plans/2026-05-17-platform-plugin-framework-ADR.md §4
+
+name: huly
+version: 1.0.0
+description: "Huly platform stub (Phase 5.A acid test)"
+license: EPL-2.0
+agent_builder_version: ">=1.0"
+
+runtime:
+  type: python
+  entry: plugins.huly.huly_plugin
+  python_version: "3.11"
+
+capabilities:
+  - im
+  - doc
+  - hr
+  - identity
+
+config_schema:
+  type: object
+  required:
+    - endpoint
+    - auth_token
+  properties:
+    endpoint:
+      type: string
+      format: uri
+    auth_token:
+      type: string
+      format: password
+
+im:
+  supports_native_buttons: false
+  supports_card_update: true
+  supports_threads: true
+
+doc:
+  supports_collaborative_edit: true
+  supports_comments: true
+
+identity:
+  is_source_of_truth: true
+
+sandbox:
+  cpu_limit: "1.0"
+  memory_limit: "512Mi"
+  network:
+    - "huly.example.com:443"
