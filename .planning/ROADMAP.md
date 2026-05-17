@@ -107,7 +107,7 @@ Plans:
 - [ ] 04-06-PLAN.md — Feishu Provider (lark-oapi 1.6.5)
 - [x] 04-07-PLAN.md — WeCom Provider (wechatpy 1.8.18 + Bot Webhook fallback：spike 发现 wechatpy 1.8.18 完全无 template_card API + 双路径架构 markdown 4 链接 / 主路径 app message + Fallback Bot Webhook envelope 完全一致 / supports_card_update=False + update_card NotImplementedError 引导 send_supplement_text 兜底 / 错误统一包装 ConnectionError 触发 tenacity 重试 / WeComCredentials 新增 bot_webhook_key 字段向后兼容 / IMCredentialsManager 支持 fallback-only 模式 / lifespan 自动按凭据注册 / markdown 注入防护 5 类转义 + 2048 byte 边界 / 34 测试全绿 + 77 IM 测试 0 regression；NOTI-03 完成，2026-05-17 完成)
 - [x] 04-08-PLAN.md — DingTalk Provider (dingtalk-stream 0.24.3 + ActionCard btn_orientation="0" 横排 3 按钮 + OAPI asyncsend_v2 直调 + update_card→NotImplemented 走 send_supplement_text + lifespan 按需注册 + 37 测试通过；NOTI-04 完成，2026-05-17 完成)
-- [ ] 04-09-PLAN.md — Slack + Mattermost Provider
+- [x] 04-09-PLAN.md — Slack + Mattermost + 通用 Webhook IMProviders（httpx 直调 REST 不引入 slack-bolt / mattermost-driver 重依赖；Slack Block Kit chat.postMessage + chat.update supports_card_update=True；Mattermost attachment /api/v4/posts + PUT /patch supports_card_update=True；通用 Webhook POST JSON + HMAC-SHA256 签名 X-Agent-Builder-Signature header 防伪造 supports_card_update=False；serialize_payload sort_keys 稳定序列化保证用户端可复现验签；3 个 event 常量 hitl_decision_required/hitl_supplement/hitl_card_update；WebhookCredentials 仅 delivery_url 字段 HMAC 走 HMAC_SECRET env；PROVIDER_WEBHOOK 加入 KNOWN_PROVIDERS 6 家扩展；59 新增测试全绿 19/21/19 + 33 既有 04-05 测试 0 regression；NOTI-05/06/07 完成，2026-05-17 完成）
 - [ ] 04-10-PLAN.md — NotificationService 多通道 fan-out + schema 扩展
 - [ ] 04-11-PLAN.md — HITLNodeExecutor + ExecutionEngine 集成 compute_chain_advance
 - [ ] 04-12-PLAN.md — E2E gate (6 Playwright spec + MockIMProvider)
@@ -175,7 +175,7 @@ Plans:
 | 1. Skeleton + 账号体系 | 6/6 | ✓ Complete | 2026-05-16 |
 | 2. DSL 引擎 + 基础节点 | 10/10 | ✓ Complete | 2026-05-17 |
 | 3. HITL 单节点 + Email 审批 | 10/10 | ✓ Complete | 2026-05-17 |
-| 4. 审批链 + IM 通知 | 4/12 | In Progress | - |
+| 4. 审批链 + IM 通知 | 9/12 | In Progress|  |
 | 4.5. Bot Triggers + Slash | 0/TBD | Not started | - |
 | 5. IM 目录双向同步 | 0/TBD | Not started | - |
 | 6. 插件机制 | 0/TBD | Not started | - |

@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-last_updated: "2026-05-17T03:05:00.000Z"
+last_updated: "2026-05-17T03:10:08.179Z"
 progress:
   total_phases: 5
   completed_phases: 3
   total_plans: 38
-  completed_plans: 35
+  completed_plans: 36
 ---
 
 # Project State
@@ -23,11 +23,11 @@ See: .planning/PROJECT.md (updated 2026-05-16)
 ## Current Position
 
 Phase: 4 of 7 (审批链 + IM 通知)
-Plan: 9 of 12 in current phase（Wave 4 04-07 完成 — WeComProvider wechatpy + Bot Webhook 双路径架构）
-Status: ✅ Phase 4 Wave 4 进行中 — 04-06 Feishu / 04-07 WeCom / 04-08 DingTalk / 04-09 Slack 4 家 Provider 已全部完成；Wave 5 04-10 multichannel fan-out 待启动
-Last activity: 2026-05-17 — Plan 04-07 完成（企微 IM 通知出站投递 NOTI-03：wechatpy 1.8.18 spike 发现完全无 template_card API → markdown 4 链接方案 + Bot Webhook fallback 双路径架构 + 共享 build_wecom_markdown_content / app_message / webhook envelope 完全一致 + supports_card_update=False 类属性 + update_card 显式 NotImplementedError 引导 send_supplement_text 兜底 + WeChatClientException/errcode≠0/httpx 错误统一包装为 ConnectionError 触发 im_jobs tenacity 重试 + WeComCredentials 新增 bot_webhook_key 字段向后兼容 + IMCredentialsManager 支持 fallback-only 模式 + lifespan 自动按凭据注册 + markdown 注入防护 5 类转义 + 2048 byte 边界保护 + 34 测试全绿 / 77 IM 测试 0 regression）
+Plan: 10 of 12 in current phase（Wave 4 04-09 完成 — Slack + Mattermost + 通用 Webhook 3 家 IMProvider 一并实现）
+Status: ✅ Phase 4 Wave 4 全部完成 — 04-06 Feishu / 04-07 WeCom / 04-08 DingTalk / 04-09 Slack+Mattermost+Webhook 6 家 Provider 已全部落地；Wave 5 04-10 multichannel fan-out 待启动
+Last activity: 2026-05-17 — Plan 04-09 完成（Slack/Mattermost/Webhook 3 家 IMProvider：httpx 直调 REST 不引入 slack-bolt / mattermost-driver 重依赖 + Slack Block Kit chat.postMessage / chat.update supports_card_update=True + Mattermost attachment /api/v4/posts + PUT /patch supports_card_update=True + 通用 Webhook POST JSON + HMAC-SHA256 签名 X-Agent-Builder-Signature header 防伪造 supports_card_update=False + serialize_payload sort_keys 稳定序列化保证用户端可复现验签 + 3 个 event 常量 hitl_decision_required/hitl_supplement/hitl_card_update + WebhookCredentials 仅 delivery_url 字段 HMAC 走 HMAC_SECRET env + PROVIDER_WEBHOOK 加入 KNOWN_PROVIDERS 6 家扩展 + 59 新增测试全绿 19/21/19 + 33 既有 04-05 测试 0 regression 含 frozenset_contains_5→6 等扩展断言）
 
-Progress: [███████░░░] 58%（3/7 phases complete; Phase 4 9/12 plans done — Wave 4 4 家 Provider 全部完成）
+Progress: [███████░░░] 60%（3/7 phases complete; Phase 4 10/12 plans done — Wave 4 6 家 Provider 全部完成）
 
 ## Performance Metrics
 
@@ -72,6 +72,7 @@ Progress: [███████░░░] 58%（3/7 phases complete; Phase 4 9/
 | Phase 04 P08 | 9min | 3 tasks（Task0 reading doc + Task1 card builder + Task2 Provider）| 7 files (5 created + 2 modified) — 37 测试 (19 单元 + 18 集成) / 80 IM 测试 0 regression / 锁定 dingtalk-stream==0.24.3 |
 | Phase 04-approval-chain-im P06 | 12min | 3 tasks | 7 files |
 | Phase 04-approval-chain-im P07 | ~10min | 4 tasks（Task0 reading doc + Task1 spike 30min 上限内 5min 完成 + Task2 card builder + Task3 Provider/lifespan）| 8 files (5 created + 3 modified) — 34 测试 (17 card + 17 provider) / 77 IM 测试 0 regression / wechatpy 1.8.18 模块路径 enterprise 而非 work + 无 template_card API → 双路径 markdown 方案 |
+| Phase 04-approval-chain-im P09 | 16min | 4 tasks | 13 files |
 
 ## Accumulated Context
 
@@ -293,6 +294,8 @@ Recent decisions affecting current work:
 - [Phase 04-07]: markdown 注入防护 5 类转义（方括号 `[` `]` / 反引号 `` ` `` / 星号 `*` / 下划线 `_` / 角括号 `<` `>`）+ 2048 byte 边界保护（超长截断 description + utf-8 字符边界对齐）
 - [Phase 04-07]: [Rule 1 - Test Bug] test_content_with_only_subset_of_deeplinks 误判（'详情' 在 description label 中也出现） → 改为 `[详情](` 链接形态精确匹配
 - [Phase 04-07]: [Rule 1 - Test Bug] test_send_via_app_message_passes_correct_agent_id_and_recipient agent_id 期望 str → wechatpy 要求 int，调整断言为 int
+- [Phase 04-approval-chain-im]: Plan 04-09: 3 IM providers (Slack/Mattermost/Webhook) 全部用 httpx 直调 REST API 不引入 slack-bolt / mattermost-driver 重依赖
+- [Phase 04-approval-chain-im]: Plan 04-09: WebhookProvider 用 HMAC-SHA256 + sort_keys 稳定序列化签名 X-Agent-Builder-Signature header 防伪造 (NOTI-07)
 
 ### Pending Todos
 
