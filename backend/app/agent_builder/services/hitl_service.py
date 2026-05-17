@@ -1,25 +1,32 @@
-"""HITL 业务逻辑层（Plan 03-02 + 04-02 chain + 04-03 委托）。
+"""HITL 业务逻辑层（Plan 03-02 + 04-02 chain + 04-03 委托 + 04-11 节点 enter）。
 
 被 HITLNodeExecutor + 03-06 API + 03-09 超时催办 worker + 04-02 chain executor +
-04-03 委托 API 复用。
+04-03 委托 API + 04-11 ExecutionEngine._on_hitl_enter 复用。
 
 职责：
 - batch_create_tokens：节点 enter 时为 actor 每个 allowed_action 写一行 hitl_tokens
 - batch_create_tokens_for_actors：Phase 4 chain 模式批量为多个 actor 创建 token
 - resolve_allowed_actions：根据 phase 计算允许的 action 列表
 - create_delegate_token：审批人委托给同事（HITL-06，Plan 04-03 新增）
+- resolve_assignees：解析 DSL node_def.config.assignees 表达式列表为 UUID 列表（Plan 04-11 新增）
 
 设计参考 docs/reading-dify-03-02-hitl-executor-2026-05-17.md §4.6
-+ docs/reading-dify-04-03-delegation-2026-05-17.md：
++ docs/reading-dify-04-03-delegation-2026-05-17.md
++ docs/reading-dify-04-11-hitl-node-chain-2026-05-17.md：
 - Dify HumanInputFormRecipient 1:N（一个 form 多个 recipient）→ 我们用 hitl_tokens
   一对一行（每 actor × action 一行），简化但保留审计能力
 - Dify **无委托特性** — 委托是本项目独立设计（reading doc 已验证）
+- assignees 4 表达式 router 与 EscalationService 一致（email / user: / role: / dept:）
+  但语义不同：assignees 是节点配置（who can decide），escalation_to 是 timeout 升级配置
+  → 在 HitlService 中独立实现 resolve_assignees，避免误复用 EscalationService 内部逻辑
 - 未拷贝 Dify 源码，仅借鉴 token 表设计 + 一次性消费模式
 
 CLAUDE.md 2.4 多租户：
 - batch_create_tokens 不直接接收 workspace_id，由 instance_id FK 链路保证
 - create_delegate_token 强制校验 to_email 在同 workspace 内（不可跨租户委托）
-- 调用方（03-06 API / HITLNodeExecutor / 04-03 委托 API）须确保 instance_id 属于当前 workspace
+- resolve_assignees 强制 workspace_id 过滤 user / role 查询（防越权拿其他 ws 用户）
+- 调用方（03-06 API / HITLNodeExecutor / 04-03 委托 API / 04-11 enter 钩子）须确保
+  instance_id 属于当前 workspace
 
 CLAUDE.md immutability:
 - 本 service 写 DB 但不修改入参 dict（actor list 不变）
@@ -27,6 +34,7 @@ CLAUDE.md immutability:
 """
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timedelta, timezone
 from typing import Final
 from uuid import UUID, uuid4
@@ -37,8 +45,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.agent_builder.models.flow_instance import FlowInstance
 from app.agent_builder.models.hitl_token import HitlToken
 from app.agent_builder.models.node_state import NodeState
+from app.agent_builder.models.role import Role
 from app.agent_builder.models.user import User
 from app.agent_builder.models.user_workspace_role import UserWorkspaceRole
+
+logger = logging.getLogger(__name__)
 
 # ── 默认值 ────────────────────────────────────────────────────────────────────
 
@@ -358,3 +369,186 @@ class HitlService:
         node_state.payload = new_payload
 
         return new_tokens, new_depth
+
+    # ── Plan 04-11: resolve_assignees 4 表达式路由 ────────────────────────────
+
+    async def resolve_assignees(
+        self,
+        assignees: list[str],
+        workspace_id: UUID,
+    ) -> list[UUID]:
+        """解析 DSL node_def.config.assignees 表达式列表为 user_id UUID 列表（Plan 04-11）。
+
+        支持 4 种表达式（与 EscalationService.resolve_escalate_to 一致 — Phase 4 04-04）：
+        - email:user@example.com 或 user@example.com — Phase 3 兼容
+        - user:<uuid> — 单用户 UUID
+        - role:<code> — 工作区内角色全部用户（如 admin / editor / viewer）
+        - dept:<name> — **Phase 5 实现**（IM 目录同步后），目前抛 NotImplementedError
+
+        Args:
+            assignees: DSL 配置中的 assignees 列表（如 ["alice@example.com", "role:admin"]）
+            workspace_id: 工作区 UUID（防越权拿其他 ws 用户）
+
+        Returns:
+            list[UUID] 去重后的用户 UUID 列表（保持原始 assignees 顺序，但去除重复）；
+            空列表表示无法解析任何 assignee（调用方应抛 NodeExecutionError）
+
+        Raises:
+            NotImplementedError: dept: 表达式（Phase 5 IM 目录同步后实现）
+
+        Notes:
+            - 同一 user_id 在多个表达式中出现时（如 alice@x 也在 role:admin 中）只保留一次
+            - 顺序按首次出现顺序保留（防 sequential 模式 approvers[0] 不确定）
+            - email 解析失败（用户不存在 / 跨 workspace / inactive）→ log warning + skip
+            - user:<uuid> 解析失败 → log warning + skip
+            - role:<code> 无匹配用户 → log warning + skip (不抛错 — 与 escalation 一致)
+        """
+        if not assignees:
+            return []
+
+        seen: set[UUID] = set()
+        result: list[UUID] = []
+
+        for expr in assignees:
+            if not isinstance(expr, str):
+                logger.warning("resolve_assignees: 跳过非字符串表达式 %r", expr)
+                continue
+            expr = expr.strip()
+            if not expr:
+                continue
+
+            # dept: → Phase 5
+            if expr.startswith("dept:"):
+                raise NotImplementedError(
+                    f"dept: 表达式（{expr}）将于 Phase 5（IM 目录双向同步）实现"
+                )
+
+            # user:<uuid>
+            if expr.startswith("user:"):
+                uid_raw = expr[5:].strip()
+                try:
+                    uid = UUID(uid_raw)
+                except ValueError:
+                    logger.warning(
+                        "resolve_assignees: 非法 user: 表达式 %r（UUID parse 失败）", expr,
+                    )
+                    continue
+                resolved = await self._resolve_user_uuid(uid, workspace_id)
+                if resolved is None:
+                    logger.warning(
+                        "resolve_assignees: user:%s 在 workspace %s 未找到 active 用户",
+                        uid, workspace_id,
+                    )
+                    continue
+                if resolved not in seen:
+                    seen.add(resolved)
+                    result.append(resolved)
+                continue
+
+            # role:<code>
+            if expr.startswith("role:"):
+                role_code = expr[5:].strip()
+                role_uuids = await self._resolve_role_uuids(role_code, workspace_id)
+                if not role_uuids:
+                    logger.warning(
+                        "resolve_assignees: role:%s 在 workspace %s 未匹配任何 active 用户",
+                        role_code, workspace_id,
+                    )
+                    continue
+                for uid in role_uuids:
+                    if uid not in seen:
+                        seen.add(uid)
+                        result.append(uid)
+                continue
+
+            # email:<addr> 或裸 email (含 @ 且不含 :)
+            if expr.startswith("email:"):
+                email_addr = expr[6:].strip()
+            elif "@" in expr and ":" not in expr:
+                email_addr = expr
+            else:
+                logger.warning(
+                    "resolve_assignees: 无法识别表达式 %r（合法：email / email:<addr> / user:<uuid> / role:<code> / dept:<name>）",
+                    expr,
+                )
+                continue
+
+            resolved = await self._resolve_email_uuid(email_addr, workspace_id)
+            if resolved is None:
+                logger.warning(
+                    "resolve_assignees: email=%s 在 workspace %s 未找到 active 用户",
+                    email_addr, workspace_id,
+                )
+                continue
+            if resolved not in seen:
+                seen.add(resolved)
+                result.append(resolved)
+
+        return result
+
+    async def _resolve_user_uuid(
+        self,
+        user_id: UUID,
+        workspace_id: UUID,
+    ) -> UUID | None:
+        """查 user_id 是否属于 workspace_id 且 active。
+
+        多租户隔离：JOIN UserWorkspaceRole 强制 workspace_id 匹配。
+        """
+        stmt = (
+            select(User.id)
+            .join(UserWorkspaceRole, UserWorkspaceRole.user_id == User.id)
+            .where(
+                User.id == user_id,
+                UserWorkspaceRole.workspace_id == workspace_id,
+                User.status == "active",
+            )
+            .limit(1)
+        )
+        result = await self.db.execute(stmt)
+        return result.scalar_one_or_none()
+
+    async def _resolve_email_uuid(
+        self,
+        email: str,
+        workspace_id: UUID,
+    ) -> UUID | None:
+        """查 email 用户的 UUID（必须属于 workspace_id + active）。
+
+        email 使用 CITEXT 大小写不敏感匹配（User.email 是 CITEXT 列）。
+        """
+        stmt = (
+            select(User.id)
+            .join(UserWorkspaceRole, UserWorkspaceRole.user_id == User.id)
+            .where(
+                User.email == email,
+                UserWorkspaceRole.workspace_id == workspace_id,
+                User.status == "active",
+            )
+            .limit(1)
+        )
+        result = await self.db.execute(stmt)
+        return result.scalar_one_or_none()
+
+    async def _resolve_role_uuids(
+        self,
+        role_code: str,
+        workspace_id: UUID,
+    ) -> list[UUID]:
+        """查 workspace 内具有 role_code 的所有 active 用户 UUID 列表。
+
+        distinct() 防同一 user 多角色重复（PK 约束已防，distinct 是兜底）。
+        """
+        stmt = (
+            select(User.id)
+            .join(UserWorkspaceRole, UserWorkspaceRole.user_id == User.id)
+            .join(Role, Role.id == UserWorkspaceRole.role_id)
+            .where(
+                UserWorkspaceRole.workspace_id == workspace_id,
+                Role.code == role_code,
+                User.status == "active",
+            )
+            .distinct()
+        )
+        result = await self.db.execute(stmt)
+        return list(result.scalars().all())
