@@ -104,11 +104,11 @@ Plans:
 - [x] 04-03-PLAN.md — delegation API (POST /hitl/action/<jwt>?op=delegate + create_delegate_token + DelegateError 5 错误码 + 委托链深度 ≤ 3 + deadline 重置 + 20 集成测试通过；HITL-06 完成，2026-05-17 完成)
 - [x] 04-04-PLAN.md — EscalationService 4 表达式扩展 (resolve email/user:/role:/dept:NotImpl + perform 多 email fan-out + 40 escalation 测试通过；HITL-04 完成，2026-05-17 完成)
 - [x] 04-05-PLAN.md — IMProvider Protocol + Registry + MockIMProvider + IMCredentialsManager + im_jobs.send_hitl_card_job（鸭子类型 + 5 家 frozen dataclass 凭据 + Phase 4.5 接口预留 + tenacity 3 次重试 + 结构化日志 'im.card.send' + 43 单元/集成测试通过；Wave 3 抽象层完成，2026-05-17 完成）
-- [ ] 04-06-PLAN.md — Feishu Provider (lark-oapi 1.6.5)
+- [x] 04-06-PLAN.md — Feishu Provider (lark-oapi 1.6.5 + Interactive Card 2.0 + multi_url 4 URL 全填 + 按钮颜色映射 + 24h 过期 234016 跳过 + importlib.metadata 取版本 + loop.run_in_executor 包装同步 SDK / 45 单元测试通过；NOTI-02 完成，2026-05-17 完成)
 - [x] 04-07-PLAN.md — WeCom Provider (wechatpy 1.8.18 + Bot Webhook fallback：spike 发现 wechatpy 1.8.18 完全无 template_card API + 双路径架构 markdown 4 链接 / 主路径 app message + Fallback Bot Webhook envelope 完全一致 / supports_card_update=False + update_card NotImplementedError 引导 send_supplement_text 兜底 / 错误统一包装 ConnectionError 触发 tenacity 重试 / WeComCredentials 新增 bot_webhook_key 字段向后兼容 / IMCredentialsManager 支持 fallback-only 模式 / lifespan 自动按凭据注册 / markdown 注入防护 5 类转义 + 2048 byte 边界 / 34 测试全绿 + 77 IM 测试 0 regression；NOTI-03 完成，2026-05-17 完成)
 - [x] 04-08-PLAN.md — DingTalk Provider (dingtalk-stream 0.24.3 + ActionCard btn_orientation="0" 横排 3 按钮 + OAPI asyncsend_v2 直调 + update_card→NotImplemented 走 send_supplement_text + lifespan 按需注册 + 37 测试通过；NOTI-04 完成，2026-05-17 完成)
 - [x] 04-09-PLAN.md — Slack + Mattermost + 通用 Webhook IMProviders（httpx 直调 REST 不引入 slack-bolt / mattermost-driver 重依赖；Slack Block Kit chat.postMessage + chat.update supports_card_update=True；Mattermost attachment /api/v4/posts + PUT /patch supports_card_update=True；通用 Webhook POST JSON + HMAC-SHA256 签名 X-Agent-Builder-Signature header 防伪造 supports_card_update=False；serialize_payload sort_keys 稳定序列化保证用户端可复现验签；3 个 event 常量 hitl_decision_required/hitl_supplement/hitl_card_update；WebhookCredentials 仅 delivery_url 字段 HMAC 走 HMAC_SECRET env；PROVIDER_WEBHOOK 加入 KNOWN_PROVIDERS 6 家扩展；59 新增测试全绿 19/21/19 + 33 既有 04-05 测试 0 regression；NOTI-05/06/07 完成，2026-05-17 完成）
-- [ ] 04-10-PLAN.md — NotificationService 多通道 fan-out + schema 扩展
+- [x] 04-10-PLAN.md — NotificationService 多通道 fan-out + schema 扩展（enqueue_hitl_multichannel channels[]→fan-out N 行 notifications + N arq job / 事务边界 commit 后才 enqueue 防 Pitfall 2 / im_bindings.get(channel) 缺失 skip+warn / 每行独立 payload dict worker 写回 im_message_id 不污染 / enqueue_generic_im_card 与 enqueue_generic_email 平行 API / NOTIFY_CHANNELS_ENUM 7 值共享常量 hitl+notification schema / 'wechat'→'wecom' 修正 / notify_channels default=['email'] 向后兼容 / NotificationNodeExecutor 多 channel 分发 + _normalize_recipients email 严校验/IM 宽容 / per-channel try/except 失败隔离 / 结构化日志 notification.multichannel.enqueued / 39 新测试全绿 + 28 既有 0 regression + 126 IM provider 0 regression / 4 commits Task 0+1+2+3；NOTI-08 完成，2026-05-17 完成）
 - [ ] 04-11-PLAN.md — HITLNodeExecutor + ExecutionEngine 集成 compute_chain_advance
 - [ ] 04-12-PLAN.md — E2E gate (6 Playwright spec + MockIMProvider)
 
@@ -175,7 +175,7 @@ Plans:
 | 1. Skeleton + 账号体系 | 6/6 | ✓ Complete | 2026-05-16 |
 | 2. DSL 引擎 + 基础节点 | 10/10 | ✓ Complete | 2026-05-17 |
 | 3. HITL 单节点 + Email 审批 | 10/10 | ✓ Complete | 2026-05-17 |
-| 4. 审批链 + IM 通知 | 9/12 | In Progress|  |
+| 4. 审批链 + IM 通知 | 10/12 | In Progress|  |
 | 4.5. Bot Triggers + Slash | 0/TBD | Not started | - |
 | 5. IM 目录双向同步 | 0/TBD | Not started | - |
 | 6. 插件机制 | 0/TBD | Not started | - |

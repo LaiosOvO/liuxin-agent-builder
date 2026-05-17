@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-last_updated: "2026-05-17T03:10:08.179Z"
+last_updated: "2026-05-17T03:41:39.635Z"
 progress:
   total_phases: 5
   completed_phases: 3
@@ -23,11 +23,11 @@ See: .planning/PROJECT.md (updated 2026-05-16)
 ## Current Position
 
 Phase: 4 of 7 (审批链 + IM 通知)
-Plan: 10 of 12 in current phase（Wave 4 04-09 完成 — Slack + Mattermost + 通用 Webhook 3 家 IMProvider 一并实现）
-Status: ✅ Phase 4 Wave 4 全部完成 — 04-06 Feishu / 04-07 WeCom / 04-08 DingTalk / 04-09 Slack+Mattermost+Webhook 6 家 Provider 已全部落地；Wave 5 04-10 multichannel fan-out 待启动
-Last activity: 2026-05-17 — Plan 04-09 完成（Slack/Mattermost/Webhook 3 家 IMProvider：httpx 直调 REST 不引入 slack-bolt / mattermost-driver 重依赖 + Slack Block Kit chat.postMessage / chat.update supports_card_update=True + Mattermost attachment /api/v4/posts + PUT /patch supports_card_update=True + 通用 Webhook POST JSON + HMAC-SHA256 签名 X-Agent-Builder-Signature header 防伪造 supports_card_update=False + serialize_payload sort_keys 稳定序列化保证用户端可复现验签 + 3 个 event 常量 hitl_decision_required/hitl_supplement/hitl_card_update + WebhookCredentials 仅 delivery_url 字段 HMAC 走 HMAC_SECRET env + PROVIDER_WEBHOOK 加入 KNOWN_PROVIDERS 6 家扩展 + 59 新增测试全绿 19/21/19 + 33 既有 04-05 测试 0 regression 含 frozenset_contains_5→6 等扩展断言）
+Plan: 11 of 12 in current phase（Wave 5 04-10 完成 — multichannel fan-out NOTI-08 实现）
+Status: ✅ Phase 4 Wave 5 04-10 multichannel fan-out 完成；剩 04-11 / 04-12 待执行
+Last activity: 2026-05-17 — Plan 04-10 完成（NotificationService.enqueue_hitl_multichannel 多通道并发投递 NOTI-08：channels[]→fan-out N 行 notifications + N 个 arq job + im_bindings.get(channel) 缺失跳过+warn + 事务边界 commit 后才 enqueue (防 Pitfall 2) + 每行独立 payload dict (worker 写回 im_message_id 不污染) + enqueue_generic_im_card 与 enqueue_generic_email 平行 API + NOTIFY_CHANNELS_ENUM 7 值共享常量 hitl+notification schema + 'wechat'→'wecom' 修正 + notify_channels default=['email'] 向后兼容 + NotificationNodeExecutor 多 channel 分发 _normalize_recipients email 严校验 / IM 宽容 + per-channel try/except 失败隔离 + 39 新测试全绿 / 28 既有测试 0 regression / 126 IM provider 测试 0 regression / test_notification_node_unsupported_channel_skipped 重命名为 unknown 反映 feishu 已支持 / deferred-items.md 登记 pre-existing test_all_node_types_registered Plan 03-05 遗留）
 
-Progress: [███████░░░] 60%（3/7 phases complete; Phase 4 10/12 plans done — Wave 4 6 家 Provider 全部完成）
+Progress: [███████░░░] 65%（3/7 phases complete; Phase 4 11/12 plans done — Wave 5 04-10 multichannel fan-out 完成）
 
 ## Performance Metrics
 
@@ -73,6 +73,7 @@ Progress: [███████░░░] 60%（3/7 phases complete; Phase 4 10
 | Phase 04-approval-chain-im P06 | 12min | 3 tasks | 7 files |
 | Phase 04-approval-chain-im P07 | ~10min | 4 tasks（Task0 reading doc + Task1 spike 30min 上限内 5min 完成 + Task2 card builder + Task3 Provider/lifespan）| 8 files (5 created + 3 modified) — 34 测试 (17 card + 17 provider) / 77 IM 测试 0 regression / wechatpy 1.8.18 模块路径 enterprise 而非 work + 无 template_card API → 双路径 markdown 方案 |
 | Phase 04-approval-chain-im P09 | 16min | 4 tasks | 13 files |
+| Phase 04-approval-chain-im P10 | 22min | 4 tasks | 10 files |
 
 ## Accumulated Context
 
@@ -296,6 +297,19 @@ Recent decisions affecting current work:
 - [Phase 04-07]: [Rule 1 - Test Bug] test_send_via_app_message_passes_correct_agent_id_and_recipient agent_id 期望 str → wechatpy 要求 int，调整断言为 int
 - [Phase 04-approval-chain-im]: Plan 04-09: 3 IM providers (Slack/Mattermost/Webhook) 全部用 httpx 直调 REST API 不引入 slack-bolt / mattermost-driver 重依赖
 - [Phase 04-approval-chain-im]: Plan 04-09: WebhookProvider 用 HMAC-SHA256 + sort_keys 稳定序列化签名 X-Agent-Builder-Signature header 防伪造 (NOTI-07)
+- [Phase 04-10]: enqueue_hitl_multichannel 是新方法（不修改 enqueue_hitl_email）— 保持 Phase 3 测试 100% 向后兼容
+- [Phase 04-10]: 事务边界 commit 后才 enqueue_job — Dify 模式 2 + 本项目 Pitfall 2 防护（worker 抢跑事务未提交行）
+- [Phase 04-10]: im_bindings 缺失 → log warning + skip channel（不抛错）— 用户可能只为部分 channel 配置 IM 账号
+- [Phase 04-10]: 每行独立 payload dict 副本 — im_jobs 写回 im_message_id 不污染其他 channel 行
+- [Phase 04-10]: NOTIFY_CHANNELS_ENUM 模块常量 — hitl_schema + notification_schema 共享一个 list 引用（identity check 测试覆盖）
+- [Phase 04-10]: notification_schema 'wechat' → 'wecom' — 与 PROVIDER_WECOM / _IM_CHANNELS 全栈命名一致 (修正 Phase 3 残留)
+- [Phase 04-10]: 旧 DSL 无 channels/notify_channels 字段 → 默认 ['email'] — Phase 3 测试 0 regression
+- [Phase 04-10]: _normalize_recipients 按 channel 类型分校验策略 — email 严格 / IM 宽容（避免 IM user_id 被误过滤）
+- [Phase 04-10]: 单 channel 失败不阻塞其他 — per-channel try/except 包裹整 channel 循环
+- [Phase 04-10]: [Rule 1 - Bug] test_notification_node_unsupported_channel_skipped 改为 test_notification_node_unknown_channel_skipped — Plan 04-10 feishu 已支持，sms 才是真正未知
+- [Phase 04-10]: 结构化日志 message='notification.multichannel.enqueued' + extra={channels, notification_ids, instance_id, ...} — Phase 7 ELK / Loki 查询友好
+- [Phase 04-10]: [Rule 3 - Blocking] deferred-items.md 登记 test_dsl_schema.py::test_all_node_types_registered 失败 — Plan 03-05 引入 notification 时遗留，与 04-10 改动无关
+- [Phase 04-10]: enqueue_generic_im_card(channel='email') → ValueError — 强制走 enqueue_generic_email 避免歧义
 
 ### Pending Todos
 
@@ -311,6 +325,6 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-05-17
-Stopped at: Completed 04-07-PLAN.md（Phase 4 Wave 4：企微 WeCom IM 通知出站投递 — wechatpy 1.8.18 spike 发现完全无 template_card API → markdown 4 链接方案 + Bot Webhook fallback 双路径架构 + 共享 build_wecom_markdown_content / app_message / webhook envelope 完全一致 + supports_card_update=False 类属性 + update_card NotImplementedError 引导 send_supplement_text 兜底 + 错误统一包装为 ConnectionError 触发 tenacity 重试 + WeComCredentials 新增 bot_webhook_key 字段向后兼容 + IMCredentialsManager 支持 fallback-only 模式 + lifespan 自动按凭据注册 + markdown 注入防护 + 2048 byte 边界保护 + 34 测试全绿 / 77 IM 测试 0 regression）
+Stopped at: Completed 04-10-PLAN.md（Phase 4 Wave 5：multichannel fan-out NOTI-08 — NotificationService.enqueue_hitl_multichannel 多通道并发投递 + enqueue_generic_im_card Notification 节点 IM 入口 + NOTIFY_CHANNELS_ENUM 7 值共享常量 hitl+notification schema + 'wechat'→'wecom' 修正 + notify_channels default=['email'] 向后兼容 + NotificationNodeExecutor 多 channel 分发 + _normalize_recipients email 严校验/IM 宽容 + im_bindings.get 缺失 skip+warn + 事务边界 commit 后才 enqueue (防 Pitfall 2) + 每行独立 payload dict (worker 写回 im_message_id 不污染) + per-channel try/except 失败隔离 + 结构化日志 notification.multichannel.enqueued + 39 新测试 / 28 既有 0 regression / 126 IM provider 0 regression / test_notification_node_unsupported_channel_skipped 改为 unknown 因 feishu 已支持 / deferred-items.md 登记 pre-existing test_all_node_types_registered Plan 03-05 遗留）
 Resume file: None
-Next action: Wave 5 04-10 multichannel fan-out（NotificationService 扩展支持 notify_channels 数组 + 并发投递路由到 5 家 Provider Registry + sibling token 跨通道失效）
+Next action: 04-11 / 04-12 plan 执行（Phase 4 剩 2 plans — HITL chain 集成 multichannel + Phase 4 E2E 测试覆盖 ROADMAP success criteria）
