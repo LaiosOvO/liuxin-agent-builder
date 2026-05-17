@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: milestone
 status: unknown
-last_updated: "2026-05-17T16:41:24.434Z"
+last_updated: "2026-05-18T17:06:29.203Z"
 progress:
   total_phases: 7
   completed_phases: 5
   total_plans: 50
-  completed_plans: 48
+  completed_plans: 50
 ---
 
 # Project State
@@ -22,12 +22,12 @@ See: .planning/PROJECT.md (updated 2026-05-16)
 
 ## Current Position
 
-Phase: 5.B of 7 (Plugin 沙箱 + Daemon 资源限制) — Wave 2 完成
-Plan: 03 of 05 in current phase（5.A 全 7/7 ✓；5.B Plan 01/02/03 Wave 1+2 ✓ — SandboxConfig + SandboxRunner Protocol + AllowlistTransport 全部完成）
-Status: 🚀 Plan 05b-03 Complete（AllowlistTransport + make_sandboxed_http_client + huly_plugin env-gated lazy import 集成 — PLUG-FW-11 完成）
-Last activity: 2026-05-18 — Plan 05b-03 完成（Phase 5.B Wave 2 并行 plan：AllowlistTransport httpx.AsyncBaseTransport 子类 exact host:port lowercase + scheme 推断 port 443/80 + 空 allow restrictive 拒所有 Pitfall 8 + 非白名单 raise NetworkBlockedError 含 host + port + allowlist 字段 + 结构化日志 network.blocked event + make_sandboxed_http_client factory delegate 默认 httpx.AsyncHTTPTransport 测试可 inject httpx.MockTransport + plugins/huly/huly_plugin.py env-gated 双路径 PLUGIN_NETWORK_ALLOW 空走 5.A aiohttp fallback 非空走 httpx + AllowlistTransport 新路径 HIGH-2 fix lazy import 防 5.A acid test 子进程 PYTHONPATH 未含 backend/ 时 ModuleNotFoundError + docs/reading-dify-05b-03-network-allowlist-2026-05-18.md 192 行 6 借鉴点 Dify Python 主仓库无 application-level 网络白名单全下沉 Go daemon namespace 真隔离 vs 本项目 v1 httpx Transport 注入轻量 cross-platform + v1 trade-off requests/urllib 旁路 v2 Phase 6 marketplace 真隔离 + 13 单元测试 PASS 拒绝模式 3 放行模式 4 边界 4 factory 2 全用 httpx.MockTransport delegate 不真发 TCP + 4 集成测试 PASS @pytest.mark.sandbox_integration fixtures/network_test_daemon.py rc 10=blocked 20=network_error 30=import_error + 215 platforms tests 0 regression + 5/5 acid test 0 regression + 5 commits ffe4276 docs ca3f4a8 feat AllowlistTransport 6ec4dd4 feat huly_plugin lazy import c7f1d05 test unit 4898743 test integration）
+Phase: 5.B of 7 (Plugin 沙箱 + Daemon 资源限制) — Wave 3 完成 ✓ Phase 5.B 全部 5/5 plans 完成
+Plan: 05 of 05 in current phase（5.A 全 7/7 ✓；5.B Plan 01/02/03/04/05 全部完成 — SandboxConfig + SandboxRunner Protocol + AllowlistTransport + Watchdog + CgroupsV2Sandbox 三层防护落地）
+Status: 🚀 Plan 05b-05 Complete（CgroupsV2Sandbox + is_cgroups_v2_available + systemd-run --user --scope 包裹 spawn + 4 检查 + 真试 detection + 优雅降级 — PLUG-FW-10 完成）
+Last activity: 2026-05-18 — Plan 05b-05 完成（Phase 5.B Wave 3 cgroups opt-in：CgroupsV2Sandbox systemd-run --user --scope --slice=agent-builder-plugin.slice --collect --quiet --property MemoryMax/MemorySwapMax=0/CPUQuota=100%/TasksMax=32 满足 SandboxRunner Protocol + is_cgroups_v2_available 4 条 detection /sys/fs/cgroup/cgroup.controllers 文件 + memory/cpu controllers + shutil.which systemd-run + subprocess.run --user --scope --quiet -- true timeout=2.0 真试 returncode==0 + silent fail 任一不满足 silent return False 绝不 raise Pitfall 2 容器友好 + PlatformDaemonClient._choose_runner 升级 use_cgroups=true + available → CgroupsV2Sandbox / unavailable → PosixResourceSandbox + log.warning sandbox.cgroups_v2.unavailable 优雅降级不 fail startup macOS / 容器 friendly + 16 单元测试 PASS 8.44s 全 mock subprocess/asyncio.create_subprocess_exec/Path.exists/shutil.which 含 4 detection + spawn cmd 构造 + Protocol + 5 _choose_runner 分支 + 3 集成测试 @pytest.mark.cgroups_v2/linux_only/sandbox_integration 包含 smoke / MemoryMax OOM kill / TasksMax fork bomb macOS 全 skip + Linux 物理机有 systemd-userdbd 真跑 + docs/reading-dify-05b-05-cgroups-v2-2026-05-18.md 159 行 6 借鉴点 Dify Go dify-plugin-daemon 直写 cgroup 反例 → systemd-run 包装借鉴 + 271 platforms tests 0 regression + 5/5 acid test 0 regression + 131 IM tests 0 regression Phase 4 + 5 commits 6ef278d docs 7a3e63b feat cgroups_v2.py 5172cfb chore export 760832b test unit 16 d70a68c test integration 3）
 
-Progress: [██████████] 98%（4/7 phases complete; Phase 5.A 7/7 ✓ 全完成 + Phase 5.B 3/5 plans done — Wave 1+2 全完成；Wave 3 plans 05b-04/05 可启动）
+Progress: [██████████] 100%（Phase 5.B 全 5/5 plans 完成 — Wave 1 schema + Wave 2 PosixResource+AllowlistTransport + Wave 3 watchdog+cgroups 三层防护落地完毕；可进入 Phase 5.C DocCapability 真接入）
 
 ## Performance Metrics
 
@@ -84,6 +84,8 @@ Progress: [██████████] 98%（4/7 phases complete; Phase 5.A 
 | Phase 05b-plugin-sandbox P01 | 14min | 3 tasks（Task 0 Dify reading doc + Task 1 SandboxConfig 扩展 + sandbox/parser.py + Task 2 49 单测）| 10 files (6 created + 4 modified) — 49 测试 pass（21 parser SI/binary 单位 + 14 TestSandboxConfig + 13 5.A baseline + 1 fixture update）+ 193 platforms tests pass + 5/5 acid test pass + 0 5.A regression / [Deviation Rule 3] rename memory_limit→memory 同步 fixture + 1 测试断言 / Wave 2/3 plans 接口契约 freeze（memory_bytes / cpu_limit_seconds / env_allowlist 注入点确定） |
 | Phase 05b P01 | 14min | 3 tasks | 10 files |
 | Phase 05b P03 | 25m | 3 tasks | 7 files |
+| Phase 05b-plugin-sandbox P05 | 17m | 3 tasks | 5 files |
+| Phase 05b-plugin-sandbox P04 | 18min | 4 tasks（Task 0 reading doc + Task 1 SandboxWatchdog/IdleDaemonReaper + Task 2 daemon_client 集成 + Task 3 测试）| 11 files (1 doc + 2 新源 + 2 修改源 + 5 测试 + 1 fixture) — 43 新测试 PASS (27 unit watchdog+reaper + 13 daemon_client sandbox + 3 idle_reaper 集成) + Linux only 3 watchdog grace period 集成测（macOS skip）+ 5.A 11 daemon_client + 5/5 acid + Phase 4 96 IM 0 regression / Pitfall 4/5/6/8 全防护：killpg 整组 / on_violation 先 SIGTERM / time.monotonic + _pending skip / strip-all-allowlist 三层黑名单 / 9 commits e54b651 docs 36bbce6 feat watchdog 3d943bc feat idle_reaper 253a2ec chore 40e9954 feat daemon_client 集成 224b53a/b7e4b78/a188596/f0d8057 测试 |
 
 ## Accumulated Context
 
@@ -397,6 +399,8 @@ Recent decisions affecting current work:
 - [Phase 05b]: Plan 05b-03: lazy import 防 5.A acid test daemon spawn ModuleNotFoundError (HIGH-2 fix)
 - [Phase 05b]: Plan 05b-03: env-gated 双路径 PLUGIN_NETWORK_ALLOW 空走 5.A aiohttp fallback 非空走 httpx + AllowlistTransport 新路径
 - [Phase 05b]: Plan 05b-03: v1 接受 requests/urllib 旁路 trade-off; v2 Phase 6 marketplace 上 nsjail / network namespace 真隔离
+- [Phase 05b-plugin-sandbox]: Plan 05b-05: CgroupsV2Sandbox systemd-run --user --scope 包裹 spawn + 4 检查 + 真试 detection + 优雅降级容器友好（PLUG-FW-10）
+- [Phase 05b-plugin-sandbox]: Plan 05b-04: SandboxWatchdog SIGTERM 3s grace → SIGKILL（Pitfall 4 killpg 整组 + Pitfall 5 on_violation 先于 SIGTERM 让主 invoke 立即 raise SandboxLimitExceeded）+ IdleDaemonReaper 300s timeout auto-close（Pitfall 6 time.monotonic + 跳过 _pending 非空 daemon 防与活跃 invoke 竞争）+ PlatformDaemonClient 双轨 spawn 兼容 5.A（sandbox_config=None 走 asyncio.create_subprocess_exec / 非 None 走 SandboxRunner.spawn_with_limits + 起 watchdog）+ _build_filtered_env strip-all-allowlist Pitfall 8 防 secret 泄漏（_SAFE_BASE_ENV + _FORBIDDEN_PREFIXES + _FORBIDDEN_EXACT 三层覆盖 manifest opt-in）+ scan_once() 公共 API HIGH-4 fix（PLUG-FW-12）
 
 ### Pending Todos
 
