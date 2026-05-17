@@ -1,7 +1,16 @@
 # Phase 4.5: Bot Triggers + Reply (双向 IM) — Outline
 
-> 日期: 2026-05-16
-> 状态: OUTLINE — 正式 CONTEXT + plans 待 Phase 2 执行结束后通过 `/gsd:discuss-phase 4.5` 走标准 GSD 流程
+> 日期: 2026-05-16（OUTLINE 创建）/ 2026-05-17（链接到权威设计稿）
+> 状态: OUTLINE — 正式 CONTEXT + plans 待 Phase 4 执行结束后通过 `/gsd:discuss-phase 4.5` 走标准 GSD 流程
+>
+> **权威设计稿**：`docs/plans/2026-05-17-im-bot-abstraction-design.md` —
+> 13 个 R-IM 需求 + bot.yaml schema + LLM intent router + 4 子阶段拆分（5.A/5.B/5.C/5.D）
+>
+> **建议范围调整**（discuss-phase 时确认）：
+> - Phase 4.5 收编权威稿 §10 中的 5.A + 5.B（基础抽象 + LLM intent router）
+> - Phase 5 收编 5.C + 5.D + 原 IM 目录同步
+> - 当前 OUTLINE 中"hr/offboarding-flow 参考"段落继续有效，权威稿 §8 中"复用 Provider"过时
+>   （Phase 4 已自建 IMProvider Protocol — 见 04-05/06/07/08/09 SUMMARYs）
 
 ## 背景
 
