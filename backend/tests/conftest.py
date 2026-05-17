@@ -362,3 +362,49 @@ async def two_workspaces(db_session, smtp_capture):
     await db_session.execute(text("DELETE FROM workspaces"))
     await db_session.commit()
     reset_setup_cache()
+
+
+# ── Mock IM Providers Fixture（Plan 04-12 E2E 测试基础设施）─────────────────
+
+
+@pytest.fixture(scope="session", autouse=False)
+def mock_im_providers():
+    """注册全 6 家 MockIMProvider 到全局 Registry（替代真实 IM Provider）。
+
+    Plan 04-12 E2E spec 通过 GET /api/test/im_mock_calls?provider=X 拉取调用记录。
+    单元 / 集成测试如不依赖 IM 投递，无需引用此 fixture（默认 autouse=False）。
+
+    用法：
+        def test_xxx(mock_im_providers):
+            mocks = mock_im_providers  # {'feishu': MockIMProvider, 'wecom': ..., ...}
+            # 触发业务代码
+            assert len(mocks['feishu'].calls) == 1
+
+    设计：
+    - autouse=False（默认）— 避免污染既有 81 IM provider 单元测试（自己注册自己 mock）
+    - scope='session' — registry 是模块级 dict，session 内复用同一组 mock
+    - teardown 清空 registry — 防 spec 跨 session 状态泄漏
+
+    生产 Provider 注册由 main.py lifespan 启动钩子完成（Plan 04-06+ 各 plan）；
+    本 fixture 只在测试 session 主动引用时才覆盖。
+    """
+    from app.agent_builder.notification.providers.base import (
+        KNOWN_PROVIDERS,
+        clear_providers,
+        register_provider,
+    )
+    from app.agent_builder.notification.providers.mock import MockIMProvider
+
+    # 清空已注册 Provider（生产 lifespan 可能注册了真实 Provider）
+    clear_providers()
+
+    mocks: dict[str, MockIMProvider] = {}
+    for name in sorted(KNOWN_PROVIDERS):
+        mock = MockIMProvider(name=name)
+        register_provider(mock)
+        mocks[name] = mock
+
+    yield mocks
+
+    # teardown：清空 registry（防止跨 session 残留）
+    clear_providers()

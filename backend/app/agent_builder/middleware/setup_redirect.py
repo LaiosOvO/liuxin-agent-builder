@@ -25,6 +25,8 @@ log = logging.getLogger(__name__)
 # 不受 setup 状态影响的路径前缀（白名单）
 _SETUP_PREFIX = "/api/setup/"
 _API_PREFIX = "/api/"
+# Plan 04-12：测试辅助路由白名单（仅 ENABLE_TEST_API=1 时挂载，需绕过 setup gate）
+_TEST_HELPERS_PREFIX = "/api/test/"
 
 
 class SetupRedirectMiddleware(BaseHTTPMiddleware):
@@ -41,6 +43,10 @@ class SetupRedirectMiddleware(BaseHTTPMiddleware):
 
         # 只处理 /api/ 前缀的请求
         if not path.startswith(_API_PREFIX):
+            return await call_next(request)
+
+        # Plan 04-12：test_helpers 路由白名单（仅 ENABLE_TEST_API=1 时挂载，绕过 setup gate）
+        if path.startswith(_TEST_HELPERS_PREFIX):
             return await call_next(request)
 
         # 获取 setup 状态（使用进程内缓存，避免每请求查 DB）
