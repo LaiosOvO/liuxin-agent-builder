@@ -1,8 +1,8 @@
-"""HITL 节点 Schema 定义（Plan 03-02）。
+"""HITL 节点 Schema 定义（Plan 03-02 + Plan 04-10）。
 
 HITL 节点（Human-In-The-Loop）：
 - 流程在此节点暂停（LangGraph 1.2 interrupt）
-- 通过邮件深链（03-04）通知 assignees 决策
+- 通过邮件深链 + IM 卡片（Plan 04-10 多通道）通知 assignees 决策
 - 用户 POST /hitl/action/<jwt>（03-06）→ Command(resume) 推进流程
 
 config 字段（DSL 编辑时校验）：
@@ -11,11 +11,28 @@ config 字段（DSL 编辑时校验）：
 - form_schema（可选）：决策表单 JSON Schema（前端 RJSF 渲染 + 服务端校验）
 - escalate_to（可选）：超时升级人（v1 string，Phase 5 支持 role:/dept: 解析）
 - email_recipients（可选）：补充收件人邮箱列表
+- notify_channels（Plan 04-10 NOTI-08）：通知通道列表（默认 ['email']，向后兼容）
 
 设计参考 docs/reading-dify-03-02-hitl-executor-2026-05-17.md §4.1：
 - Dify EmailRecipients.items[] (BoundRecipient | ExternalRecipient) 简化为 assignees + email_recipients 两列
+
+Plan 04-10 多通道扩展（reading doc docs/reading-dify-04-10-multichannel-2026-05-17.md）：
+- notify_channels enum: email/feishu/wecom/dingtalk/slack/mattermost/webhook
+- 默认 ['email']（向后兼容 Phase 3 — 现有 DSL 无 notify_channels 字段时仍走 email-only 路径）
 """
 from __future__ import annotations
+
+# Plan 04-10：HITL + Notification 节点共享的通道 enum（7 个值）
+# 与 NotificationService._ALL_KNOWN_CHANNELS 一致
+NOTIFY_CHANNELS_ENUM: list[str] = [
+    "email",
+    "feishu",
+    "wecom",
+    "dingtalk",
+    "slack",
+    "mattermost",
+    "webhook",
+]
 
 # HITL 节点 JSON Schema（DSL 编辑器 / 02-02 DSLValidator 兼容）
 HITL_NODE_SCHEMA: dict = {
@@ -57,6 +74,21 @@ HITL_NODE_SCHEMA: dict = {
             "items": {"type": "string", "format": "email"},
             "description": "补充收件人邮箱列表（assignees 之外抄送 / 直接通知）",
             "default": [],
+        },
+        # Plan 04-10 NOTI-08 多通道并发投递
+        "notify_channels": {
+            "type": "array",
+            "items": {
+                "type": "string",
+                "enum": NOTIFY_CHANNELS_ENUM,
+            },
+            "minItems": 1,
+            "default": ["email"],
+            "description": (
+                "通知通道列表（NOTI-08 多通道并发投递）；"
+                "默认 ['email'] 向后兼容 Phase 3。"
+                "IM 通道需 assignee 用户在 users.im_bindings 配置对应映射。"
+            ),
         },
         # ── 由 ExecutionEngine 注入（不在 DSL 编辑时由用户填写） ───────────
         # 这些字段不出现在 config，由节点 enter 时由 service 层动态写入

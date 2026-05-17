@@ -47,5 +47,33 @@ return templates.TemplateResponse(request, "page.html", {...})
 
 ---
 
+---
+
+## 2. test_dsl_schema.py::test_all_node_types_registered 未更新到 5+notification 节点列表
+
+**发现于**：Plan 04-10（schema 扩展时回归运行 schema 测试）
+
+**问题**：
+`tests/test_dsl_schema.py::TestNodeSchemasRegistry::test_all_node_types_registered` (line 186) 断言
+`set(NODE_SCHEMAS.keys()) == expected`，其中 `expected` 是 5 个 base 节点。但 Plan 03-05 已加入了 `notification` 节点
+到 `NODE_SCHEMAS`，测试断言未同步更新，导致此测试稳定失败。
+
+```
+Extra items in the left set:
+'notification'
+```
+
+**判定为预先存在 issue 不在 04-10 范围**：
+- Plan 03-05 引入了 `notification` 注册（见 03-05-SUMMARY.md），同期没更新此断言
+- Plan 04-10 仅修改 hitl_schema.py + notification_schema.py（字段加 channels enum），未触及 NODE_SCHEMAS 注册表
+- 通过 `git stash` 验证：本地 04-10 改动还原后此测试仍失败
+- CLAUDE.md §scope rule：「仅自动修复 by current task's changes」
+
+**修复建议**：
+将测试中的 `expected = {"end", "hitl", "if_else", "llm", "start", "tool"}` 改为含 `"notification"` 的 7 元素集合
+（与 NODE_SCHEMAS 当前 keys 一致）。可在下个 Phase 4 plan 内附带修复或单独 hotfix commit。
+
+---
+
 *建立日期：2026-05-17*
-*最后更新：2026-05-17*
+*最后更新：2026-05-17（Plan 04-10）*
