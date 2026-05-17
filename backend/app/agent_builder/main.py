@@ -80,15 +80,30 @@ def _register_im_providers_if_configured() -> None:
     """按需注册 IM Provider — 凭据缺失时跳过（非致命）。
 
     Phase 4 Wave 4 各 Provider plan 在此挂载：
-    - 04-06 Feishu
+    - 04-06 Feishu  ← 本 plan 实现
     - 04-07 WeCom
-    - 04-08 DingTalk  ← 本 plan 实现
+    - 04-08 DingTalk
     - 04-09 Slack / Mattermost
     """
     from app.agent_builder.core.im_credentials import IMCredentialsManager
     from app.agent_builder.notification.providers.base import register_provider
 
     mgr = IMCredentialsManager()
+
+    # 飞书 FeishuProvider (Plan 04-06)
+    if mgr.has_feishu():
+        try:
+            from app.agent_builder.notification.providers.feishu import FeishuProvider
+
+            creds = mgr.feishu()
+            provider = FeishuProvider(
+                app_id=creds.app_id,
+                app_secret=creds.app_secret,
+            )
+            register_provider(provider)
+            _logger.info("FeishuProvider 注册成功 app_id=%s", creds.app_id)
+        except Exception as exc:
+            _logger.warning("FeishuProvider 注册失败（非阻断）: %s", exc)
 
     # 钉钉 DingTalkProvider (Plan 04-08)
     if mgr.has_dingtalk():
