@@ -353,6 +353,21 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-05-17
-Stopped at: Completed 05a-02-PLAN.md（IMCapability + DocCapability Protocols + exceptions 模块 — Wave 2 并行执行：Plan 02 IMCapability/DocCapability + Plan 03 HRCapability/IdentityCapability/TriggerCapability/ToolCapability — 共 74/74 platforms tests pass + Phase 4 IM Protocol 0 regression + 双路径 replace/apply_delta 解决 Huly acid test gap #2 + RecipientSpec 多态解决 gap #a + 8 值对象 frozen=True 100% 不可变 + inspect.isasyncgenfunction 静态断言验证 subscribe_events async generator 语义 + 5 异常类集中定义 + Plan 02/03 reading docs 各 200+ 行 / 5 借鉴点指回 5.A 模块 / License attribution）
+Stopped at: Completed 05a-03-PLAN.md（HRCapability + IdentityCapability + TriggerCapability + ToolCapability v1.1 骨架 + 完整 capabilities/__init__.py 24 exports — Wave 2 收官 — HR 8 method 含 resolve_department_members 接口为 Phase 5.D dept: 表达式预留 + Identity is_source_of_truth flag 解决 Huly acid test §6 反向 sync 设计 + Trigger/Tool v1.1 Protocol 骨架留 Phase 5.D+ + capabilities/__init__.py 重写 24 exports 含 try/except ImportError 处理并行执行边界 + 98.01% capability 覆盖率 ≥ 80% 硬性要求 + 41 Plan 03 单测 pass + 全 6 capability 累积 58 tests 0 regression + Phase 4 IM 51 测试 0 regression + 6 借鉴点指回 Dify 模块 / License attribution / inspect.isasyncgenfunction 静态断言 watch_user_changes + subscribe_events）
 Resume file: None
 Next action: Plan 04 (PluginRegistry per-workspace 隔离 + 懒加载 daemon) / Wave 3 启动
+
+### Plan 05a-03 关键决策
+
+- [Phase 05a-03]: HRCapability.resolve_department_members(expression: str) 接口为 Phase 5.D dept:研发部 表达式预留 — 8 method 含 list/get/dept 全套
+- [Phase 05a-03]: IdentityCapability.is_source_of_truth: bool flag 区分 Huly (True) vs Phase 4 IM provider (False) — 决定 sync 方向：True 时 watch_user_changes 真推送；False 时 raise NotImplementedError
+- [Phase 05a-03]: HRCapability.create_leave_request 仅 source_of_truth=True plugin 实现 — 非权威 plugin 第一行检查 raise NotImplementedError（双 capability 同模式：identity.watch_user_changes 同 gate）
+- [Phase 05a-03]: Trigger / Tool v1.1 仅 Protocol 骨架（subscribe_events / verify_event_signature / list_tools / invoke_tool）— 实现留 Phase 5.D+（CONTEXT.md §Deferred Ideas 明确）
+- [Phase 05a-03]: subscribe_events / watch_user_changes 用 async generator pull 模式 — 比 Dify webhook + Flask route 简化（调用方 async for 自然 backpressure）；定义时即使不真 yield 也要写 `if False: yield ...` 让 Python 标记为 asyncgenfunction
+- [Phase 05a-03]: ToolSpec.input_schema / output_schema 用 dict[str, Any] 透传不强类型化（借鉴 Dify ToolEntity.parameters 模式让 plugin 自由选 OpenAPI / JSON Schema / 自定义格式）
+- [Phase 05a-03]: ToolInvocationResult success / error 互斥 envelope（result vs error_message 二选一 — 借鉴 Dify PluginDaemonBasicResponse 简化无泛型 YAGNI v1）
+- [Phase 05a-03]: capabilities/__init__.py 用 try/except ImportError 模式处理 Plan 02 并行执行边界（doc.py 可能尚未存在时 __all__ 字段动态构建 — Plan 02 提交后 IM/Doc exports 自动追加）
+- [Phase 05a-03]: Department.member_ids 用 tuple[str, ...]（不可变） — Phase 5.D dept: 表达式解析直接读此字段展开成员列表（无 N+1 查询）
+- [Phase 05a-03]: 双 Mock plugin 测试覆盖（SourceOfTruth + NonSourceOfTruth） — 验证 runtime_checkable + 业务语义同时（HR + Identity 均含此模式）
+- [Phase 05a-03]: inspect.isasyncgenfunction 静态断言（High 5 防 `if False: yield {}` 模式被误写）— identity.watch_user_changes / trigger.subscribe_events 各自单测覆盖（im.subscribe_events 已在 Plan 02 测试，Plan 03 累积全 3 处 async generator 静态断言）
+- [Phase 05a-03]: lark_oapi env 缺失 pre-existing 问题不属本 plan scope_boundary（deferred-items.md 记录）— Plan 03 仅新增 capabilities/ 文件未触碰 feishu provider
