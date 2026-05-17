@@ -126,7 +126,13 @@ Plans:
   4. Trigger / Reply 两类节点 + Provider 接口 + Slash Dispatcher 抽象完整 — 加新 IM 仅需实现 Provider 接口
   5. 飞书 / 企微 / 钉钉 / Slack provider 实现 (4.5.2 P1)
   6. Bot 鉴权 / Webhook 签名验证 (防伪造)
-**Plans**: TBD (详见 OUTLINE.md, 大约 7-9 plans)
+**Plans**: 6 plans (Plan 01 ✅ Done — Wave 1 完成 1/6 17%)
+  - [x] 04_5-01-PLAN.md — Wave 1: bot.yaml Pydantic schema + httpx 兼容垫片 + ORM + Alembic 0007 (2026-05-18 完成 14min)（BotConfig 12 sub-model 全 ConfigDict(extra='forbid') + 3 @model_validator at_least_one_trigger/intents_must_subset_commands Pitfall 8/no_plaintext_credentials 递归扫 ≥32 char + _token/_secret/_key 后缀 Pitfall 7+N-IM-03 + apply_httpx_patch 幂等不 auto-apply Wave 4 显式 timing Pitfall 2 + WorkspaceBotInstallation UNIQUE(workspace_id, bot_name) + BotAuditLog BIGSERIAL CHECK outcome 5 值/routed_via 4 值/char_length CHECK 防 OOM + Alembic 0007 down_revision=0006 + 47 测试 PASS 20 schema unit/5 httpx unit/22 migration integration + 271 5.A platforms 0 regression + 154 Phase 4 IM 0 regression + Dify reading doc 140 行 6 借鉴模式 3 偏离决策 + 7 commits 4d7b59f docs/e2187ef feat httpx_patch/b74590c feat schema/358e7d0 feat ORM/d4897db feat alembic/61b8cd5 test/137841b docs deferred / R-IM-01 + R-IM-11 + R-IM-12 + N-IM-03 完成）
+  - [ ] 04_5-02-PLAN.md — Wave 2: BotConfig loader + parser
+  - [ ] 04_5-03-PLAN.md — Wave 2: LLM intent router + handler registry
+  - [ ] 04_5-04-PLAN.md — Wave 3: BotDispatcher + builtin handlers
+  - [ ] 04_5-05-PLAN.md — Wave 4: MattermostListener + provider 接入
+  - [ ] 04_5-06-PLAN.md — Wave 5/6: rate_limit + audit + E2E gate
 
 ### Phase 5.A: PlatformPlugin 框架（Dify-style）
 **Goal**: 把分散的 IMProvider / 计划中 DocProvider / HRProvider 统一为 PlatformPlugin 通用插件框架，达到 Dify 级别第三方平台接入能力 — 一份 YAML manifest 即可声明多 capability 接入
@@ -234,7 +240,7 @@ Plans:
 | 2. DSL 引擎 + 基础节点 | 10/10 | ✓ Complete | 2026-05-17 |
 | 3. HITL 单节点 + Email 审批 | 10/10 | ✓ Complete | 2026-05-17 |
 | 4. 审批链 + IM 通知 | 12/12 | ✓ Complete | 2026-05-17 |
-| 4.5. Bot Triggers + Slash | 0/TBD | Not started | - |
+| 4.5. Bot Triggers + Slash | 1/6 | In progress (Wave 1 完成) | - |
 | 5.A. PlatformPlugin 框架（Dify-style）| 7/7 | ✓ Complete | 2026-05-17 |
 | 5.B. Plugin 沙箱 + Daemon 通信资源限制 | 5/5 | ✓ Complete | 2026-05-18 |
 | 5.C. DocCapability 真接入 | 0/TBD | Not started | - |

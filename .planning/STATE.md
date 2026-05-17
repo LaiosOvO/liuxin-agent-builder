@@ -22,12 +22,12 @@ See: .planning/PROJECT.md (updated 2026-05-16)
 
 ## Current Position
 
-Phase: 5.B of 7 (Plugin 沙箱 + Daemon 资源限制) — Wave 3 完成 ✓ Phase 5.B 全部 5/5 plans 完成
-Plan: 05 of 05 in current phase（5.A 全 7/7 ✓；5.B Plan 01/02/03/04/05 全部完成 — SandboxConfig + SandboxRunner Protocol + AllowlistTransport + Watchdog + CgroupsV2Sandbox 三层防护落地）
-Status: 🚀 Plan 05b-05 Complete（CgroupsV2Sandbox + is_cgroups_v2_available + systemd-run --user --scope 包裹 spawn + 4 检查 + 真试 detection + 优雅降级 — PLUG-FW-10 完成）
-Last activity: 2026-05-18 — Plan 05b-05 完成（Phase 5.B Wave 3 cgroups opt-in：CgroupsV2Sandbox systemd-run --user --scope --slice=agent-builder-plugin.slice --collect --quiet --property MemoryMax/MemorySwapMax=0/CPUQuota=100%/TasksMax=32 满足 SandboxRunner Protocol + is_cgroups_v2_available 4 条 detection /sys/fs/cgroup/cgroup.controllers 文件 + memory/cpu controllers + shutil.which systemd-run + subprocess.run --user --scope --quiet -- true timeout=2.0 真试 returncode==0 + silent fail 任一不满足 silent return False 绝不 raise Pitfall 2 容器友好 + PlatformDaemonClient._choose_runner 升级 use_cgroups=true + available → CgroupsV2Sandbox / unavailable → PosixResourceSandbox + log.warning sandbox.cgroups_v2.unavailable 优雅降级不 fail startup macOS / 容器 friendly + 16 单元测试 PASS 8.44s 全 mock subprocess/asyncio.create_subprocess_exec/Path.exists/shutil.which 含 4 detection + spawn cmd 构造 + Protocol + 5 _choose_runner 分支 + 3 集成测试 @pytest.mark.cgroups_v2/linux_only/sandbox_integration 包含 smoke / MemoryMax OOM kill / TasksMax fork bomb macOS 全 skip + Linux 物理机有 systemd-userdbd 真跑 + docs/reading-dify-05b-05-cgroups-v2-2026-05-18.md 159 行 6 借鉴点 Dify Go dify-plugin-daemon 直写 cgroup 反例 → systemd-run 包装借鉴 + 271 platforms tests 0 regression + 5/5 acid test 0 regression + 131 IM tests 0 regression Phase 4 + 5 commits 6ef278d docs 7a3e63b feat cgroups_v2.py 5172cfb chore export 760832b test unit 16 d70a68c test integration 3）
+Phase: 4.5 of 7 (Bot Triggers + Slash 分发 + Reply / 双向 IM) — Wave 1 in progress
+Plan: 01 of 06 in current phase（5.A 全 7/7 ✓；5.B 全 5/5 ✓；4.5 Wave 1 Plan 01 完成 — bot.yaml schema + Pitfall 2 兼容垫片 + ORM + Alembic 0007）
+Status: ✅ Plan 04_5-01 Complete（BotConfig Pydantic v2 schema 12 sub-model + 3 model_validator + httpx_patch.apply_httpx_patch + WorkspaceBotInstallation/BotAuditLog ORM + Alembic 0007 — R-IM-01 / R-IM-11 / R-IM-12 / N-IM-03 + Pitfall 2/7/8 防护全落地）
+Last activity: 2026-05-18 — Plan 04_5-01 完成（Phase 4.5 Wave 1：bot_dispatcher 子包骨架 + BotConfig 12 sub-model 全 ConfigDict(extra='forbid') / 3 @model_validator(at_least_one_trigger 防死 bot / intents_must_subset_commands Pitfall 8 / no_plaintext_credentials 递归扫 _token/_secret/_key 后缀 ≥32 char Pitfall 7+N-IM-03) + apply_httpx_patch 幂等不 auto-apply Wave 4 显式 timing Pitfall 2 + WorkspaceBotInstallation ORM 9 字段 UNIQUE(workspace_id, bot_name) CHECK status 3 值 + BotAuditLog ORM 14 字段 BIGSERIAL CHECK outcome 5 值/routed_via 4 值/raw_message ≤4096/error_message ≤1024 + Alembic 0007 双表 5 CHECK 5 索引 down_revision=0006 + 47 测试 (20 schema unit + 5 httpx unit + 22 migration integration) + 271 platforms 5.A regression 0 fail + 154 Phase 4 IM regression 0 fail + Dify reading doc 140 行 6 借鉴模式 3 偏离决策 + 7 commits 4d7b59f docs e2187ef feat httpx_patch b74590c feat schema 358e7d0 feat ORM d4897db feat alembic 61b8cd5 test 137841b docs deferred）
 
-Progress: [██████████] 100%（Phase 5.B 全 5/5 plans 完成 — Wave 1 schema + Wave 2 PosixResource+AllowlistTransport + Wave 3 watchdog+cgroups 三层防护落地完毕；可进入 Phase 5.C DocCapability 真接入）
+Progress: [█▒▒▒▒▒▒▒▒▒] 17%（Phase 4.5 Plan 1/6 完成 — Wave 1 schema/ORM/migration/httpx_patch 已 freeze；Wave 2 plans 04_5-02 loader/parser 可立即开工）
 
 ## Performance Metrics
 
@@ -86,6 +86,7 @@ Progress: [██████████] 100%（Phase 5.B 全 5/5 plans 完成
 | Phase 05b P03 | 25m | 3 tasks | 7 files |
 | Phase 05b-plugin-sandbox P05 | 17m | 3 tasks | 5 files |
 | Phase 05b-plugin-sandbox P04 | 18min | 4 tasks（Task 0 reading doc + Task 1 SandboxWatchdog/IdleDaemonReaper + Task 2 daemon_client 集成 + Task 3 测试）| 11 files (1 doc + 2 新源 + 2 修改源 + 5 测试 + 1 fixture) — 43 新测试 PASS (27 unit watchdog+reaper + 13 daemon_client sandbox + 3 idle_reaper 集成) + Linux only 3 watchdog grace period 集成测（macOS skip）+ 5.A 11 daemon_client + 5/5 acid + Phase 4 96 IM 0 regression / Pitfall 4/5/6/8 全防护：killpg 整组 / on_violation 先 SIGTERM / time.monotonic + _pending skip / strip-all-allowlist 三层黑名单 / 9 commits e54b651 docs 36bbce6 feat watchdog 3d943bc feat idle_reaper 253a2ec chore 40e9954 feat daemon_client 集成 224b53a/b7e4b78/a188596/f0d8057 测试 |
+| Phase 04_5-bot-triggers P01 | 14min | 4 tasks（Task 0 Dify reading doc + Task 1 BotConfig schema + httpx_patch + Task 2 ORM + Alembic 0007 + Task 3 47 测试）| 15 files (13 new + 2 modified) — 47 测试 PASS (20 schema unit + 5 httpx unit + 22 migration integration) + 271 5.A platforms 0 regression + 154 Phase 4 IM 0 regression / Pitfall 2/7/8 全防护：apply_httpx_patch 幂等不 auto-apply / no_plaintext_credentials 递归扫 ≥32 char _token/_secret/_key / intents_must_subset_commands 启动期 raise / 12 sub-model ConfigDict(extra='forbid') + 3 @model_validator / WorkspaceBotInstallation UNIQUE(workspace_id, bot_name) + BotAuditLog BIGSERIAL CHECK outcome 5 值 routed_via 4 值 + char_length CHECK 防 OOM / 7 commits 4d7b59f docs e2187ef feat httpx_patch b74590c feat schema 358e7d0 feat ORM d4897db feat alembic 61b8cd5 test 137841b docs deferred |
 
 ## Accumulated Context
 
@@ -401,6 +402,11 @@ Recent decisions affecting current work:
 - [Phase 05b]: Plan 05b-03: v1 接受 requests/urllib 旁路 trade-off; v2 Phase 6 marketplace 上 nsjail / network namespace 真隔离
 - [Phase 05b-plugin-sandbox]: Plan 05b-05: CgroupsV2Sandbox systemd-run --user --scope 包裹 spawn + 4 检查 + 真试 detection + 优雅降级容器友好（PLUG-FW-10）
 - [Phase 05b-plugin-sandbox]: Plan 05b-04: SandboxWatchdog SIGTERM 3s grace → SIGKILL（Pitfall 4 killpg 整组 + Pitfall 5 on_violation 先于 SIGTERM 让主 invoke 立即 raise SandboxLimitExceeded）+ IdleDaemonReaper 300s timeout auto-close（Pitfall 6 time.monotonic + 跳过 _pending 非空 daemon 防与活跃 invoke 竞争）+ PlatformDaemonClient 双轨 spawn 兼容 5.A（sandbox_config=None 走 asyncio.create_subprocess_exec / 非 None 走 SandboxRunner.spawn_with_limits + 起 watchdog）+ _build_filtered_env strip-all-allowlist Pitfall 8 防 secret 泄漏（_SAFE_BASE_ENV + _FORBIDDEN_PREFIXES + _FORBIDDEN_EXACT 三层覆盖 manifest opt-in）+ scan_once() 公共 API HIGH-4 fix（PLUG-FW-12）
+- [Phase 04_5-bot-triggers]: Plan 04_5-01: BotConfig 12 sub-model 全 ConfigDict(extra='forbid')（与 Phase 5.A manifest.py 一致）+ 3 @model_validator(mode='after'): at_least_one_trigger 防 dm/at_mention/keywords 三者全 False 死 bot / intents_must_subset_commands intents-{ai_qa}⊆commands.name 启动期 raise Pitfall 8 / no_plaintext_credentials 递归扫 model_dump 检测 ≥32 char + _token/_secret/_key 后缀仅打印路径不打印 value Pitfall 7+N-IM-03
+- [Phase 04_5-bot-triggers]: Plan 04_5-01: httpx_patch 模块级不 auto-apply（Wave 4 listener startup 显式 apply 控制时机）+ 幂等 _PATCHED 标记 + monkey-patch pop proxies kwarg 兼容 mattermostautodriver 2.0 Pitfall 2 — 参考 hr/offboarding-flow workers/mattermost_listener.py:30-40 生产验证 1.5 个月
+- [Phase 04_5-bot-triggers]: Plan 04_5-01: WorkspaceBotInstallation 仿 0006 plugin 模式 UNIQUE(workspace_id, bot_name) CHECK status 三值 + BotAuditLog 仿 0001 audit_logs BIGSERIAL 时序有序 + 字段全 CHECK 强约束（outcome 5 值 / routed_via 4 值 / raw_message ≤4096 / error_message ≤1024 防恶意大消息 OOM）
+- [Phase 04_5-bot-triggers]: Plan 04_5-01: ProviderSpec.type 用 Literal['mattermost']（v1 锁 1 值；Phase 5.E 加飞书/企微/钉钉/Slack 时 union 扩 5 值仍可控）+ config_env_prefix UPPER pattern（凭据只能 env 注入 不入 YAML — N-IM-03 硬规则）
+- [Phase 04_5-bot-triggers]: Plan 04_5-01: Dify reading doc 借鉴 6 模式（extra=forbid / 嵌套 BaseModel / Literal vs StrEnum / model_validator / tenant_id 隔离 / handler 异常不 leak）+ 3 偏离（no_plaintext_credentials Dify credentials 入 YAML 本项目 env 注入 / at_least_one_trigger Dify webhook 必有 endpoint / intents 一致性 Dify trigger 与 node 解耦本项目直路由）
 
 ### Pending Todos
 
@@ -415,10 +421,10 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-05-17
-Stopped at: Completed 05a-05-PLAN.md（PlatformDaemonClient JSONRPC over stdio 460 行 asyncio.create_subprocess_exec python -u -m unbuffered + UUID4 hex request_id 路由 + _read_loop stdout EOF Pitfall 2 fault isolation 立即失败 < 2s + _stderr_drain Pitfall 8 防死锁 + close 幂等 + structured log capability/method/latency_ms/outcome Phase 7 Run Viewer 钩子 + 4 capability facades 替换 Plan 04 stub 真转发 daemon.invoke dataclass asdict 序列化 + bytes base64 encode + 返回 dict 重建 dataclass + _ensure_daemon fail-fast PluginError + MockPlatformPlugin 4 capability in-process + Mock 类 isinstance Protocol duck typing + echo_daemon fixture im.crash sys.exit(1) Pitfall 2 测试入口 + 24 新测试 pass 含 test_daemon_crash_fails_pending_future invoke_timeout=2.0 timing assert + 141/141 全 platforms tests + Phase 4 IM 51 测试 0 regression + 集成手工验证 facade→daemon→echo_daemon roundtrip + Plan 04 test_plugin_facades 1 测试改写 NotImplementedError→PluginError Plan 05 新合约 + 5 借鉴点 Dify entities/plugin_daemon.py + License attribution AGPL-3.0 vs Apache-2.0 + ruff clean + black clean）
+Last session: 2026-05-18
+Stopped at: Completed 04_5-01-PLAN.md（bot.yaml Pydantic v2 schema 12 sub-model + 3 @model_validator + httpx_patch.apply_httpx_patch 幂等不 auto-apply Wave 4 显式时机 Pitfall 2 + WorkspaceBotInstallation/BotAuditLog ORM + Alembic 0007 双表 5 CHECK 5 索引 down_revision=0006 + 47 测试 PASS (20 schema unit + 5 httpx unit + 22 migration integration) + 271 5.A platforms 0 regression + 154 Phase 4 IM 0 regression + Dify reading doc 140 行 6 借鉴模式 3 偏离决策 + 7 commits）
 Resume file: None
-Next action: Plan 07 (HulyPlugin acid test) / Wave 5 启动 — plugins/huly/__init__.py + huly_plugin.py daemon entry + mock huly server + tests/platforms_integration/test_huly_acid_test.py 端到端
+Next action: Plan 04_5-02 (Wave 2 BotConfig loader + parser) / Wave 2 启动 — loader.py YAML 加载 + parser.py 白名单 + 自助起流程短路 — schema 契约已 Wave 1 冻结
 
 ### Plan 05a-03 关键决策
 
