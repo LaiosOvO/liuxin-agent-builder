@@ -1,0 +1,29 @@
+[project]
+name = "agent-builder-e2e-v2"
+version = "0.1.0"
+description = "Phase 4 E2E tests using browser-harness + pytest"
+requires-python = ">=3.11"
+dependencies = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.24",
+    "httpx>=0.27",
+    "asyncpg>=0.29",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["specs"]
+asyncio_mode = "auto"
+markers = [
+    "e2e: 端到端测试（需 RUN_E2E=1）",
+    "e2e_full: 含真实时间快进的 spec（需 E2E_FULL_STACK=1）",
+    "browser: 需启动浏览器的 spec（需 browser-harness CLI 可用）",
+]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::RuntimeWarning:asyncio",
+]
+
+[tool.mypy]
+python_version = "3.11"
+strict = false
+ignore_missing_imports = true
