@@ -81,10 +81,10 @@ def test_valid_huly_manifest_parses() -> None:
     assert manifest.config_schema["type"] == "object"
     assert "endpoint" in manifest.config_schema["required"]
 
-    # Sandbox
+    # Sandbox（Phase 5.B Plan 05b-01: memory_limit → memory rename）
     assert isinstance(manifest.sandbox, SandboxConfig)
     assert manifest.sandbox.cpu_limit == "1.0"
-    assert manifest.sandbox.memory_limit == "512Mi"
+    assert manifest.sandbox.memory == "512Mi"
     assert manifest.sandbox.network == ["huly.example.com:443"]
 
 

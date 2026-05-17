@@ -46,6 +46,6 @@ identity:
 
 sandbox:
   cpu_limit: "1.0"
-  memory_limit: "512Mi"
+  memory: "512Mi"
   network:
     - "huly.example.com:443"

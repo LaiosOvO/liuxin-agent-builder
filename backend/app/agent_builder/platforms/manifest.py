@@ -18,6 +18,7 @@ Reference: Dify `api/core/plugin/entities/plugin.py:70-141` (PluginDeclaration, 
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from typing import Any, Literal
 
@@ -25,6 +26,10 @@ import yaml
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from .exceptions import ManifestValidationError
+from .sandbox.parser import parse_cpu_seconds, parse_memory
+
+# network entry regex: 仅允许小写 host + 必须 port（v1 不支持通配符 / scheme）
+_NETWORK_ENTRY_RE = re.compile(r"^[a-z0-9.-]+:\d+$")
 
 # ── Sub-models（嵌套结构，借鉴 Dify 嵌套 BaseModel 组织风格）─────────────────────
 
@@ -76,19 +81,84 @@ class CapabilitySpec(BaseModel):
 
 
 class SandboxConfig(BaseModel):
-    """Plugin 沙箱配置 — Phase 5.A 仅解析不强制；Phase 5.B 落地（cgroups v2 / network whitelist）。
+    """Plugin 沙箱配置 — Phase 5.A placeholder + Phase 5.B 全量字段 + validators。
+
+    Phase 5.B Plan 05b-01 扩展:
+        - rename `memory_limit` → `memory`（K8s 风格 + RESEARCH 决策对齐）
+        - 加 4 新字段: `timeout_invoke` / `timeout_idle` / `use_cgroups` / `env_allowlist`
+        - 给 `cpu_limit` / `memory` / `network` 加 Pydantic v2 validators
+        - 加 2 派生属性: `memory_bytes` / `cpu_limit_seconds`（Wave 2/3 runner 用）
 
     Fields:
-        cpu_limit: str — "1.0" 表示 1 个 CPU 核（cgroup CPU quota）
-        memory_limit: str — "512Mi" 等 K8s 资源单位
-        network: list[str] — 允许出网的 host:port 白名单（"example.com:443"）
+        cpu_limit: str — Docker style cores（"1.0" = 1 核 / "0.5" = 半核）
+        memory: str — K8s 单位（"512Mi" / "1Gi" / "2.5Gi"）
+        network: list[str] — host:port 出网白名单（仅小写 host + 必须 port；不支持通配符）
+        timeout_invoke: int — 单次 invoke 超时秒数（gt=0, le=3600）
+        timeout_idle: int — daemon idle 自动 close 秒数（gt=0, le=86400）
+        use_cgroups: bool — Linux opt-in cgroups v2（False = setrlimit baseline）
+        env_allowlist: list[str] — 传给 daemon 的 env 变量白名单（默认 [] strip all — Pitfall 8 防 secret 泄漏）
+
+    Properties:
+        memory_bytes: int — `parse_memory(self.memory)` 派生
+        cpu_limit_seconds: int — `parse_cpu_seconds(self.cpu_limit)` 派生
+
+    默认值（manifest 未声明 sandbox 段时, RESEARCH 决策）:
+        cpu_limit="2.0" / memory="1Gi" / network=[] 禁所有出站 / timeout_invoke=30 /
+        timeout_idle=300 / use_cgroups=False / env_allowlist=[] strip all
+
+    Reference: Dify `PluginResourceRequirements` 设计模式（仅借鉴 field_validator + Field
+    约束模式；K8s 单位字符串 + property 派生 int 是本项目独有，详见
+    docs/reading-dify-05b-01-sandbox-config-2026-05-17.md）。
     """
 
     model_config = ConfigDict(extra="forbid")
 
-    cpu_limit: str | None = "1.0"
-    memory_limit: str | None = "512Mi"
+    cpu_limit: str = Field(default="2.0", pattern=r"^\d+(\.\d+)?$")
+    memory: str = Field(default="1Gi")
     network: list[str] = Field(default_factory=list)
+    timeout_invoke: int = Field(default=30, gt=0, le=3600)
+    timeout_idle: int = Field(default=300, gt=0, le=86400)
+    use_cgroups: bool = False
+    env_allowlist: list[str] = Field(default_factory=list)
+
+    @field_validator("memory")
+    @classmethod
+    def memory_must_be_k8s_format(cls, v: str) -> str:
+        """K8s 单位字符串校验（"512Mi" / "1Gi" / "2.5Gi" / 裸 bytes "1024"）。
+
+        失败 raise ValueError（Pydantic 自动包装为 ValidationError）。
+        """
+        try:
+            parse_memory(v)
+        except ValueError as e:
+            raise ValueError(str(e)) from e
+        return v
+
+    @field_validator("network")
+    @classmethod
+    def network_entries_must_be_host_port(cls, v: list[str]) -> list[str]:
+        """每条 entry 必须为小写 host:port 格式（regex `^[a-z0-9.-]+:\\d+$`）。
+
+        v1 不支持通配符（"*.feishu.cn:443"）— 留 v2 解决；不支持 scheme
+        ("http://example.com")— 必须 host:port 形式。
+        """
+        for entry in v:
+            if not _NETWORK_ENTRY_RE.match(entry):
+                raise ValueError(
+                    f"network entry 必须是小写 host:port 格式（如 'example.com:443'），"
+                    f"实际: {entry!r}"
+                )
+        return v
+
+    @property
+    def memory_bytes(self) -> int:
+        """返回 memory 字符串解析后的 bytes 整数（Wave 2 RLIMIT_AS 用）。"""
+        return parse_memory(self.memory)
+
+    @property
+    def cpu_limit_seconds(self) -> int:
+        """返回 cpu_limit 派生的 RLIMIT_CPU 累积秒数（Wave 2 RLIMIT_CPU 用）。"""
+        return parse_cpu_seconds(self.cpu_limit)
 
 
 # ── PlatformManifest（顶层 schema）─────────────────────────────────────────────

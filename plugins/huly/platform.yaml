@@ -60,6 +60,11 @@ identity:
 
 sandbox:
   cpu_limit: "1.0"
-  memory_limit: "512Mi"
+  memory: "512Mi"
   network:
     - "huly.example.com:443"
+  timeout_invoke: 30
+  timeout_idle: 300
+  use_cgroups: false
+  env_allowlist:
+    - HULY_ENDPOINT
