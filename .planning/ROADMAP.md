@@ -141,10 +141,10 @@ Plans:
   5. **Acid test**：真实写一个 HulyPlugin stub（manifest + 4 facade + JSONRPC over stdio）+ 至少 1 capability call 通过单测（user 2026-05-17 硬性要求 — 不再让"抽象只在纸面"发生）
   6. DocCapability 设计稿 + Mock 单测覆盖 replace_content / apply_document_delta 双路径
   7. HRCapability 设计稿 + Mock 单测含 resolve_department_members（服务后续 dept: 表达式）
-**Plans**: 7 plans
-  - [ ] 05a-01-PLAN.md — Skeleton：Dify reading doc + Alembic 0006 + tests 目录 (Wave 1)
-  - [ ] 05a-02-PLAN.md — IM + Doc Capability Protocol (Wave 2)
-  - [ ] 05a-03-PLAN.md — HR + Identity + Trigger + Tool Capability Protocol (Wave 2)
+**Plans**: 7 plans (Plan 01/02/03 ✅ Done)
+  - [x] 05a-01-PLAN.md — Skeleton：Dify reading doc + Alembic 0006 + tests 目录 (Wave 1) — 2026-05-17 完成（16 smoke + 70 phase 4 regression / 0 fail / SUMMARY 已建）
+  - [x] 05a-02-PLAN.md — IM + Doc Capability Protocol (Wave 2) — 2026-05-17 完成（17 测试 8 IM + 9 Doc / 全 pass / Huly acid test gap #a + #2 解决 / 双路径 replace_content vs apply_delta + RecipientSpec 多态 + 8 值对象 frozen=True）
+  - [x] 05a-03-PLAN.md — HR + Identity + Trigger + Tool Capability Protocol (Wave 2) — 2026-05-17 完成（41 测试 13 HR + 11 Identity + 17 Trigger/Tool / 全 pass / 与 Plan 02 并行 bundled commit b0353c0）
   - [ ] 05a-04-PLAN.md — Manifest schema + PlatformPlugin + Registry + capability_facades stub (Wave 3)
   - [ ] 05a-05-PLAN.md — PlatformDaemonClient + capability_facades 真接 daemon + MockPlugin (Wave 4)
   - [ ] 05a-06-PLAN.md — LegacyIMProviderAdapter + base.py 双轨注册 + Registry fallback to legacy (Wave 4)

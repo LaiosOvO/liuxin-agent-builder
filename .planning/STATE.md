@@ -1,14 +1,14 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.0
+milestone: v1.1
 milestone_name: milestone
-status: phase4_complete_pending_verification
-last_updated: "2026-05-17T08:30:00.000Z"
+status: unknown
+last_updated: "2026-05-17T12:13:48.476Z"
 progress:
-  total_phases: 5
-  completed_phases: 3
-  total_plans: 38
-  completed_plans: 38
+  total_phases: 6
+  completed_phases: 4
+  total_plans: 45
+  completed_plans: 41
 ---
 
 # Project State
@@ -22,12 +22,12 @@ See: .planning/PROJECT.md (updated 2026-05-16)
 
 ## Current Position
 
-Phase: 4 of 7 (审批链 + IM 通知) — ✅ 全 12 plan Complete，待 verification
-Plan: 12 of 12 in current phase（Plan 04-12 完成 — Phase 4 E2E gate 收官）
-Status: ✅ Phase 4 全 12 plan Complete；下一步 /gsd:verify-work 验证 → /gsd:discuss-phase 5
-Last activity: 2026-05-17 — Plan 04-12 完成（Phase 4 E2E gate 收官：6 个 Python E2E spec 一一对应 ROADMAP Phase 4 全 6 success criteria + browser-use/browser-harness 工具切换（用户 2026-05-17 指令，Phase 1-3 既有 11 Playwright spec 保留不动新建 e2e_v2/ 栈并存）+ 双 reading doc gate（reading-browser-harness 340 行 + reading-dify-e2e 140 行：Dify 测试金字塔仅 unit+integration 无 E2E 层结论）+ backend test_helpers 5 endpoint 仅 ENABLE_TEST_API=1 挂载（im_mock_calls/im_mock_clear/hitl_tokens/audit_logs/ping）+ mock_im_providers conftest fixture autouse=False session-scope（不污染既有 81 IM 测试）+ SetupRedirectMiddleware /api/test/ 白名单 + e2e_v2/ Python 测试栈（pytest+httpx+browser-harness 子进程 / 7 helpers / hitl_decision_page PageObject / 6 spec / 26 测试 / Smoke 默认全 skip / Standard RUN_E2E=1 / Full E2E_FULL_STACK=1 三档）+ Safe Links 4 bot UA × 3 chain mode = 12 parametrize 矩阵（CLAUDE.md §2.5 P0 防护：bot GET 不签 cookie + used_at IS NULL + 真实用户随后 POST 仍成功反证未污染）+ 大部分 spec 纯 pytest+httpx 不需浏览器（chain/escalation API+DB 状态机断言） 仅 #5 IM card 点击 + #6 delegate UI 走 browser-harness（CLI 不可用 skip）+ ROADMAP 1:1 追溯（每 spec 头注释 'Covers ROADMAP Phase 4 #N'）+ 10 backend test_helpers 测试全绿 / 26 e2e_v2 测试 collect-only 通过 / 54 关联测试 0 regression / 17 Phase 1-3 Playwright spec 完全不动）
+Phase: 5.A of 7 (PlatformPlugin 框架，Dify-style) — Wave 2 全部完成
+Plan: 03 of 07 in current phase（Plan 01 ✓ + Plan 02 ✓ + Plan 03 ✓ Wave 2 收官）
+Status: 🚀 Plan 05a-03 Complete（HRCapability + IdentityCapability + TriggerCapability + ToolCapability + 完整 capabilities/__init__.py 24 exports）
+Last activity: 2026-05-17 — Plan 05a-03 完成（Wave 2 收官并行：HR 8 method 含 resolve_department_members 接口为 Phase 5.D dept: 表达式预留 + Identity is_source_of_truth flag 解决 Huly acid test §6 反向 sync 设计 + Trigger/Tool v1.1 Protocol 骨架留 Phase 5.D+ + capabilities/__init__.py 重写 24 exports 含 try/except ImportError 处理并行执行边界 + 98.01% capability 覆盖率 ≥ 80% 硬性要求 + 41 Plan 03 单测 pass + 全 6 capability 累积 58 tests 0 regression + Phase 4 IM 51 测试 0 regression + 6 借鉴点指回 Dify 模块 / License attribution / inspect.isasyncgenfunction 静态断言 watch_user_changes + subscribe_events）
 
-Progress: [█████████░] 92%（4/7 phases complete after verification; Phase 4 全 12/12 plans done — Plan 04-12 Phase 4 E2E gate 收官）
+Progress: [█████████░] 91%（4/7 phases complete; Phase 5.A 3/7 plans done — Wave 2 全部完成，Wave 3 待 Plan 04 PluginRegistry 启动）
 
 ## Performance Metrics
 
@@ -76,6 +76,8 @@ Progress: [█████████░] 92%（4/7 phases complete after verif
 | Phase 04-approval-chain-im P10 | 22min | 4 tasks | 10 files |
 | Phase 04-approval-chain-im P11 | 20min | 3 tasks（Task 0 reading doc + Task 1 interrupt chain + Task 2 _on_hitl_enter）| 6 files (3 created + 3 modified) — 25 新测试 (13 chain interrupt 单元 + 12 _on_hitl_enter 集成) / Phase 3+04-02+04-10 既有 61 测试 0 regression |
 | Phase 04-approval-chain-im P12 | ~35min | 6 tasks（Task 0 双 reading doc + Task 1 backend test_helpers + Task 1.5 e2e_v2 helpers + Task 2 3 chain specs + Task 3-5 3 final specs）| 22 files (16 created + 3 modified + 3 docs) — 36 测试 (10 backend test_helpers + 26 e2e_v2 specs Smoke 全 skip / Standard 跑全部) / 17 Phase 1-3 Playwright spec 完全不动 / 54 关联 backend 测试 0 regression |
+| Phase 05a-platform-plugin-framework P02 | ~14min | 3 tasks（Task 0 reading doc + Task 1 IMCapability + Task 2 DocCapability）| 7 files (1 doc + 4 source + 2 test) — 17 测试 (8 IM + 9 Doc) / 74/74 platforms tests pass / Phase 4 IM Protocol 0 regression / Huly acid test gap #a + #2 解决 / 注：Task 1 文件被并行 Plan 03 commit b0353c0 一并 bundled（git ls-tree 验证文件归属正确）|
+| Phase 05a-platform-plugin-framework P03 | 15min | 3 tasks | 10 files |
 
 ## Accumulated Context
 
@@ -326,6 +328,16 @@ Recent decisions affecting current work:
 - [Phase 04-12]: [Rule 3 - Blocking] AuditLog 字段名 actor_user_id 不是 actor_id — 初版 test_helpers.py 用错字段，改 actor_user_id + 增 actor_meta/actor_ip/actor_ua/decision
 - [Phase 04-12]: [Rule 3 - Blocking] engine.dispose() 防 audit_logs 测试 loop race — 跨测试 asyncpg 连接绑定旧 event loop 'Event loop is closed'，与 test_instances_api/test_hitl_action_service 同模式
 - [Phase 04-approval-chain-im]: ✅ 全 12 plan 完成，等待 /gsd:verify-work 阶段验证
+- [Phase 05a-01]: WorkspacePluginInstallation 9 字段表 + Alembic migration 0006 + tests/platforms/ 测试目录 + workspace_id 双租户 fixture
+- [Phase 05a-02]: IMCapability `@runtime_checkable Protocol` + RecipientSpec 多态（kind: Literal["channel","dm_user","thread"]）解决 Huly acid test gap #a — Phase 4 仅 `recipient: str` 升级
+- [Phase 05a-02]: DocCapability 双路径分离 — supports_collaborative_edit=False → replace_document_content (Outline/Lark) / =True → apply_document_delta (Huly/Notion CRDT) — 调错路径 raise NotImplementedError 解决 Huly acid test gap #2
+- [Phase 05a-02]: DocInfo.content_markdown 设 Optional — Huly 二跳 fetchMarkup 风格支持（避免 N+1 调用强制返回）
+- [Phase 05a-02]: subscribe_events `async def f: if False: yield {}` pattern + `inspect.isasyncgenfunction` 静态断言测试 — runtime_checkable 不检查方法类型（仅 name + attr），必须显式断言 async generator 语义
+- [Phase 05a-02]: 8 值对象全 frozen=True 100% — RecipientSpec/MessageRef/NormalizedCard/DocRef/DocInfo/CRDTDelta/CommentRef/UserRef（CLAUDE.md immutability 全面落地）
+- [Phase 05a-02]: PluginError 5 异常类集中定义于 platforms/exceptions.py — 不分散到各 capability file；PluginInvocationError 携带 error_payload dict 便于上层 except 后获取 daemon 原始错误码
+- [Phase 05a-02]: 不写 capabilities/__init__.py 完整 exports — Plan 03 独占（避免并行写冲突）；Plan 02 tests 用直接子模块 import `from app.agent_builder.platforms.capabilities.im import ...`
+- [Phase 05a-02]: capabilities/__init__.py 空 placeholder（Plan 02 创建）— 实际被并行 Plan 03 commit b0353c0 overwrite 为完整 exports（含 IM/Doc 条件 import + 4 类必有 export）
+- [Phase 05a-02]: Task 1 文件（exceptions.py + im.py + test_capabilities_im.py + platforms/__init__.py）被并行 Plan 03 agent 一并 bundled 到 commit b0353c0 — git 文件归属 / 内容 100% 按 Plan 02 PLAN.md 设计，仅 commit message 归属 Plan 03（良性 git 行为，无返工）
 
 ### Pending Todos
 
@@ -341,6 +353,6 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-05-17
-Stopped at: Completed 04-12-PLAN.md（Phase 4 E2E gate 收官 — 6 个 Python E2E spec 一一对应 ROADMAP Phase 4 全 6 success criteria + browser-use/browser-harness 工具切换（用户 2026-05-17 指令，Phase 1-3 既有 11 Playwright spec 保留不动新建 e2e_v2/ 栈并存）+ 双 reading doc gate（reading-browser-harness 340 行 + reading-dify-e2e 140 行：Dify 测试金字塔仅 unit+integration 无 E2E 层结论）+ backend test_helpers 5 endpoint 仅 ENABLE_TEST_API=1 挂载（im_mock_calls/im_mock_clear/hitl_tokens/audit_logs/ping）+ mock_im_providers conftest fixture autouse=False session-scope（不污染既有 81 IM 测试）+ SetupRedirectMiddleware /api/test/ 白名单 + e2e_v2/ Python 测试栈（pytest+httpx+browser-harness 子进程 / 7 helpers / hitl_decision_page PageObject / 6 spec / 26 测试 / Smoke 默认全 skip / Standard RUN_E2E=1 / Full E2E_FULL_STACK=1 三档）+ Safe Links 4 bot UA × 3 chain mode = 12 parametrize 矩阵（CLAUDE.md §2.5 P0 防护）+ 10 backend test_helpers 测试全绿 + 17 Phase 1-3 Playwright spec 完全不动 + 54 关联 backend 测试 0 regression）
+Stopped at: Completed 05a-02-PLAN.md（IMCapability + DocCapability Protocols + exceptions 模块 — Wave 2 并行执行：Plan 02 IMCapability/DocCapability + Plan 03 HRCapability/IdentityCapability/TriggerCapability/ToolCapability — 共 74/74 platforms tests pass + Phase 4 IM Protocol 0 regression + 双路径 replace/apply_delta 解决 Huly acid test gap #2 + RecipientSpec 多态解决 gap #a + 8 值对象 frozen=True 100% 不可变 + inspect.isasyncgenfunction 静态断言验证 subscribe_events async generator 语义 + 5 异常类集中定义 + Plan 02/03 reading docs 各 200+ 行 / 5 借鉴点指回 5.A 模块 / License attribution）
 Resume file: None
-Next action: /gsd:verify-work 验证 Phase 4 完整性 → /gsd:discuss-phase 5
+Next action: Plan 04 (PluginRegistry per-workspace 隔离 + 懒加载 daemon) / Wave 3 启动
