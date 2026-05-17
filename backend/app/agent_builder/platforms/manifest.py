@@ -31,6 +31,13 @@ from .sandbox.parser import parse_cpu_seconds, parse_memory
 # network entry regex: 仅允许小写 host + 必须 port（v1 不支持通配符 / scheme）
 _NETWORK_ENTRY_RE = re.compile(r"^[a-z0-9.-]+:\d+$")
 
+# ── docker network 命名 regex（Phase 5.C Pattern 4 / Pitfall 5）─────────────────
+# Docker 网络名规范（与 `docker network create` 接受的格式一致）：
+# - 首字符必须 alphanumeric
+# - 后续字符允许 alphanumeric + `_` `.` `-`
+# - 不允许 `/` `:` 空格等特殊符（防 manifest 误写导致 docker SDK 隐式拼接产生不可预期 network）
+_DOCKER_NET_RE = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9_.-]*$")
+
 # ── Sub-models（嵌套结构，借鉴 Dify 嵌套 BaseModel 组织风格）─────────────────────
 
 
@@ -121,6 +128,23 @@ class SandboxConfig(BaseModel):
     use_cgroups: bool = False
     env_allowlist: list[str] = Field(default_factory=list)
 
+    # ── Phase 5.C Pattern 4 新增（接口对外冻结后 Wave 2 三 plan 复用）────────────
+    docker_networks: list[str] = Field(default_factory=list)
+    """Daemon spawn 后需要 attach 的 docker network 列表（Phase 5.C 新增）。
+
+    默认空 list = no attach（PosixResourceSandbox no-op；CgroupsV2Sandbox 也跳过）。
+
+    典型使用场景:
+    - Huly plugin 必须 attach `huly_huly_net` 才能调 collaborator:3078
+    - 其他平台（Outline / Lark / Slack）走公网 → 留空 list 即可
+
+    与 `network` 字段区别:
+    - `network`: application-level 白名单（httpx AllowlistTransport 校验 host:port）
+    - `docker_networks`: kernel-level docker bridge 网络 attach（daemon 容器化部署时能访问的网络）
+
+    Reference: Phase 5.C RESEARCH.md §Pattern 4 / Pitfall 5。
+    """
+
     @field_validator("memory")
     @classmethod
     def memory_must_be_k8s_format(cls, v: str) -> str:
@@ -147,6 +171,21 @@ class SandboxConfig(BaseModel):
                 raise ValueError(
                     f"network entry 必须是小写 host:port 格式（如 'example.com:443'），"
                     f"实际: {entry!r}"
+                )
+        return v
+
+    @field_validator("docker_networks")
+    @classmethod
+    def docker_networks_must_be_valid_names(cls, v: list[str]) -> list[str]:
+        """每条 docker network 名必须符合 docker network 命名规范（Phase 5.C Pitfall 5）。
+
+        防 manifest 误写（如带 `/` 或空格）导致 docker SDK 隐式拼接产生不可预期 network。
+        """
+        for entry in v:
+            if not _DOCKER_NET_RE.match(entry):
+                raise ValueError(
+                    f"docker_networks entry 必须符合 docker network 命名规范"
+                    f"（首字符 alphanumeric，后续允许 alphanumeric/_/./-），实际: {entry!r}"
                 )
         return v
 
