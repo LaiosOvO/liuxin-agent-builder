@@ -390,16 +390,20 @@ async def test_notification_node_invalid_email_filtered(
 
 
 @pytest.mark.asyncio
-async def test_notification_node_unsupported_channel_skipped(
+async def test_notification_node_unknown_channel_skipped(
     db_session, clean_notification_node_tables
 ):
-    """channels=['feishu'] → skipped=True 不抛错，不入队任何行。"""
+    """channels=['sms'] (未知通道) → skipped=True 不抛错，不入队任何行。
+
+    Plan 04-10 修订：原测试断言 'feishu' 被 skip，现在 feishu/wecom/dingtalk/slack/mattermost/webhook
+    都已支持（走 enqueue_generic_im_card）。仅完全未知 channel（如 sms）才会被跳过。
+    """
     seed = await _seed_workflow_instance(db_session)
     executor = _build_executor(
         seed,
         _make_notification_node(
             config_overrides={
-                "channels": ["feishu"],  # Phase 3 不支持
+                "channels": ["sms"],  # Plan 04-10 完全不支持的通道
             }
         ),
     )

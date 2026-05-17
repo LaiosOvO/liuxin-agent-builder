@@ -1,8 +1,12 @@
-"""Notification 节点 executor — 独立通知节点（NODE-07 / Plan 03-05）。
+"""Notification 节点 executor — 独立通知节点（NODE-07 / Plan 03-05 + Plan 04-10）。
 
-设计参考 docs/reading-dify-03-05-notification-node-2026-05-17.md §7：
+设计参考 docs/reading-dify-03-05-notification-node-2026-05-17.md §7
++ docs/reading-dify-04-10-multichannel-2026-05-17.md：
 - 与 HITL 节点的核心区别：不创建 hitl_token、不调用 interrupt()、不参与催办
 - 失败不阻断 graph：单封失败 → 记录 failed_count + state；graph 继续
+- Plan 04-10：channels 多通道分发
+  * email channel → enqueue_generic_email（与 03-05 一致）
+  * IM channel → enqueue_generic_im_card（Plan 04-10 新增）
 
 为何走 BaseNodeExecutor.execute（而非 override __call__）：
 - 本节点不抛 GraphInterrupt（与 HITL 不同）
@@ -36,6 +40,12 @@ log = logging.getLogger(__name__)
 # 不追求 RFC 5322 完美匹配 — 拦截"明显错误"即可（实际投递由 SMTP 服务器最终校验）
 _EMAIL_REGEX = re.compile(r"^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$")
 
+# Plan 04-10 共享通道分类（与 NotificationService _IM_CHANNELS / _EMAIL_CHANNEL 一致）
+_EMAIL_CHANNEL = "email"
+_IM_CHANNELS: frozenset[str] = frozenset(
+    {"feishu", "wecom", "dingtalk", "slack", "mattermost", "webhook"}
+)
+
 
 def _is_valid_email(s: str) -> bool:
     """简易邮箱格式判断（拦截明显错误，详细校验由 SMTP 完成）。"""
@@ -43,6 +53,40 @@ def _is_valid_email(s: str) -> bool:
         return False
     s = s.strip()
     return bool(_EMAIL_REGEX.match(s))
+
+
+def _normalize_recipients(
+    raw: Any, channel: str
+) -> list[str]:
+    """规范化 recipients 字段为 list[str]，按 channel 类型决定校验策略。
+
+    Plan 04-10：
+    - email channel：必须通过 _is_valid_email 邮箱格式校验
+    - IM channel：接受任意非空字符串（IM user_id 格式因厂商而异，无统一正则）
+
+    Args:
+        raw: 原始 recipients 字段值（str / list[str] / 其他类型）
+        channel: 当前通道（'email' / 'feishu' / 'wecom' / ...）
+
+    Returns:
+        规范化后的 recipient 字符串列表（已过滤无效项）
+    """
+    # 1. 转 list
+    if isinstance(raw, str):
+        items = [raw]
+    elif isinstance(raw, list):
+        items = [r for r in raw if isinstance(r, str)]
+    else:
+        items = []
+
+    # 2. strip + 过滤空
+    items = [r.strip() for r in items if r and r.strip()]
+
+    # 3. 按 channel 类型校验
+    if channel == _EMAIL_CHANNEL:
+        return [r for r in items if _is_valid_email(r)]
+    # IM channel：接受任意非空字符串
+    return items
 
 
 class NotificationNodeExecutor(BaseNodeExecutor):
@@ -67,24 +111,46 @@ class NotificationNodeExecutor(BaseNodeExecutor):
         return ()
 
     async def execute(self, config: dict, state: dict) -> dict[str, Any]:
-        """渲染 + 入队 + 返回统计。
+        """渲染 + 多通道入队 + 返回统计（Plan 04-10 多 channel 分发）。
 
         Args:
-            config: 经 Jinja2 渲染后的节点 config（subject/body/recipients 已渲染）
+            config: 经 Jinja2 渲染后的节点 config（subject/body/recipients/channels 已渲染）
             state: 当前 LangGraph state（read-only — 不修改）
 
         Returns:
             统计 dict（sent_count/failed_count/notification_ids[/skipped]）
+            - sent_count: 所有 channel 累计成功入队数
+            - failed_count: 所有 channel 累计入队失败数
+            - notification_ids: 所有 channel 成功入队的 notifications.id 列表
+            - skipped: 所有 channel 都无有效 recipient 时为 True（边界容错）
+
+        Plan 04-10 多通道行为：
+        - channels=['email']（默认，向后兼容）→ enqueue_generic_email per recipient
+        - channels=['email','feishu'] → email recipients 走 email，feishu 走 IM 入队
+        - 单 channel 失败不阻塞其他 channel（每 channel try/except 独立）
+        - 单 recipient 失败仅 failed_count + 1（不阻塞 channel 内其他 recipient）
         """
-        # ── 1. channels 校验（Phase 3 仅支持 email）──────────────────────────
-        channels = config.get("channels") or ["email"]
+        # ── 1. channels 规范化（默认 ['email'] 向后兼容 Phase 3）──────────────
+        channels = config.get("channels") or [_EMAIL_CHANNEL]
         if not isinstance(channels, list):
             channels = [channels]
-        if "email" not in channels:
+        # 过滤无效 channel（不在 email + IM 列表内）
+        valid_channels = [
+            c for c in channels
+            if c == _EMAIL_CHANNEL or c in _IM_CHANNELS
+        ]
+        invalid_channels = [c for c in channels if c not in valid_channels]
+        if invalid_channels:
             log.warning(
-                "Notification 节点 %s 的 channels=%s 不含 email，Phase 3 仅支持 email — 跳过",
+                "Notification 节点 %s 跳过未知 channels=%s（保留 %s）",
                 self.node_id,
-                channels,
+                invalid_channels,
+                valid_channels,
+            )
+        if not valid_channels:
+            log.warning(
+                "Notification 节点 %s 所有 channels 都未知 — 返回 skipped=True",
+                self.node_id,
             )
             return {
                 "sent_count": 0,
@@ -93,41 +159,18 @@ class NotificationNodeExecutor(BaseNodeExecutor):
                 "skipped": True,
             }
 
-        # ── 2. recipients 规范化（支持 str / list[str]） ────────────────────
+        # ── 2. recipients 解析（保留原始供按 channel 规范化）─────────────────
         raw_recipients = config.get("recipients")
         if raw_recipients is None:
             raise NodeExecutionError(
                 self.node_id,
                 "Notification 节点配置缺少 recipients（DSL 编辑期 schema 校验应已拦截）",
             )
-        if isinstance(raw_recipients, str):
-            recipients_list: list[str] = [raw_recipients]
-        elif isinstance(raw_recipients, list):
-            recipients_list = [r for r in raw_recipients if isinstance(r, str)]
-        else:
+        if not isinstance(raw_recipients, (str, list)):
             raise NodeExecutionError(
                 self.node_id,
                 f"recipients 必须是 str 或 list[str]，收到 {type(raw_recipients).__name__}",
             )
-
-        # 过滤无效邮箱（节点层兜底；CLAUDE.md §安全 — 不信任外部数据）
-        valid_recipients = [r.strip() for r in recipients_list if _is_valid_email(r)]
-        invalid_count = len(recipients_list) - len(valid_recipients)
-        if invalid_count > 0:
-            log.warning(
-                "Notification 节点 %s 过滤了 %d 个无效邮箱（共 %d 个）",
-                self.node_id,
-                invalid_count,
-                len(recipients_list),
-            )
-
-        if not valid_recipients:
-            log.warning("Notification 节点 %s 无有效 recipient — 直接返回 0/0", self.node_id)
-            return {
-                "sent_count": 0,
-                "failed_count": 0,
-                "notification_ids": [],
-            }
 
         # ── 3. subject / body（已 Jinja 渲染，BaseNodeExecutor._render_config）─
         subject = config.get("subject") or "通知"
@@ -141,9 +184,8 @@ class NotificationNodeExecutor(BaseNodeExecutor):
                 "应由 DSLCompiler 在 _build_node_executor 时通过 __init__ 注入）",
             )
 
-        # ── 5. 入队（自管 DB session — 与 send_hitl_email_job 同模式） ──────
-        # 副作用归外原则：节点函数不复用 ExecutionEngine 的 session（避免事务耦合），
-        # 而是自建 session 完成入队 + commit；arq worker 也是同模式。
+        # ── 5. 多 channel 分发入队 ───────────────────────────────────────────
+        # 副作用归外原则：自建 session 完成入队 + commit；arq worker 也是同模式。
         sent_count = 0
         failed_count = 0
         notification_ids: list[int] = []
@@ -152,41 +194,65 @@ class NotificationNodeExecutor(BaseNodeExecutor):
         from app.services.notification_service import NotificationService
 
         async with async_session_maker() as db:
-            # 5a. 解析 node_state_id（runner.upsert_node_state 在节点 execute 之后才创建，
-            # 这里如果尚不存在，则提前创建一行 status='running' 以满足 FK 约束）
+            # 5a. 解析 node_state_id（runner.upsert_node_state 在节点 execute 之后才创建）
             node_state_id = await self._resolve_node_state_id(db)
 
-            # 5b. 复用 03-04 NotificationService（不实例化时传入 arq_pool；
-            # 入队 fallback 走 asyncio.create_task 直接驱动 send_hitl_email_job —
-            # 测试 / dev 路径与 03-04 一致）
+            # 5b. 复用 03-04 NotificationService（arq_pool=None — 测试 fallback asyncio）
             svc = NotificationService(db=db, arq_pool=None)
 
-            for recipient in valid_recipients:
-                try:
-                    notif = await svc.enqueue_generic_email(
-                        workspace_id=self.workspace_id,
-                        instance_id=self.instance_id,
-                        node_state_id=node_state_id,
-                        recipient_email=recipient,
-                        subject=subject,
-                        body=body,
-                    )
-                    notification_ids.append(notif.id)
-                    sent_count += 1
-                except Exception as exc:
-                    # CLAUDE.md §错误处理：失败不阻断，仅记 failed_count + 日志
-                    log.exception(
-                        "Notification 入队失败 node=%s recipient=%s: %s",
+            # 5c. 多 channel 分发：每 channel 独立循环
+            # Plan 04-10：channel 失败不阻塞其他 channel（per-channel try/except）
+            for channel in valid_channels:
+                # 按 channel 规范化 recipients（email 校验邮箱 / IM 接受任意字符串）
+                channel_recipients = _normalize_recipients(raw_recipients, channel)
+                if not channel_recipients:
+                    log.warning(
+                        "Notification 节点 %s channel=%s 无有效 recipient — 跳过",
                         self.node_id,
-                        recipient,
-                        exc,
+                        channel,
                     )
-                    # SQLAlchemy 抛错后 session 进入失败状态，必须 rollback 才能继续
+                    continue
+
+                # 单 channel 内循环 recipients
+                for recipient in channel_recipients:
                     try:
-                        await db.rollback()
-                    except Exception:
-                        log.exception("rollback 失败 — 节点 %s", self.node_id)
-                    failed_count += 1
+                        if channel == _EMAIL_CHANNEL:
+                            notif = await svc.enqueue_generic_email(
+                                workspace_id=self.workspace_id,
+                                instance_id=self.instance_id,
+                                node_state_id=node_state_id,
+                                recipient_email=recipient,
+                                subject=subject,
+                                body=body,
+                            )
+                        else:
+                            # IM channel：调 enqueue_generic_im_card
+                            notif = await svc.enqueue_generic_im_card(
+                                workspace_id=self.workspace_id,
+                                instance_id=self.instance_id,
+                                node_state_id=node_state_id,
+                                recipient=recipient,
+                                channel=channel,
+                                subject=subject,
+                                body=body,
+                            )
+                        notification_ids.append(notif.id)
+                        sent_count += 1
+                    except Exception as exc:
+                        # CLAUDE.md §错误处理：失败不阻断，仅记 failed_count + 日志
+                        log.exception(
+                            "Notification 入队失败 node=%s channel=%s recipient=%s: %s",
+                            self.node_id,
+                            channel,
+                            recipient,
+                            exc,
+                        )
+                        # SQLAlchemy 抛错后 session 进入失败状态，必须 rollback 才能继续
+                        try:
+                            await db.rollback()
+                        except Exception:
+                            log.exception("rollback 失败 — 节点 %s", self.node_id)
+                        failed_count += 1
 
         return {
             "sent_count": sent_count,
