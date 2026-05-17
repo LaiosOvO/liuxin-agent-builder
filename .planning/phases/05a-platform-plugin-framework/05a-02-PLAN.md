@@ -7,12 +7,13 @@ depends_on: ["01"]
 files_modified:
   - docs/reading-dify-05a-02-capability-protocols-2026-05-17.md
   - backend/app/agent_builder/platforms/__init__.py
-  - backend/app/agent_builder/platforms/capabilities/__init__.py
   - backend/app/agent_builder/platforms/capabilities/im.py
   - backend/app/agent_builder/platforms/capabilities/doc.py
   - backend/app/agent_builder/platforms/exceptions.py
   - tests/platforms/test_capabilities_im.py
   - tests/platforms/test_capabilities_doc.py
+# 注：capabilities/__init__.py 由 Plan 03 独占（避免与 Plan 02 并行写冲突）。
+# Plan 02 tests 用 `from app.agent_builder.platforms.capabilities.im import ...` 直接子模块 import。
 autonomous: true
 requirements:
   - PLUG-FW-01
@@ -118,20 +119,16 @@ class IMProvider(Protocol):
 
 <task type="auto">
   <name>Task 1: exceptions 模块 + IMCapability Protocol + 值对象</name>
-  <files>backend/app/agent_builder/platforms/__init__.py,backend/app/agent_builder/platforms/capabilities/__init__.py,backend/app/agent_builder/platforms/capabilities/im.py,backend/app/agent_builder/platforms/exceptions.py,tests/platforms/test_capabilities_im.py</files>
+  <files>backend/app/agent_builder/platforms/__init__.py,backend/app/agent_builder/platforms/capabilities/im.py,backend/app/agent_builder/platforms/exceptions.py,tests/platforms/test_capabilities_im.py</files>
   <action>
 Reading doc commit 已 ✓ 才能写代码。
 
 1. **`backend/app/agent_builder/platforms/__init__.py`** 空文件 + 顶部 docstring `"""Phase 5.A PlatformPlugin 框架（ADR-001）。"""`
 
-2. **`backend/app/agent_builder/platforms/capabilities/__init__.py`** export 集合：
-```python
-"""Capability Protocols — 每个 capability 一个 file。"""
-from .im import IMCapability, MessageRef, NormalizedCard, RecipientSpec  # noqa: F401
-
-__all__ = ["IMCapability", "MessageRef", "NormalizedCard", "RecipientSpec"]
-```
-（doc 在 Task 2 加进去）
+2. **不创建 `backend/app/agent_builder/platforms/capabilities/__init__.py`** — 由 Plan 03 独占（避免与 Plan 02 并行写冲突；见 RESEARCH.md §Project Structure 决定）。
+   - Plan 02 本 task 的 tests 必须用 **直接子模块 import**：`from app.agent_builder.platforms.capabilities.im import IMCapability, MessageRef, NormalizedCard, RecipientSpec`（**不要** `from app.agent_builder.platforms.capabilities import ...`）
+   - Plan 03 Task 2 写 `__init__.py` 时含全 8 capability exports
+   - 若执行时发现 `capabilities/__init__.py` 不存在导致 import 失败：**临时创建空文件**（`touch`）让 import resolution 工作，但**不要**在文件内写 export — Plan 03 负责写完整内容
 
 3. **`backend/app/agent_builder/platforms/exceptions.py`**：
 ```python
@@ -179,15 +176,16 @@ class PluginInvocationError(PluginError):
    - 每方法带 docstring 说明语义 + Phase 4 对应映射
    - 文件 ≥ 90 行
 
-5. **`tests/platforms/test_capabilities_im.py`** 单测：
+5. **`tests/platforms/test_capabilities_im.py`** 单测（用**直接子模块 import** — Plan 02 不写 `__init__.py`）：
 ```python
 """IMCapability Protocol 单测 — isinstance + duck typing 路径。"""
 from __future__ import annotations
 
+import inspect
 from collections.abc import AsyncIterator
 from typing import Any
 
-from app.agent_builder.platforms.capabilities import (
+from app.agent_builder.platforms.capabilities.im import (
     IMCapability,
     MessageRef,
     NormalizedCard,
@@ -246,19 +244,31 @@ def test_kinds_enumerated():
     """RecipientSpec.kind 限定 channel/dm_user/thread。"""
     for k in ["channel", "dm_user", "thread"]:
         RecipientSpec(kind=k, id="x")  # type: ignore[arg-type] — Literal check
+
+
+def test_subscribe_events_is_async_generator():
+    """subscribe_events 必须是 async generator (yield 在 if False 分支)。
+
+    High 5 静态断言：使用 inspect.isasyncgenfunction 验证 — `if False: yield {}` 模式
+    通过 isinstance 路径但 isinstance(_MinimalIM(), IMCapability) 不检查方法类型。
+    显式断言更脆性可靠。
+    """
+    assert inspect.isasyncgenfunction(_MinimalIM.subscribe_events), (
+        "subscribe_events 必须是 async generator function（含 yield）"
+    )
 ```
 
-≥ 5 测试，覆盖 isinstance + 3 dataclass 不可变性 + Literal 枚举。
+≥ 6 测试，覆盖 isinstance + 3 dataclass 不可变性 + Literal 枚举 + async generator 静态断言。
   </action>
   <verify>
-    <automated>cd backend && python -c "from app.agent_builder.platforms.capabilities import IMCapability, RecipientSpec, NormalizedCard, MessageRef; print('OK')" && pytest tests/platforms/test_capabilities_im.py -v -x 2>&1 | tail -15 && wc -l backend/app/agent_builder/platforms/capabilities/im.py | awk '{exit ($1 >= 90 ? 0 : 1)}'</automated>
+    <automated>cd backend && python -c "from app.agent_builder.platforms.capabilities.im import IMCapability, RecipientSpec, NormalizedCard, MessageRef; print('OK')" && pytest tests/platforms/test_capabilities_im.py -v -x 2>&1 | tail -15 && wc -l backend/app/agent_builder/platforms/capabilities/im.py | awk '{exit ($1 >= 90 ? 0 : 1)}'</automated>
   </verify>
-  <done>IMCapability + 3 值对象可 import；5 单测 pass；im.py ≥ 90 行</done>
+  <done>IMCapability + 3 值对象可 import（直接子模块路径）；5 单测 pass；im.py ≥ 90 行</done>
 </task>
 
 <task type="auto">
   <name>Task 2: DocCapability Protocol + 双路径 replace/apply_delta + 单测</name>
-  <files>backend/app/agent_builder/platforms/capabilities/doc.py,backend/app/agent_builder/platforms/capabilities/__init__.py,tests/platforms/test_capabilities_doc.py</files>
+  <files>backend/app/agent_builder/platforms/capabilities/doc.py,tests/platforms/test_capabilities_doc.py</files>
   <action>
 1. **`backend/app/agent_builder/platforms/capabilities/doc.py`** 按 ADR-001 §3.2 + Huly acid test §3.2 gap 1：
 
@@ -361,23 +371,15 @@ class DocCapability(Protocol):
 
 文件 ≥ 90 行。每方法 docstring 说明双路径语义。
 
-2. **`backend/app/agent_builder/platforms/capabilities/__init__.py`** 追加 doc exports：
-```python
-from .doc import CommentRef, CRDTDelta, DocCapability, DocInfo, DocRef, UserRef  # noqa: F401
+2. **不修改 `capabilities/__init__.py`** — 由 Plan 03 独占写完整 exports（含 doc 6 类）。Plan 02 tests 直接 `from app.agent_builder.platforms.capabilities.doc import ...`。
 
-__all__ = [
-    "IMCapability", "MessageRef", "NormalizedCard", "RecipientSpec",
-    "DocCapability", "DocRef", "DocInfo", "CRDTDelta", "CommentRef", "UserRef",
-]
-```
-
-3. **`tests/platforms/test_capabilities_doc.py`** 单测：
+3. **`tests/platforms/test_capabilities_doc.py`** 单测（用**直接子模块 import**）：
 
 ```python
 """DocCapability 单测 — runtime_checkable + 双路径 + 值对象不可变。"""
 from __future__ import annotations
 
-from app.agent_builder.platforms.capabilities import (
+from app.agent_builder.platforms.capabilities.doc import (
     CRDTDelta,
     DocCapability,
     DocInfo,
@@ -477,9 +479,9 @@ def test_dual_path_mutual_exclusion():
 ≥ 6 测试，覆盖双 plugin 风格 isinstance + 值对象 + 双路径互斥 raise。
   </action>
   <verify>
-    <automated>cd backend && python -c "from app.agent_builder.platforms.capabilities import DocCapability, DocRef, CRDTDelta, DocInfo; print('OK')" && pytest tests/platforms/test_capabilities_doc.py -v -x 2>&1 | tail -15 && wc -l backend/app/agent_builder/platforms/capabilities/doc.py | awk '{exit ($1 >= 90 ? 0 : 1)}'</automated>
+    <automated>cd backend && python -c "from app.agent_builder.platforms.capabilities.doc import DocCapability, DocRef, CRDTDelta, DocInfo; print('OK')" && pytest tests/platforms/test_capabilities_doc.py -v -x 2>&1 | tail -15 && wc -l backend/app/agent_builder/platforms/capabilities/doc.py | awk '{exit ($1 >= 90 ? 0 : 1)}'</automated>
   </verify>
-  <done>DocCapability + 5 值对象可 import；6 单测 pass；doc.py ≥ 90 行；双路径互斥语义明确（错路径 NotImplementedError）</done>
+  <done>DocCapability + 5 值对象可 import（直接子模块路径）；6 单测 pass；doc.py ≥ 90 行；双路径互斥语义明确（错路径 NotImplementedError）</done>
 </task>
 
 </tasks>

@@ -9,6 +9,7 @@ files_modified:
   - backend/app/agent_builder/platforms/manifest.py
   - backend/app/agent_builder/platforms/plugin.py
   - backend/app/agent_builder/platforms/registry.py
+  - backend/app/agent_builder/platforms/capability_facades.py
   - tests/platforms/test_manifest_schema.py
   - tests/platforms/test_registry.py
   - tests/platforms/fixtures/manifest_valid.yaml
@@ -36,6 +37,10 @@ must_haves:
       provides: "PlatformPluginRegistry — per-workspace 隔离 + 启动期 discover + 懒加载"
       exports: ["PlatformPluginRegistry"]
       min_lines: 150
+    - path: "backend/app/agent_builder/platforms/capability_facades.py"
+      provides: "capability_facades stub（IMFacade / DocFacade / HRFacade / IdentityFacade）— plan 05 替换为真 daemon 转发"
+      exports: ["IMFacade", "DocFacade", "HRFacade", "IdentityFacade"]
+      min_lines: 40
   key_links:
     - from: "backend/app/agent_builder/platforms/registry.py"
       to: "backend/app/models/workspace_plugin_installation.py"
@@ -302,8 +307,8 @@ config_schema: {}
 </task>
 
 <task type="auto">
-  <name>Task 2: PlatformPlugin 顶层类 + PlatformPluginRegistry + per-workspace 隔离测试</name>
-  <files>backend/app/agent_builder/platforms/plugin.py,backend/app/agent_builder/platforms/registry.py,tests/platforms/test_registry.py</files>
+  <name>Task 2: PlatformPlugin 顶层类 + PlatformPluginRegistry + capability_facades stub + per-workspace 隔离测试</name>
+  <files>backend/app/agent_builder/platforms/plugin.py,backend/app/agent_builder/platforms/registry.py,backend/app/agent_builder/platforms/capability_facades.py,tests/platforms/test_registry.py</files>
   <action>
 1. **`backend/app/agent_builder/platforms/plugin.py`** — lazy facade，本 plan 暂用 placeholder（daemon client 留 plan 05）：
 

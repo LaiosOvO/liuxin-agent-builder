@@ -141,7 +141,14 @@ Plans:
   5. **Acid test**：真实写一个 HulyPlugin stub（manifest + 4 facade + JSONRPC over stdio）+ 至少 1 capability call 通过单测（user 2026-05-17 硬性要求 — 不再让"抽象只在纸面"发生）
   6. DocCapability 设计稿 + Mock 单测覆盖 replace_content / apply_document_delta 双路径
   7. HRCapability 设计稿 + Mock 单测含 resolve_department_members（服务后续 dept: 表达式）
-**Plans**: TBD
+**Plans**: 7 plans
+  - [ ] 05a-01-PLAN.md — Skeleton：Dify reading doc + Alembic 0006 + tests 目录 (Wave 1)
+  - [ ] 05a-02-PLAN.md — IM + Doc Capability Protocol (Wave 2)
+  - [ ] 05a-03-PLAN.md — HR + Identity + Trigger + Tool Capability Protocol (Wave 2)
+  - [ ] 05a-04-PLAN.md — Manifest schema + PlatformPlugin + Registry + capability_facades stub (Wave 3)
+  - [ ] 05a-05-PLAN.md — PlatformDaemonClient + capability_facades 真接 daemon + MockPlugin (Wave 4)
+  - [ ] 05a-06-PLAN.md — LegacyIMProviderAdapter + base.py 双轨注册 + Registry fallback to legacy (Wave 4)
+  - [ ] 05a-07-PLAN.md — HulyPlugin acid test：真 subprocess + mock huly server + 1 send_card 端到端 + fault isolation (Wave 5)
 
 ### Phase 5.B: Plugin 沙箱 + Daemon 通信
 **Goal**: Plugin 跑在独立沙箱进程，主进程通过 JSONRPC over stdio 通信，fault isolation

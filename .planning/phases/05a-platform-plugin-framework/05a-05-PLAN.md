@@ -385,12 +385,24 @@ async def test_method_not_found_returns_error():
 
 @pytest.mark.asyncio
 async def test_daemon_crash_fails_pending_future():
-    """**Pitfall 2 关键**：daemon sys.exit(1) → pending future raise PluginDaemonExitedError。"""
-    client = PlatformDaemonClient(ECHO_MODULE)
+    """**Pitfall 2 关键 + High 4 修复**：daemon sys.exit(1) → pending future 在 < 2s 内 raise PluginDaemonExitedError（不许超时）。
+
+    High 4 修复点：
+    - 客户端 invoke_timeout=2.0（不是默认 30s）— fault isolation 必须快
+    - 只能 raise PluginDaemonExitedError（不接受 PluginInvocationError —— daemon 已死不可能再发 JSONRPC error response）
+    - 加 timing assertion：从 invoke 开始到 raise 必须 < 2.0s（防止退化为超时路径）
+    """
+    import time
+    client = PlatformDaemonClient(ECHO_MODULE, invoke_timeout=2.0)
     try:
-        with pytest.raises((PluginDaemonExitedError, PluginInvocationError)):
+        start = time.monotonic()
+        with pytest.raises(PluginDaemonExitedError):
             # echo_daemon 收到 im.crash 后 sys.exit(1)
             await client.invoke("im", "crash")
+        elapsed = time.monotonic() - start
+        assert elapsed < 2.0, (
+            f"daemon crash 检测耗时 {elapsed:.3f}s ≥ 2.0s — 走超时路径而非 fault isolation"
+        )
     finally:
         await client.close()
 

@@ -7,8 +7,10 @@ depends_on: ["04"]
 files_modified:
   - docs/reading-dify-05a-06-legacy-adapter-2026-05-17.md
   - backend/app/agent_builder/platforms/legacy_im_adapter.py
+  - backend/app/agent_builder/platforms/registry.py
   - backend/app/agent_builder/notification/providers/base.py
   - tests/platforms/test_legacy_im_adapter.py
+  - tests/platforms/test_registry.py
 autonomous: true
 requirements:
   - PLUG-FW-04
@@ -17,7 +19,8 @@ must_haves:
   truths:
     - "register_provider() 调用后，老 IMProvider 自动在 _PROVIDERS_AS_CAP dict 中以 LegacyIMProviderAdapter 包装存在"
     - "新代码通过 get_capability(IMCapability, prefer='feishu') 调老 Phase 4 provider，参数自动从 RecipientSpec/NormalizedCard 转旧 str/dict"
-    - "Phase 4 81 IM 测试套 + e2e_v2 26 specs 0 regression"
+    - "Registry.get_capability(IMCapability) 在缺 manifest plugin 时 fallback 到 _PROVIDERS_AS_CAP（Blocker 3 修复，让 CONTEXT decision '新老 plugin 共存' 真正落地）"
+    - "Phase 4 81 IM 测试套 + multichannel fan-out + e2e_v2 26 specs collect 三套 0 regression"
   artifacts:
     - path: "backend/app/agent_builder/platforms/legacy_im_adapter.py"
       provides: "LegacyIMProviderAdapter — Phase 4 IMProvider → IMCapability 适配层"
@@ -26,6 +29,9 @@ must_haves:
     - path: "backend/app/agent_builder/notification/providers/base.py"
       provides: "register_provider() 增强：自动 wrap 并存入 _PROVIDERS_AS_CAP（不破坏老 dict）"
       contains: "_PROVIDERS_AS_CAP"
+    - path: "backend/app/agent_builder/platforms/registry.py"
+      provides: "PlatformPluginRegistry.get_capability(IMCapability) fallback 到 _PROVIDERS_AS_CAP（Blocker 3 修复）"
+      contains: "_PROVIDERS_AS_CAP"
   key_links:
     - from: "backend/app/agent_builder/notification/providers/base.py"
       to: "backend/app/agent_builder/platforms/legacy_im_adapter.py"
@@ -33,7 +39,7 @@ must_haves:
       pattern: "wrap_legacy_provider"
     - from: "backend/app/agent_builder/platforms/registry.py"
       to: "_PROVIDERS_AS_CAP"
-      via: "get_capability(IMCapability) fallback：找不到 manifest plugin 时查 _PROVIDERS_AS_CAP"
+      via: "get_capability(IMCapability) fallback：找不到 manifest plugin 时查 _PROVIDERS_AS_CAP 返回 LegacyAdapter（Blocker 3 修复 — 必须真实实现，不仅声明）"
       pattern: "_PROVIDERS_AS_CAP"
 ---
 
@@ -415,8 +421,8 @@ def test_wrap_helper_returns_adapter():
 </task>
 
 <task type="auto">
-  <name>Task 2: base.py 增强 — register_provider 自动 wrap + _PROVIDERS_AS_CAP + Phase 4 regression 验证</name>
-  <files>backend/app/agent_builder/notification/providers/base.py,tests/platforms/test_legacy_im_adapter.py</files>
+  <name>Task 2: base.py 增强 + Registry fallback to LegacyAdapter + Phase 4 regression 验证</name>
+  <files>backend/app/agent_builder/notification/providers/base.py,backend/app/agent_builder/platforms/registry.py,tests/platforms/test_legacy_im_adapter.py,tests/platforms/test_registry.py</files>
   <action>
 1. **`backend/app/agent_builder/notification/providers/base.py`** — 用 Edit tool，**只追加**新代码，**绝不修改**已有 Protocol / `register_provider` / `get_provider` / `_PROVIDERS` 签名或行为：
 
@@ -552,18 +558,166 @@ def test_all_six_phase4_providers_wrap_correctly():
     clear_providers()
 ```
 
-3. **关键 regression 验证**：在 plan execute 时 verify 阶段必跑 Phase 4 既有测试套 0 regression：
+3. **Registry fallback to LegacyAdapter（Blocker 3 核心修复）**：用 Edit tool 修改 `backend/app/agent_builder/platforms/registry.py` 中 `PlatformPluginRegistry.get_capability` 方法，在 manifest plugin candidates 用尽后追加 fallback 逻辑：
 
-```bash
-cd backend && pytest tests/test_im_provider_*.py tests/test_notification_*.py -v --tb=short
+```python
+# registry.py get_capability 方法末尾，return None 之前追加
+# ── Blocker 3 修复：fallback 到 _PROVIDERS_AS_CAP（LegacyAdapter wrapped）─────
+# 当 manifest plugin 没声明该 capability 时，查 Phase 4 老 IMProvider 双轨注册表
+# 让"Phase 4 6 家 provider 通过 get_capability(IMCapability) 调到"承诺落地
+if cap_name == "im":
+    try:
+        from app.agent_builder.notification.providers.base import (
+            _PROVIDERS_AS_CAP,
+        )
+    except ImportError:
+        return None
+    # prefer 优先
+    if prefer and prefer in _PROVIDERS_AS_CAP:
+        return _PROVIDERS_AS_CAP[prefer]
+    # 否则返回任一已注册的 legacy adapter（按 name 排序确定性）
+    for name in sorted(_PROVIDERS_AS_CAP.keys()):
+        return _PROVIDERS_AS_CAP[name]
+
+return None
 ```
 
-预期：所有既有测试 PASS（数字应与 STATE.md 记录的 81 一致或更多）。
+**关键不变量**：
+- 仅 `cap_name == "im"` 时走 fallback（其他 capability 不存在 LegacyAdapter）
+- ImportError 捕获保证 `notification.providers.base` 未加载时 fallback 静默失败（fail-quiet）
+- prefer 优先 → 否则按 sorted name 取首个（确定性）
+
+4. **追加测试到 `tests/platforms/test_registry.py`**（用 Edit append）：
+
+```python
+
+
+# ── Blocker 3 fallback to LegacyAdapter 测试 ────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_get_capability_falls_back_to_legacy_when_no_manifest_plugin(fresh_registry):
+    """无 manifest plugin 声明 im 时，fallback 到 _PROVIDERS_AS_CAP wrapped LegacyAdapter。"""
+    from app.agent_builder.notification.providers.base import (
+        clear_providers,
+        register_provider,
+    )
+    from app.agent_builder.platforms.legacy_im_adapter import LegacyIMProviderAdapter
+
+    class _MockLegacyProvider:
+        def __init__(self, name):
+            self.name = name
+            self.supports_card_update = True
+
+        async def send_hitl_card(self, **kwargs):
+            return {"message_id": f"{self.name}-msg-1"}
+
+        async def update_card(self, **kwargs):
+            pass
+
+        async def send_supplement_text(self, **kwargs):
+            pass
+
+    clear_providers()
+    register_provider(_MockLegacyProvider("feishu"))
+
+    # Registry 中没 manifest plugin 声明 im
+    cap = await PlatformPluginRegistry.get_capability(
+        uuid.uuid4(), IMCapability, prefer="feishu",
+    )
+    assert cap is not None, "应当 fallback 到 _PROVIDERS_AS_CAP['feishu']"
+    assert isinstance(cap, LegacyIMProviderAdapter)
+    assert cap.name == "feishu"
+    clear_providers()
+
+
+@pytest.mark.asyncio
+async def test_get_capability_prefers_manifest_plugin_over_legacy(fresh_registry, plugins_dir_with_huly):
+    """既有 manifest plugin（huly）又有 legacy provider（feishu）时，manifest plugin 优先。"""
+    from app.agent_builder.notification.providers.base import (
+        clear_providers,
+        register_provider,
+    )
+
+    class _MockLegacyProvider:
+        def __init__(self, name):
+            self.name = name
+            self.supports_card_update = True
+
+        async def send_hitl_card(self, **kwargs):
+            return {"message_id": "m1"}
+
+        async def update_card(self, **kwargs):
+            pass
+
+        async def send_supplement_text(self, **kwargs):
+            pass
+
+    clear_providers()
+    PlatformPluginRegistry.discover(plugins_dir_with_huly)
+    register_provider(_MockLegacyProvider("feishu"))
+
+    # 不指定 prefer，应当先取 manifest plugin (huly) 的 facade
+    cap = await PlatformPluginRegistry.get_capability(uuid.uuid4(), IMCapability)
+    assert cap is not None
+    # huly facade name 应当是 manifest.name，不是 "feishu"
+    assert cap.name == "huly"
+    clear_providers()
+
+
+@pytest.mark.asyncio
+async def test_get_capability_non_im_does_not_fallback(fresh_registry):
+    """fallback 仅适用 IMCapability — TriggerCapability 等仍 return None。"""
+    from app.agent_builder.notification.providers.base import (
+        clear_providers,
+        register_provider,
+    )
+    from app.agent_builder.platforms.capabilities import TriggerCapability
+
+    class _MockLegacyProvider:
+        def __init__(self, name):
+            self.name = name
+            self.supports_card_update = True
+
+        async def send_hitl_card(self, **kwargs):
+            return {"message_id": "m1"}
+
+        async def update_card(self, **kwargs):
+            pass
+
+        async def send_supplement_text(self, **kwargs):
+            pass
+
+    clear_providers()
+    register_provider(_MockLegacyProvider("feishu"))
+    cap = await PlatformPluginRegistry.get_capability(uuid.uuid4(), TriggerCapability)
+    assert cap is None, "Trigger capability 不该 fallback 到 IM legacy"
+    clear_providers()
+```
+
+5. **关键 regression 验证**：plan execute 时 verify 阶段**必跑**以下三套测试 0 regression（Blocker 3 要求）：
+
+```bash
+cd backend
+# 5.1 Phase 4 IM provider 既有测试
+pytest tests/test_im_provider_*.py -v --tb=short
+
+# 5.2 Phase 4 多通道 notification 测试（multichannel fan-out）
+pytest tests/test_notification_multichannel.py -v --tb=short || pytest tests/test_notification_*.py -v --tb=short
+
+# 5.3 Phase 4 e2e_v2 26 specs smoke（仅 collect 不全跑 — 验证 fixture / import 0 regression）
+pytest tests/e2e_v2/ -v --co 2>&1 | tail -5
+```
+
+预期：
+- 5.1 全部 PASS（81 测试 ≥ STATE.md 记录数字）
+- 5.2 全部 PASS（multichannel fan-out 0 regression）
+- 5.3 26 specs 全部 collect 成功（不 collect error）
   </action>
   <verify>
-    <automated>cd backend && pytest tests/platforms/test_legacy_im_adapter.py -v -x 2>&1 | tail -20 && pytest tests/test_im_provider_*.py -v -x 2>&1 | tail -10 && python -c "from app.agent_builder.notification.providers.base import _PROVIDERS_AS_CAP, get_capability_for_legacy, list_legacy_capabilities; print('dual registry exists')"</automated>
+    <automated>cd backend && pytest tests/platforms/test_legacy_im_adapter.py tests/platforms/test_registry.py -v -x 2>&1 | tail -30 && pytest tests/test_im_provider_*.py -v -x 2>&1 | tail -10 && (pytest tests/test_notification_multichannel.py -v 2>&1 | tail -10 || pytest tests/test_notification_*.py -v 2>&1 | tail -10) && pytest tests/e2e_v2/ --co 2>&1 | tail -5 && python -c "from app.agent_builder.notification.providers.base import _PROVIDERS_AS_CAP, get_capability_for_legacy, list_legacy_capabilities; print('dual registry exists')"</automated>
   </verify>
-  <done>Phase 4 既有 IM 测试 0 regression；新增 3 测试 pass（_PROVIDERS_AS_CAP 双轨注册）；register_provider 行为兼容 + 增加 wrap 副作用；clear_providers 双 dict 都清空</done>
+  <done>Phase 4 既有 IM 测试 + multichannel + e2e_v2 collect 三套 0 regression；新增 6 测试 pass（_PROVIDERS_AS_CAP 双轨 + Registry fallback to legacy）；register_provider 行为兼容 + 增加 wrap 副作用；clear_providers 双 dict 都清空；Registry.get_capability(IMCapability) 在缺 manifest plugin 时正确 fallback 到 LegacyAdapter</done>
 </task>
 
 </tasks>
@@ -571,18 +725,22 @@ cd backend && pytest tests/test_im_provider_*.py tests/test_notification_*.py -v
 <verification>
 - [ ] Reading doc commit 在前
 - [ ] `pytest tests/platforms/test_legacy_im_adapter.py -v` 13+ tests pass
+- [ ] `pytest tests/platforms/test_registry.py -v` 11+ tests pass（含 3 个新 fallback 测试）
 - [ ] `pytest tests/test_im_provider_*.py -v` Phase 4 既有测试**全部 PASS**（数字 ≥ 81）
-- [ ] `pytest tests/test_notification_*.py -v` 0 regression
+- [ ] `pytest tests/test_notification_multichannel.py -v` 或 `pytest tests/test_notification_*.py -v` 0 regression
+- [ ] `pytest tests/e2e_v2/ -v --co` 26 specs 全部 collect 成功（Phase 4 04-12 e2e regression smoke）
 - [ ] `python -c "from app.agent_builder.notification.providers.base import IMProvider, register_provider"` 老 API 不变
+- [ ] Registry.get_capability(IMCapability) fallback 到 LegacyAdapter 测试通过（Blocker 3 修复）
 - [ ] black + ruff 通过
 </verification>
 
 <success_criteria>
 - LegacyIMProviderAdapter 实现 IMCapability Protocol 100%（runtime_checkable + 4 method + 3 cap flag）
 - base.py 双轨 Registry（_PROVIDERS + _PROVIDERS_AS_CAP）共存
-- Phase 4 81 IM 测试 0 regression — 用户硬性 DoD #3
+- **Registry.get_capability(IMCapability) fallback 到 _PROVIDERS_AS_CAP 真实实现（Blocker 3 修复 — 不仅 key_links 声明，registry.py 必须有对应代码）**
+- Phase 4 81 IM 测试 + multichannel + e2e_v2 26 specs collect 三套 0 regression — 用户硬性 DoD #3
 - 6 家 Phase 4 provider 模拟 wrap 全 isinstance IMCapability
-- KNOWN_PROVIDERS 不变；老调用 API 不变；新代码可走 `get_capability_for_legacy(name)` 拿 IMCapability
+- KNOWN_PROVIDERS 不变；老调用 API 不变；新代码可走 `get_capability_for_legacy(name)` 拿 IMCapability，或经 `Registry.get_capability(IMCapability, prefer='feishu')` 走 fallback
 </success_criteria>
 
 <output>

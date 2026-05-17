@@ -300,11 +300,18 @@ class IdentityCapability(Protocol):
    - `test_create_leave_request_source_of_truth_gate`：non-SoT plugin raise NotImplementedError
    - `test_list_employees_returns_tuple_with_cursor`：tuple(list, cursor) shape
 
-4. **`tests/platforms/test_capabilities_identity.py`** ≥ 4 测试，覆盖：
+4. **`tests/platforms/test_capabilities_identity.py`** ≥ 5 测试，覆盖：
    - `test_identity_capability_isinstance`：双 plugin（is_source_of_truth True/False）
    - `test_user_principal_frozen`
    - `test_user_change_event_kinds`：Literal 枚举边界
    - `test_watch_only_when_source_of_truth`：False plugin 调 raise
+   - `test_watch_user_changes_is_async_generator`（High 5 静态断言）：用 `inspect.isasyncgenfunction(SoTMockIdentity.watch_user_changes)` 验证 watch_user_changes 是 async generator function — 防 `if False: yield {}` 模式被误写成普通 async function
+     ```python
+     import inspect
+     assert inspect.isasyncgenfunction(SoTMockIdentity.watch_user_changes), (
+         "watch_user_changes 必须是 async generator function（含 yield）"
+     )
+     ```
 
 代码风格 black + ruff。
   </action>
@@ -446,16 +453,23 @@ __all__ = [
 
 **重要**：若 plan 02 已写过 `__init__.py` 仅含 IM exports，本 plan 必须**重写**它（不是 append — 因为 __all__ 也要重写）。两 plan 顺序执行（plan 02 先 → plan 03 重写）。
 
-4. **`tests/platforms/test_capabilities_trigger_tool.py`** ≥ 4 测试：
+4. **`tests/platforms/test_capabilities_trigger_tool.py`** ≥ 5 测试：
    - `test_trigger_capability_isinstance`
    - `test_tool_capability_isinstance`
    - `test_trigger_event_frozen`
    - `test_tool_spec_carries_json_schema`：input_schema 是 dict（不强类型化）
+   - `test_subscribe_events_is_async_generator`（High 5 静态断言）：用 `inspect.isasyncgenfunction(MockTrigger.subscribe_events)` 验证 subscribe_events 是 async generator function
+     ```python
+     import inspect
+     assert inspect.isasyncgenfunction(MockTrigger.subscribe_events), (
+         "TriggerCapability.subscribe_events 必须是 async generator function"
+     )
+     ```
   </action>
   <verify>
-    <automated>cd backend && python -c "from app.agent_builder.platforms.capabilities import IMCapability, DocCapability, HRCapability, IdentityCapability, TriggerCapability, ToolCapability, TriggerEvent, ToolSpec, ToolInvocationResult; print('all 6 caps importable')" && pytest tests/platforms/test_capabilities_trigger_tool.py -v -x 2>&1 | tail -10 && wc -l backend/app/agent_builder/platforms/capabilities/trigger.py | awk '{exit ($1 >= 40 ? 0 : 1)}' && wc -l backend/app/agent_builder/platforms/capabilities/tool.py | awk '{exit ($1 >= 40 ? 0 : 1)}'</automated>
+    <automated>cd backend && python -c "from app.agent_builder.platforms.capabilities import IMCapability, DocCapability, HRCapability, IdentityCapability, TriggerCapability, ToolCapability, TriggerEvent, ToolSpec, ToolInvocationResult; print('all 6 caps importable')" && pytest tests/platforms/test_capabilities_trigger_tool.py -v -x 2>&1 | tail -10 && wc -l backend/app/agent_builder/platforms/capabilities/trigger.py | awk '{exit ($1 >= 40 ? 0 : 1)}' && wc -l backend/app/agent_builder/platforms/capabilities/tool.py | awk '{exit ($1 >= 40 ? 0 : 1)}' && pytest tests/platforms/test_capabilities_im.py tests/platforms/test_capabilities_doc.py tests/platforms/test_capabilities_hr.py tests/platforms/test_capabilities_identity.py tests/platforms/test_capabilities_trigger_tool.py --cov=app/agent_builder/platforms/capabilities --cov-fail-under=80 2>&1 | tail -15</automated>
   </verify>
-  <done>6 Capability Protocols 全部 importable from `platforms.capabilities`；4 单测 pass；trigger.py + tool.py 各 ≥ 40 行</done>
+  <done>6 Capability Protocols 全部 importable from `platforms.capabilities`；5 单测 pass；trigger.py + tool.py 各 ≥ 40 行；**pytest --cov 强制 capabilities/ 覆盖率 ≥ 80%（High 3）**</done>
 </task>
 
 </tasks>
@@ -470,10 +484,11 @@ __all__ = [
 </verification>
 
 <success_criteria>
-- 6 Capability Protocol 文件全部存在 + 单测覆盖 ≥ 80%（约束在 plan 02 + plan 03 总和）
+- 6 Capability Protocol 文件全部存在 + **pytest --cov=app/agent_builder/platforms/capabilities --cov-fail-under=80 强制自动验证（High 3）**
 - HRCapability.resolve_department_members 接口为 Phase 5.D dept: 表达式预留
 - IdentityCapability.is_source_of_truth 解决 Huly acid test §6 反向 sync 设计问题
 - TriggerCapability / ToolCapability 仅骨架（实现留 Phase 5.D+）
+- `inspect.isasyncgenfunction` 静态断言覆盖 identity.watch_user_changes / trigger.subscribe_events（High 5 防 `if False: yield {}` 模式被误写）
 </success_criteria>
 
 <output>
