@@ -28,6 +28,10 @@ from app.agent_builder.models.notification import Notification
 # Phase 5.A PlatformPlugin 框架（per-workspace 安装态）
 from app.agent_builder.models.workspace_plugin_installation import WorkspacePluginInstallation
 
+# Phase 4.5 Bot Dispatcher 持久层（per-workspace bot 安装态 + dispatch 审计）
+from app.agent_builder.models.workspace_bot_installation import WorkspaceBotInstallation
+from app.agent_builder.models.bot_audit_log import BotAuditLog
+
 __all__ = [
     "Base",
     # Phase 1 模型
@@ -50,4 +54,7 @@ __all__ = [
     "Notification",
     # Phase 5.A PlatformPlugin 框架
     "WorkspacePluginInstallation",
+    # Phase 4.5 Bot Dispatcher
+    "WorkspaceBotInstallation",
+    "BotAuditLog",
 ]
