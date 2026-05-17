@@ -41,11 +41,24 @@ class FeishuCredentials:
 
 @dataclass(frozen=True)
 class WeComCredentials:
-    """企微凭据（wechatpy 1.8.18）。"""
+    """企微凭据（wechatpy 1.8.18）。
+
+    Plan 04-07 扩展：
+    - `bot_webhook_key`（可选）：群机器人 webhook key，用于 Bot Webhook fallback
+      路径（wechatpy templated card API 不可用时启用 — 详见
+      docs/reading-im-sdk-04-07-wecom-2026-05-17.md）
+
+    应用消息路径（corp_id + agent_id + secret）与 Bot Webhook 路径
+    （bot_webhook_key）相互独立，可单独配置或同时配置；运行时按 `use_bot_fallback`
+    切换。当应用消息凭据未配置但 bot_webhook_key 已配置时，WeComProvider 自动启用
+    fallback。
+    """
 
     corp_id: str
     agent_id: str
     secret: str
+    bot_webhook_key: str = ""
+    """企微群机器人 webhook key（可选，Plan 04-07）— 空字符串表示未配置。"""
 
 
 @dataclass(frozen=True)
@@ -126,18 +139,37 @@ class IMCredentialsManager:
                 "FeishuProvider 不可用"
             )
 
-        # 企微
+        # 企微（Plan 04-07：app message 三元组 + 可选 bot_webhook_key fallback）
         wcorp_id = os.environ.get("WECOM_CORP_ID", "").strip()
         wagent_id = os.environ.get("WECOM_AGENT_ID", "").strip()
         wsecret = os.environ.get("WECOM_SECRET", "").strip()
+        wbot_key = os.environ.get("WECOM_BOT_WEBHOOK_KEY", "").strip()
         if wcorp_id and wagent_id and wsecret:
+            # 主路径凭据齐全 → 创建 WeComCredentials（可附带 bot_webhook_key）
             self._wecom = WeComCredentials(
-                corp_id=wcorp_id, agent_id=wagent_id, secret=wsecret
+                corp_id=wcorp_id,
+                agent_id=wagent_id,
+                secret=wsecret,
+                bot_webhook_key=wbot_key,
+            )
+        elif wbot_key:
+            # Plan 04-07 fallback：仅 bot_webhook_key 配置（无 app message 凭据）
+            # 用占位 corp_id / agent_id / secret = "" 标识 fallback-only 模式
+            # WeComProvider 在 use_bot_fallback=True 时仅用 bot_webhook_key
+            self._wecom = WeComCredentials(
+                corp_id="",
+                agent_id="",
+                secret="",
+                bot_webhook_key=wbot_key,
+            )
+            log.warning(
+                "企微仅配置 Bot Webhook（缺 WECOM_CORP_ID / WECOM_AGENT_ID / WECOM_SECRET）— "
+                "WeComProvider 启用 fallback 模式，仅可向群投递"
             )
         else:
             log.warning(
-                "未配置企微凭据（WECOM_CORP_ID / WECOM_AGENT_ID / WECOM_SECRET）— "
-                "WeComProvider 不可用"
+                "未配置企微凭据（WECOM_CORP_ID / WECOM_AGENT_ID / WECOM_SECRET 或 "
+                "WECOM_BOT_WEBHOOK_KEY）— WeComProvider 不可用"
             )
 
         # 钉钉
