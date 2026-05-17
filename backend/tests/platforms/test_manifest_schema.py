@@ -468,6 +468,7 @@ class TestSandboxConfig:
         """plugins/huly/platform.yaml 含 sandbox 段后 load_manifest 仍通过。
 
         验证 Plan 05b-01 对 plugins/huly/platform.yaml 的扩展未破坏 5.A acid test 数据源。
+        Phase 5.C Plan 01 在 sandbox 段追加 docker_networks; 本测试一并校验 huly stack 内网。
         """
         # plugins/huly/platform.yaml 相对 backend/ 路径 = ../plugins/huly/platform.yaml
         huly_path = Path(__file__).parent.parent.parent.parent / "plugins" / "huly" / "platform.yaml"
@@ -481,6 +482,62 @@ class TestSandboxConfig:
         assert manifest.sandbox.timeout_invoke == 30
         assert manifest.sandbox.timeout_idle == 300
         assert manifest.sandbox.use_cgroups is False
+        # Phase 5.C Plan 01: huly_huly_net 内网 attach（Pattern 4）
+        assert manifest.sandbox.docker_networks == ["huly_huly_net"]
         # 派生属性
         assert manifest.sandbox.memory_bytes == 512 * 1024**2
         assert manifest.sandbox.cpu_limit_seconds == 3600  # cpu_limit='1.0' → 3600
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Phase 5.C Plan 01 — TestSandboxConfigDockerNetworks (DOC-SANDBOX-NET-01)
+# ──────────────────────────────────────────────────────────────────────────────
+
+
+class TestSandboxConfigDockerNetworks:
+    """Phase 5.C Plan 01 — SandboxConfig.docker_networks 字段校验（≥ 5 测试）。
+
+    覆盖矩阵:
+        - 默认空 list（PosixResourceSandbox no-op 路径）
+        - 合法 docker network 命名（alphanumeric + _/./-/数字混合）
+        - 含 `/` 拒（防 docker SDK 隐式拼接路径）
+        - 首字符 `-` 拒（docker network create 不接受）
+        - 含空格拒
+    """
+
+    def test_docker_networks_default_empty_list(self) -> None:
+        """默认空 list = no attach（PosixResourceSandbox no-op 路径）。"""
+        c = SandboxConfig()
+        assert c.docker_networks == []
+
+    def test_docker_networks_valid_names_accepted(self) -> None:
+        """合法 docker network 命名（alphanumeric + _/./-）接受。"""
+        c = SandboxConfig(
+            docker_networks=["huly_huly_net", "my-net", "net.1", "A1net"]
+        )
+        assert c.docker_networks == ["huly_huly_net", "my-net", "net.1", "A1net"]
+
+    def test_docker_networks_invalid_slash_rejected(self) -> None:
+        """含 `/` 的命名 → ValidationError（防 docker SDK 拼接路径）。"""
+        with pytest.raises(ValidationError, match="docker network 命名规范"):
+            SandboxConfig(docker_networks=["bad/name"])
+
+    def test_docker_networks_invalid_starts_with_dash_rejected(self) -> None:
+        """首字符必须 alphanumeric（不允许 `_`/`-` 开头）→ ValidationError。"""
+        with pytest.raises(ValidationError, match="docker network 命名规范"):
+            SandboxConfig(docker_networks=["-bad"])
+
+    def test_docker_networks_with_space_rejected(self) -> None:
+        """含空格 → ValidationError。"""
+        with pytest.raises(ValidationError, match="docker network 命名规范"):
+            SandboxConfig(docker_networks=["bad name"])
+
+    def test_docker_networks_with_colon_rejected(self) -> None:
+        """含 `:` → ValidationError（防 docker SDK 误用 host:port 格式）。"""
+        with pytest.raises(ValidationError, match="docker network 命名规范"):
+            SandboxConfig(docker_networks=["host:1234"])
+
+    def test_docker_networks_empty_string_rejected(self) -> None:
+        """空字符串 entry → ValidationError（regex 不匹配 0 长字符串）。"""
+        with pytest.raises(ValidationError, match="docker network 命名规范"):
+            SandboxConfig(docker_networks=[""])
