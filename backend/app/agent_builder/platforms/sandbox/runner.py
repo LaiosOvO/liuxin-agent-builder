@@ -133,6 +133,7 @@ class SandboxRunner(Protocol):
         memory_bytes: int,
         env: dict[str, str] | None = None,
         cwd: str | None = None,
+        docker_networks: list[str] | None = None,
     ) -> asyncio.subprocess.Process:
         """spawn 受限子进程。
 
@@ -143,6 +144,15 @@ class SandboxRunner(Protocol):
             env: 注入子进程的环境变量；None 时 merge `os.environ`（contract test 友好）
                 **Wave 3 注意**：真 env_allowlist 过滤在 daemon_client._build_filtered_env 做
             cwd: 子进程工作目录；None 继承父进程
+            docker_networks: spawn 后需要 attach 的 docker network 列表（None / [] = no attach）。
+                Phase 5.C Pattern 4 / Pitfall 5 新增 — 实现区分如下：
+
+                - **PosixResourceSandbox**: no-op + log info（daemon 是 host 进程，不在 container）
+                - **CgroupsV2Sandbox**: 真做 docker network connect（仅当 daemon pid 在 container 内）
+
+                Wave 2 三 plan（hr huly internal port / OutlinePlugin / LarkDocsPlugin）+
+                Wave 3 HulyPlugin 4-cap bundle 通过此参数让 daemon attach `huly_huly_net` 等
+                内部 bridge 网络（hr 教训 §4.4）。
 
         Returns:
             `asyncio.subprocess.Process` —— stdin/stdout/stderr 全 PIPE，可直接传给
