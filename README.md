@@ -167,17 +167,21 @@
 
 ---
 
-## 八、部署架构
+## 八、部署架构 + 边界
 
-> **核心约束（2026-05-18 确认）：部署目标是 docker 容器化，但 *容器内严禁再启 docker*（no DinD / no Docker-in-Docker）**。
+> **核心定位（2026-05-18 确认）：agent-builder 是 *HTTP 客户端 / 适配器 / MCP 封装层*，不是容器编排器。**
 
-### 后果
+### 职责边界
 
-- ❌ Plugin sandbox **不能**通过 `docker run` 在 app 容器内动态启子容器
-- ❌ `docker network connect <network> <container>` 假设有 host docker socket — 不走这条路
-- ✅ Plugin daemon 用 **Python subprocess + resource.setrlimit**（PosixResourceSandbox）即可在容器内运行
-- ✅ 需要专网访问的 plugin（如 HulyPlugin 调 `collaborator:3078`）通过 **docker-compose `networks` 声明加入**（容器启动时 join，不是运行时 attach）
-- ✅ 真 cgroups v2 enforce 只在 **裸金属 / VM** 部署生效，容器部署降级到 PosixResource baseline
+- ✅ **做**：通过 REST API 调外部 SaaS（Outline / Lark Docs / Huly / 飞书 / 企微 / 钉钉 / Slack / Mattermost 等），把它们的能力**封装成 Capability Protocol**（DocCapability / IMCapability / IdentityCapability / HRCapability 等）以及 MCP server
+- ❌ **不做**：不负责被调服务怎么部署（docker / k8s / 裸金属 / SaaS 托管 — 都不关心）；不在 app 容器内启子 docker 容器；不做容器网络运行时编排
+
+### 部署约束
+
+- **部署目标**：docker 容器化（docker-compose 一键起 api / worker / web / postgres / redis / nginx）
+- **严禁 DinD**（no Docker-in-Docker）：容器内不挂 `docker.sock`，不跑 `docker run`，不调 `docker network connect`
+- **Plugin daemon = Python subprocess**（PosixResourceSandbox + resource.setrlimit + AllowlistTransport），不是子容器
+- **跨网络访问**走标准网络配置（compose `networks` external 声明 / DNS / hostname:port），不在 runtime attach 网络
 
 ### 一键启动
 
@@ -196,23 +200,22 @@ docker-compose up -d
 open http://localhost:3000
 ```
 
-### 跨网络 plugin 接入（如 Huly）
+### 跨网络 plugin 接入
 
-在 `docker-compose.yml` 声明 app 容器加入外部网络：
+被调服务（如 Huly `collaborator:3078`）的可达性由**部署者**配置，agent-builder 仅做 HTTP 调用。常见模式：
 
-```yaml
-services:
-  api:
-    networks:
-      - default
-      - huly_huly_net   # 外部已存在的 Huly compose 网络
+| 部署场景 | 配置方式 |
+|---------|---------|
+| 同 host docker-compose | `docker-compose.yml` 声明 `networks: { huly_net: { external: true } }`，app 容器启动时 join |
+| 跨 host | 反代 / VPN / DNS 解析到目标 URL，env 注入 `HULY_URL=https://huly.internal:8087` |
+| SaaS 托管 | 直接公网 URL，env 注入 |
+| 同 host 进程 | 直接 `localhost:8087` |
 
-networks:
-  huly_huly_net:
-    external: true       # 不要让 compose 创建，复用外部
-```
+无论哪种，**plugin daemon 内部代码不变**——`httpx.AsyncClient(transport=AllowlistTransport([target_host]))` 即可。
 
-这样 app 容器内的 plugin daemon（Python subprocess）可以直接 `httpx.get("http://collaborator:3078")` —— **不需要在运行时 attach docker network**。
+### MCP 封装（v1.1+）
+
+每个 PlatformPlugin 的 Capability 可暴露为 MCP server（标准 stdio 或 SSE），允许第三方 AI agent（Claude Desktop / Cursor / OpenAI Assistant 等）直接调用 agent-builder 已封装的平台能力（如"用 LarkDocsPlugin 写文档"）。
 
 ### 开发流程
 
