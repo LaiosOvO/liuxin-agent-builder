@@ -391,7 +391,16 @@ def test_choose_runner_returns_injected_runner() -> None:
     """sandbox_runner 显式传入 → _choose_runner 直接返回（测试注入用）."""
 
     class _MockRunner:
-        async def spawn_with_limits(self, cmd, *, cpu_seconds, memory_bytes, env=None, cwd=None):
+        async def spawn_with_limits(
+            self,
+            cmd,
+            *,
+            cpu_seconds,
+            memory_bytes,
+            env=None,
+            cwd=None,
+            docker_networks=None,  # Phase 5.C Pattern 4 — Protocol signature 一致
+        ):
             raise NotImplementedError
 
     mock = _MockRunner()
@@ -424,7 +433,16 @@ async def test_sandbox_config_set_uses_sandbox_runner() -> None:
     spawn_calls: list[dict] = []
 
     class _MockRunner:
-        async def spawn_with_limits(self, cmd, *, cpu_seconds, memory_bytes, env=None, cwd=None):
+        async def spawn_with_limits(
+            self,
+            cmd,
+            *,
+            cpu_seconds,
+            memory_bytes,
+            env=None,
+            cwd=None,
+            docker_networks=None,  # Phase 5.C Pattern 4 — Protocol signature 一致
+        ):
             spawn_calls.append(
                 {
                     "cmd": cmd,
@@ -432,6 +450,7 @@ async def test_sandbox_config_set_uses_sandbox_runner() -> None:
                     "memory_bytes": memory_bytes,
                     "env": env,
                     "cwd": cwd,
+                    "docker_networks": docker_networks,
                 }
             )
             # 返回 None — 后续 start 会因 _proc.pid 报错；我们只验证 spawn 被调到
@@ -450,6 +469,8 @@ async def test_sandbox_config_set_uses_sandbox_runner() -> None:
     assert call["cmd"][-1] == ECHO_MODULE
     assert call["cpu_seconds"] == cfg.cpu_limit_seconds
     assert call["memory_bytes"] == cfg.memory_bytes
+    # Phase 5.C Plan 01: docker_networks 透传 (默认 SandboxConfig 是 [] 空 list)
+    assert call["docker_networks"] == cfg.docker_networks
     # env 走 _build_filtered_env，不含 secret
     import os
 
@@ -535,7 +556,16 @@ async def test_close_stops_watchdog_if_present() -> None:
     mock_proc.returncode = 0
 
     class _MockRunner:
-        async def spawn_with_limits(self, cmd, *, cpu_seconds, memory_bytes, env=None, cwd=None):
+        async def spawn_with_limits(
+            self,
+            cmd,
+            *,
+            cpu_seconds,
+            memory_bytes,
+            env=None,
+            cwd=None,
+            docker_networks=None,  # Phase 5.C Pattern 4 — Protocol signature 一致
+        ):
             return mock_proc
 
     cfg = SandboxConfig(memory="256Mi")
