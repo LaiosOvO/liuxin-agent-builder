@@ -1,6 +1,7 @@
 """HITL 节点 executor — LangGraph 1.2 interrupt + Command(resume) 集成。
 
-设计参考 docs/reading-dify-03-02-hitl-executor-2026-05-17.md：
+设计参考 docs/reading-dify-03-02-hitl-executor-2026-05-17.md
++ docs/reading-dify-04-11-hitl-node-chain-2026-05-17.md (Plan 04-11)：
 - Dify human_input_adapter EmailDeliveryConfig 模式 → 我们用 node_def.config.email_recipients
 - LangGraph 1.2 interrupt 返回值在 resume 后注入，节点函数前后两段执行
 - 节点函数会在 resume 时**从头重跑**（langgraph/types.py:801-890 docstring）
@@ -17,6 +18,12 @@ CLAUDE.md 2.4 多租户：
 CLAUDE.md 2.5：
 - 本节点不直接消费 jti（GET 不消费 + POST /hitl/action 才消费 — 03-06）
 - 本节点的 interrupt payload 仅描述决策上下文，不携带任何 token / 已生效凭证
+
+Plan 04-11 chain 集成：
+- interrupt_payload 加 4 chain 字段（chain_mode / approvers / current_idx / notify_channels）
+- 前端决策页据此渲染参与人列表 + 当前轮次进度
+- chain_mode 默认 'single'，approvers 默认 []，notify_channels 默认 ['email']
+  → Phase 3 旧 DSL 无任何 chain 字段时仍走 single 模式 100% 向后兼容
 """
 from __future__ import annotations
 
@@ -92,6 +99,17 @@ class HITLNodeExecutor(BaseNodeExecutor):
                 "缺少 _node_state_id（应由 ExecutionEngine 在节点 enter 时注入到 state）",
             )
 
+        # ── Plan 04-11: chain 元数据（前端决策页据此渲染参与人列表 + 进度）─
+        # 默认值保证 Phase 3 旧 DSL 无任何 chain 字段时仍走 single 模式 100% 向后兼容。
+        # 数据来源：ExecutionEngine._on_hitl_enter 通过 node_def.config 注入这些字段
+        # （chain_mode 已存进 node_state.payload.approval_chain，节点 enter 完成后 config 透传到 rendered_config）。
+        chain_mode = rendered_config.get("chain_mode", "single")
+        approvers_raw = rendered_config.get("approvers") or []
+        # approvers 序列化为 str list（UUID → str）便于 LangGraph checkpoint JSON 编码
+        approvers_serialized = [str(a) for a in approvers_raw]
+        current_idx = int(rendered_config.get("current_idx", 0))
+        notify_channels = list(rendered_config.get("notify_channels") or ["email"])
+
         interrupt_payload: dict[str, Any] = {
             "node_state_id": str(node_state_id),
             # Phase 3 single 模式：从 config / state 取 phase，默认 "submit"
@@ -99,6 +117,11 @@ class HITLNodeExecutor(BaseNodeExecutor):
             "form_schema": rendered_config.get("form_schema", {}),
             "deadline_at": rendered_config.get("deadline_at"),
             "current_actor": rendered_config.get("current_actor"),
+            # ── Plan 04-11 chain 元数据 ──────────────────────────────────────
+            "chain_mode": chain_mode,
+            "approvers": approvers_serialized,
+            "current_idx": current_idx,
+            "notify_channels": notify_channels,
         }
 
         # ── 2. interrupt() — 暂停 graph 或读取 resume value ─────────────────
