@@ -68,3 +68,7 @@ sandbox:
   use_cgroups: false
   env_allowlist:
     - HULY_ENDPOINT
+  # Phase 5.C Pattern 4 — Huly daemon 必 attach huly_huly_net 才能调 collaborator:3078
+  # (PosixResourceSandbox 路径自动 no-op；仅在 CgroupsV2Sandbox 容器化部署生效)
+  docker_networks:
+    - huly_huly_net
