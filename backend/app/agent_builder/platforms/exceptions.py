@@ -81,3 +81,66 @@ class PluginInvocationError(PluginError):
             f"Plugin invocation error: code={error_payload.get('code', '?')} "
             f"message={error_payload.get('message', '?')}"
         )
+
+
+class SandboxLimitExceeded(PluginError):
+    """Sandbox 资源超限（CPU / memory）— watchdog 检测时 raise。
+
+    触发时机（Wave 3 watchdog task，Plan 05b-04）：
+    - watchdog 每 5s 读 `/proc/<pid>/status` RSS 或 cgroup `memory.current`
+    - 发现 RSS > `sandbox.memory_bytes` → SIGTERM grace 3s → SIGKILL
+    - 同时 raise SandboxLimitExceeded 给所有 pending invoke future（不阻塞）
+
+    本 Plan 05b-02 仅定义异常类（占位），Wave 3 真消费。
+
+    Attributes:
+        kind: 限制类型（"cpu" / "memory" / "nproc" / "nofile"）
+        limit: 限制值（bytes / seconds / count）
+        actual: 实际值（超限时的观测值）
+    """
+
+    def __init__(self, kind: str, limit: int, actual: int | None = None):
+        self.kind = kind
+        self.limit = limit
+        self.actual = actual
+        msg = f"Sandbox {kind} limit exceeded: limit={limit}"
+        if actual is not None:
+            msg += f" actual={actual}"
+        super().__init__(msg)
+
+
+class NetworkBlockedError(PluginError):
+    """非白名单 host:port 出站 — AllowlistTransport raise（Plan 05b-03）。
+
+    触发时机（Plan 05b-03 AllowlistTransport.handle_async_request）：
+    - daemon httpx.AsyncClient 发起 HTTP 请求
+    - AllowlistTransport 检查 `url.host:url.port` 不在 `sandbox.network` 白名单
+    - raise NetworkBlockedError("xxx.com:443 not in allowlist")
+
+    本 Plan 05b-02 仅定义异常类（占位），Plan 05b-03 真消费。
+
+    Attributes:
+        host: 被拦截的 host
+        port: 被拦截的 port
+        allowlist: 当前白名单（dict 或 list）
+    """
+
+    def __init__(self, host: str, port: int, allowlist: list[str] | None = None):
+        self.host = host
+        self.port = port
+        self.allowlist = allowlist or []
+        super().__init__(
+            f"Network egress blocked: {host}:{port} not in allowlist "
+            f"(size={len(self.allowlist)})"
+        )
+
+
+__all__ = [
+    "PluginError",
+    "ManifestValidationError",
+    "CapabilityMissingError",
+    "PluginDaemonExitedError",
+    "PluginInvocationError",
+    "SandboxLimitExceeded",
+    "NetworkBlockedError",
+]
