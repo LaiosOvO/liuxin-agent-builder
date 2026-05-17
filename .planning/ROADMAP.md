@@ -15,7 +15,7 @@
 - [x] **Phase 3: HITL 单节点 + Email 审批** - 四态决策、Token 即登录、邮件深链、公网回调 ✓ 2026-05-17
 - [x] **Phase 4: 审批链 + IM 通知** - 4 种审批链模式、飞书/企微/钉钉/Slack/Mattermost 通知卡片（12/12 plan Complete，待 /gsd:verify-work 验证）
 - [ ] **Phase 4.5: Bot Triggers + Slash 分发 + Reply (双向 IM)** - 通用 Bot Trigger/Reply 节点 + Slash 命令路由，Mattermost 先行，飞书/企微/钉钉/Slack 后补
-- [ ] **Phase 5.A: PlatformPlugin 框架（Dify-style）** - PlatformPlugin / 6 Capability Protocols / Manifest / Registry / LegacyAdapter（不破 Phase 4）
+- [x] **Phase 5.A: PlatformPlugin 框架（Dify-style）** - PlatformPlugin / 6 Capability Protocols / Manifest / Registry / LegacyAdapter / HulyPlugin acid test 5/5 pass（7/7 verified Score）✓ 2026-05-17
 - [ ] **Phase 5.B: Plugin 沙箱 + Daemon 通信** - JSONRPC over stdio + 资源限制 + fault isolation（合并原 Phase 6 沙箱）
 - [ ] **Phase 5.C: DocCapability 真接入** - Outline + Lark + Huly multi-capability plugin（CRDT collab edit + 全量 replace 双路径）
 - [ ] **Phase 5.D: HRCapability + Identity 反向 sync** - 飞书/企微/钉钉/Huly HR 接入 + user_platform_mappings 反向同步 + dept: 表达式解析
@@ -226,7 +226,7 @@ Plans:
 | 3. HITL 单节点 + Email 审批 | 10/10 | ✓ Complete | 2026-05-17 |
 | 4. 审批链 + IM 通知 | 12/12 | ✓ Complete | 2026-05-17 |
 | 4.5. Bot Triggers + Slash | 0/TBD | Not started | - |
-| 5.A. PlatformPlugin 框架（Dify-style）| 0/TBD | Not started | - |
+| 5.A. PlatformPlugin 框架（Dify-style）| 7/7 | ✓ Complete | 2026-05-17 |
 | 5.B. Plugin 沙箱 + Daemon 通信 | 0/TBD | Not started | - |
 | 5.C. DocCapability 真接入 | 0/TBD | Not started | - |
 | 5.D. HRCapability + Identity 反向 sync | 0/TBD | Not started | - |
