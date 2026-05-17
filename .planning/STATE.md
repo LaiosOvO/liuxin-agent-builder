@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: milestone
 status: unknown
-last_updated: "2026-05-17T12:13:48.476Z"
+last_updated: "2026-05-17T12:39:16.817Z"
 progress:
   total_phases: 6
   completed_phases: 4
   total_plans: 45
-  completed_plans: 41
+  completed_plans: 43
 ---
 
 # Project State
@@ -22,12 +22,12 @@ See: .planning/PROJECT.md (updated 2026-05-16)
 
 ## Current Position
 
-Phase: 5.A of 7 (PlatformPlugin 框架，Dify-style) — Wave 2 全部完成
-Plan: 03 of 07 in current phase（Plan 01 ✓ + Plan 02 ✓ + Plan 03 ✓ Wave 2 收官）
-Status: 🚀 Plan 05a-03 Complete（HRCapability + IdentityCapability + TriggerCapability + ToolCapability + 完整 capabilities/__init__.py 24 exports）
-Last activity: 2026-05-17 — Plan 05a-03 完成（Wave 2 收官并行：HR 8 method 含 resolve_department_members 接口为 Phase 5.D dept: 表达式预留 + Identity is_source_of_truth flag 解决 Huly acid test §6 反向 sync 设计 + Trigger/Tool v1.1 Protocol 骨架留 Phase 5.D+ + capabilities/__init__.py 重写 24 exports 含 try/except ImportError 处理并行执行边界 + 98.01% capability 覆盖率 ≥ 80% 硬性要求 + 41 Plan 03 单测 pass + 全 6 capability 累积 58 tests 0 regression + Phase 4 IM 51 测试 0 regression + 6 借鉴点指回 Dify 模块 / License attribution / inspect.isasyncgenfunction 静态断言 watch_user_changes + subscribe_events）
+Phase: 5.A of 7 (PlatformPlugin 框架，Dify-style) — Wave 3 启动
+Plan: 04 of 07 in current phase（Plan 01 ✓ + Plan 02 ✓ + Plan 03 ✓ + Plan 04 ✓ Wave 3 首发完成）
+Status: 🚀 Plan 05a-04 Complete（PlatformManifest Pydantic v2 schema extra=forbid + PlatformPluginRegistry per-workspace 隔离 + PlatformPlugin lazy facade + capability_facades stub + plugins/huly/platform.yaml fixture）
+Last activity: 2026-05-17 — Plan 05a-04 完成（Wave 3 首发：PlatformManifest 顶层 schema + 3 嵌套子类型 extra=forbid 严格 + load_manifest yaml.safe_load 异常翻译 + PlatformPluginRegistry classmethod-only 进程级 singleton + _PLUGINS (workspace_id, plugin_name) tuple key Pitfall 5 防护 + discover() fail-fast + get_plugin 懒加载缓存 + get_capability 按类型路由 fail-quiet + prefer 参数 + PlatformPlugin 4 lazy facade 共享 _daemon + attach_daemon 注入预留点 + 重复 attach raise + capability_facades 4 stub class IMFacade/DocFacade/HRFacade/IdentityFacade 共享 _BaseFacade Plan 05 替换为真 daemon 转发 0 接口破坏 + plugins/huly/platform.yaml Plan 07 acid test 入口 + 36 单测 pass（13 manifest + 13 registry 含 test_two_workspaces_isolated Pitfall 5 关键 + 10 plugin_facades 含 isasyncgenfunction 静态断言）+ 94/94 全 platforms tests 累积 + Phase 4 IM 51 测试 0 regression + 6 借鉴点指回 Dify Manifest/PluginService/Permission 模块 + License attribution Apache-2.0 vs AGPL-3.0 + ruff clean + black clean）
 
-Progress: [█████████░] 91%（4/7 phases complete; Phase 5.A 3/7 plans done — Wave 2 全部完成，Wave 3 待 Plan 04 PluginRegistry 启动）
+Progress: [█████████░] 92%（4/7 phases complete; Phase 5.A 4/7 plans done — Wave 3 首发完成，Wave 4 待 Plan 05 LegacyAdapter + Daemon Client 启动）
 
 ## Performance Metrics
 
@@ -78,6 +78,7 @@ Progress: [█████████░] 91%（4/7 phases complete; Phase 5.A 
 | Phase 04-approval-chain-im P12 | ~35min | 6 tasks（Task 0 双 reading doc + Task 1 backend test_helpers + Task 1.5 e2e_v2 helpers + Task 2 3 chain specs + Task 3-5 3 final specs）| 22 files (16 created + 3 modified + 3 docs) — 36 测试 (10 backend test_helpers + 26 e2e_v2 specs Smoke 全 skip / Standard 跑全部) / 17 Phase 1-3 Playwright spec 完全不动 / 54 关联 backend 测试 0 regression |
 | Phase 05a-platform-plugin-framework P02 | ~14min | 3 tasks（Task 0 reading doc + Task 1 IMCapability + Task 2 DocCapability）| 7 files (1 doc + 4 source + 2 test) — 17 测试 (8 IM + 9 Doc) / 74/74 platforms tests pass / Phase 4 IM Protocol 0 regression / Huly acid test gap #a + #2 解决 / 注：Task 1 文件被并行 Plan 03 commit b0353c0 一并 bundled（git ls-tree 验证文件归属正确）|
 | Phase 05a-platform-plugin-framework P03 | 15min | 3 tasks | 10 files |
+| Phase 05a-platform-plugin-framework P04 | 15m | 3 tasks | 12 files |
 
 ## Accumulated Context
 
@@ -338,6 +339,32 @@ Recent decisions affecting current work:
 - [Phase 05a-02]: 不写 capabilities/__init__.py 完整 exports — Plan 03 独占（避免并行写冲突）；Plan 02 tests 用直接子模块 import `from app.agent_builder.platforms.capabilities.im import ...`
 - [Phase 05a-02]: capabilities/__init__.py 空 placeholder（Plan 02 创建）— 实际被并行 Plan 03 commit b0353c0 overwrite 为完整 exports（含 IM/Doc 条件 import + 4 类必有 export）
 - [Phase 05a-02]: Task 1 文件（exceptions.py + im.py + test_capabilities_im.py + platforms/__init__.py）被并行 Plan 03 agent 一并 bundled 到 commit b0353c0 — git 文件归属 / 内容 100% 按 Plan 02 PLAN.md 设计，仅 commit message 归属 Plan 03（良性 git 行为，无返工）
+- [Phase 05a-04]: PlatformManifest name pattern `^[a-z][a-z0-9_-]{2,31}$` 比 Dify `^[a-z0-9_-]{1,128}$` 更严 — 首字符强制小写字母 + 长度 3-32（便于 daemon 进程名 / 文件路径 / log subject 生成）
+- [Phase 05a-04]: PlatformManifest version 三段 SemVer `^\\d+\\.\\d+\\.\\d+$` 简化 vs Dify `packaging.Version` 接受 dev/rc 后缀 — v1 不支持预发布版本（v2 可放宽）
+- [Phase 05a-04]: CapabilitySpec 聚合单 class 含全 6 cap flag（vs PLAN.md 推荐分散 IMCapabilitySpec/DocCapabilitySpec/...）— extra=forbid 仍生效防 typo，让 manifest YAML 结构平 + 字段少（6 个）union 模型实用（v2 字段多了可拆细）
+- [Phase 05a-04]: PlatformManifest 顶层 + 3 嵌套子类型（RuntimeConfig/CapabilitySpec/SandboxConfig）全 ConfigDict(extra="forbid") — 顶层 + 嵌套都防 typo（CONTEXT.md 强制决策）
+- [Phase 05a-04]: load_manifest 异常翻译模式 — yaml.YAMLError / Pydantic ValidationError / file not found / 顶层非 mapping 统一翻译为 ManifestValidationError（用 `raise ... from e` 保 chain）
+- [Phase 05a-04]: PlatformPluginRegistry classmethod-only + 模块级 class var _MANIFESTS / _PLUGINS — 进程级 singleton（多 worker 共享 read-only manifest + lazy plugin instance），测试用 clear() fixture 隔离
+- [Phase 05a-04]: _PLUGINS dict key = (workspace_id, plugin_name) tuple — **Pitfall 5 per-workspace 隔离的关键防护**（vs 单 dict[plugin_name] 串户事故）；test_two_workspaces_isolated 明确验证
+- [Phase 05a-04]: discover() fail-fast — 任一 manifest 校验失败 raise PluginError 阻断启动（Dify 同策略，防生产期半挂状态）
+- [Phase 05a-04]: discover() 重复 plugin name 检测 — 两个不同目录都声明同 name → 第二个 raise PluginError("duplicate")（防 manifest 拷贝/分发场景的意外重名）
+- [Phase 05a-04]: discover() 无 platform.yaml 子目录静默跳过 — plugins/docs / plugins/__pycache__ 等 CI / 工具目录不报错
+- [Phase 05a-04]: get_plugin 懒加载缓存 — 同 workspace 二次访问返回同一 PlatformPlugin instance；首次创建时 daemon=None（Plan 05+ 通过 attach_daemon 注入）
+- [Phase 05a-04]: get_capability fail-quiet 返回 None — 缺 capability 不抛 CapabilityMissingError（CONTEXT.md 决策；调用方显式 `if cap is None: log + fallback`，让 workflow 不中断）
+- [Phase 05a-04]: get_capability prefer 参数 — 优先选指定 plugin；prefer plugin 未声明该 capability 时自动 fallback 到候选列表其他 plugin
+- [Phase 05a-04]: _capability_type_to_name 模块级 dict 映射 6 capability — IMCapability/DocCapability/HRCapability/IdentityCapability/TriggerCapability/ToolCapability → "im"/"doc"/"hr"/"identity"/"trigger"/"tool"
+- [Phase 05a-04]: PlatformPlugin 4 lazy facade 共享同一 _daemon — `@property im/doc/hr/identity` + _cap_cache（首次访问实例化 + 二次返回 cache）；4 facade 共享 daemon 是 RESEARCH §Pattern 4 关键设计
+- [Phase 05a-04]: PlatformPlugin.attach_daemon 重复 attach raise RuntimeError — 每 plugin 1 daemon 严格 1:1（Plan 05+ Registry 一次注入；防误用重复 spawn）
+- [Phase 05a-04]: PlatformPlugin TYPE_CHECKING import `daemon_client.PlatformDaemonClient` + `capabilities.*` — 引用 Plan 06 尚未创建的模块，from __future__ import annotations 让前向引用合法
+- [Phase 05a-04]: capability_facades.py 选 (b) 创建 stub class（vs (a) 在 plugin.py @property 内部 import）— Plan 05 替换方法实现保签名 → 0 接口破坏；IDE/mypy 不报 ModuleNotFoundError
+- [Phase 05a-04]: capability_facades 4 stub class（IMFacade/DocFacade/HRFacade/IdentityFacade）共享 _BaseFacade(_daemon, _manifest) 父类 — Plan 05 演进只需在 _BaseFacade 加 `async def _invoke(self, capability, method, **kwargs)` 真转发
+- [Phase 05a-04]: subscribe_events / watch_user_changes stub 也用 `if False: yield {}` 模式 — 保 async generator function 标记（与 Plan 02/03 inspect.isasyncgenfunction 静态断言一致）；test_facade_async_generator_is_marked 验证
+- [Phase 05a-04]: v1 Plan 04 不强制 DB workspace_plugin_installations 表查询 — get_plugin 直接从 _MANIFESTS dict（Plan 05+ install lifecycle 接入后再加 status='installed' 过滤）
+- [Phase 05a-04]: plugins/huly/platform.yaml fixture 就位 — Plan 07 acid test 入口（discover 目标）；plugins/huly/__init__.py + huly_plugin.py daemon entry 留 Plan 07 创建
+- [Phase 05a-04]: 6 借鉴点指回 Dify Manifest/PluginService/Permission 模块（≥ 5 PLAN.md 要求）— PluginDeclaration Pydantic v2 / PluginCategory StrEnum vs Literal / PluginInstallation tenant scoping / PluginService static / plugin_permission_service ACL / 启动期-懒加载分离
+- [Phase 05a-04]: [Rule 1 - Bug] test_get_capability_im_returns_facade 初版 hr_cap_none 断言错误 — fixture manifest_valid.yaml 实际声明 4 capability 含 hr；改 isinstance(hr_cap, HRFacade) 与其他 capability 同模式
+- [Phase 05a-04]: [Rule 1 - Bug] manifest.py docstring 含 `\\d` 触发 Python 3.13 SyntaxWarning — module docstring 前缀 `"""` 改为 raw string `r"""` 不处理 escape sequence
+- [Phase 05a-04]: [Rule 3 - Blocking] ruff UP037 quoted-annotation 9 处 + I001 unsorted-imports 3 处 + black reformat 7 文件 — `ruff check --fix` + `black` 自动修复全部；re-run 测试全 pass 确认无回归
 
 ### Pending Todos
 
@@ -353,9 +380,9 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-05-17
-Stopped at: Completed 05a-03-PLAN.md（HRCapability + IdentityCapability + TriggerCapability + ToolCapability v1.1 骨架 + 完整 capabilities/__init__.py 24 exports — Wave 2 收官 — HR 8 method 含 resolve_department_members 接口为 Phase 5.D dept: 表达式预留 + Identity is_source_of_truth flag 解决 Huly acid test §6 反向 sync 设计 + Trigger/Tool v1.1 Protocol 骨架留 Phase 5.D+ + capabilities/__init__.py 重写 24 exports 含 try/except ImportError 处理并行执行边界 + 98.01% capability 覆盖率 ≥ 80% 硬性要求 + 41 Plan 03 单测 pass + 全 6 capability 累积 58 tests 0 regression + Phase 4 IM 51 测试 0 regression + 6 借鉴点指回 Dify 模块 / License attribution / inspect.isasyncgenfunction 静态断言 watch_user_changes + subscribe_events）
+Stopped at: Completed 05a-04-PLAN.md（PlatformManifest Pydantic v2 schema extra=forbid 严格 + 3 嵌套子类型 + load_manifest yaml.safe_load 异常翻译 + PlatformPluginRegistry classmethod-only 进程级 singleton + _PLUGINS (workspace_id, plugin_name) tuple key Pitfall 5 防护 + discover() fail-fast + duplicate name 检测 + get_plugin 懒加载缓存 + get_capability 按类型路由 fail-quiet + prefer 参数 + PlatformPlugin 4 lazy facade 共享 _daemon + attach_daemon 注入预留 + 重复 attach raise + capability_facades 4 stub class 共享 _BaseFacade Plan 05 替换 0 接口破坏 + subscribe_events/watch_user_changes 保 async generator 标记 + plugins/huly/platform.yaml Plan 07 入口 + 36 单测 pass 13/13/10 + 94/94 全 platforms tests 累积 + Phase 4 IM 51 测试 0 regression + 6 借鉴点指回 Dify Manifest/PluginService/Permission 模块 + License attribution Apache-2.0 vs AGPL-3.0 + ruff clean + black clean）
 Resume file: None
-Next action: Plan 04 (PluginRegistry per-workspace 隔离 + 懒加载 daemon) / Wave 3 启动
+Next action: Plan 05 (LegacyIMProviderAdapter + PlatformDaemonClient + MockPlatformPlugin) / Wave 4 启动
 
 ### Plan 05a-03 关键决策
 

@@ -141,11 +141,11 @@ Plans:
   5. **Acid test**：真实写一个 HulyPlugin stub（manifest + 4 facade + JSONRPC over stdio）+ 至少 1 capability call 通过单测（user 2026-05-17 硬性要求 — 不再让"抽象只在纸面"发生）
   6. DocCapability 设计稿 + Mock 单测覆盖 replace_content / apply_document_delta 双路径
   7. HRCapability 设计稿 + Mock 单测含 resolve_department_members（服务后续 dept: 表达式）
-**Plans**: 7 plans (Plan 01/02/03 ✅ Done)
+**Plans**: 7 plans (Plan 01/02/03/04 ✅ Done — Wave 3 首发完成 4/7 57%)
   - [x] 05a-01-PLAN.md — Skeleton：Dify reading doc + Alembic 0006 + tests 目录 (Wave 1) — 2026-05-17 完成（16 smoke + 70 phase 4 regression / 0 fail / SUMMARY 已建）
   - [x] 05a-02-PLAN.md — IM + Doc Capability Protocol (Wave 2) — 2026-05-17 完成（17 测试 8 IM + 9 Doc / 全 pass / Huly acid test gap #a + #2 解决 / 双路径 replace_content vs apply_delta + RecipientSpec 多态 + 8 值对象 frozen=True）
   - [x] 05a-03-PLAN.md — HR + Identity + Trigger + Tool Capability Protocol (Wave 2) — 2026-05-17 完成（41 测试 13 HR + 11 Identity + 17 Trigger/Tool / 全 pass / 与 Plan 02 并行 bundled commit b0353c0）
-  - [ ] 05a-04-PLAN.md — Manifest schema + PlatformPlugin + Registry + capability_facades stub (Wave 3)
+  - [x] 05a-04-PLAN.md — Manifest schema + PlatformPlugin + Registry + capability_facades stub (Wave 3) — 2026-05-17 完成（36 测试 13 manifest schema 含 extra=forbid + 13 registry 含 test_two_workspaces_isolated Pitfall 5 防护 + 10 plugin_facades 含 isasyncgenfunction 静态断言 / 全 pass / 94/94 platforms tests 累积 / 51/51 Phase 4 IM 0 regression / PlatformManifest 4 类 extra=forbid + RuntimeConfig/CapabilitySpec/SandboxConfig / load_manifest yaml.safe_load 异常翻译 / Registry classmethod-only 进程级 singleton 含 discover/get_plugin/get_capability/clear / 4 lazy facade 共享 _daemon + attach_daemon 注入预留 / capability_facades 4 stub class Plan 05 替换 0 接口破坏 / plugins/huly/platform.yaml Plan 07 acid test 入口 / 6 借鉴点指回 Dify Manifest+PluginService+Permission / License attribution / PLUG-FW-02 + PLUG-FW-03 双 requirement 完成）
   - [ ] 05a-05-PLAN.md — PlatformDaemonClient + capability_facades 真接 daemon + MockPlugin (Wave 4)
   - [ ] 05a-06-PLAN.md — LegacyIMProviderAdapter + base.py 双轨注册 + Registry fallback to legacy (Wave 4)
   - [ ] 05a-07-PLAN.md — HulyPlugin acid test：真 subprocess + mock huly server + 1 send_card 端到端 + fault isolation (Wave 5)
