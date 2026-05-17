@@ -54,7 +54,8 @@ E2E 是**第一公民**，不是"可选的最后一步"。验收准则：**所�
 
 - 后端测试：`pytest` + `pytest-asyncio` + `httpx.AsyncClient`（真实 DB 用 `testcontainers-postgres` / `pytest-postgresql`，不 mock）
 - 前端测试：`vitest` + `@testing-library/react`
-- **E2E 测试**：通过 Skill `webapp-testing`（Playwright）；测试用例放 `e2e/` 目录
+- **E2E 测试**：**`browser-use/browser-harness`**（https://github.com/browser-use/browser-harness — 12.9k stars, MIT, Python, LLM-driven self-healing harness）— 测试用例放 `e2e/` 目录；clone 到 `/Users/admin/ai/ref/agent/browser-harness/`，第一次用前必读其 README + 写 reading doc（CLAUDE.md §2.7 模式）
+- **历史 Playwright spec**（Phase 1/2/3 `e2e/*.spec.ts`）暂保留不删；Phase 4+ 新 E2E 用 browser-harness（用户 2026-05-17 指令）
 - **Safe Links 模拟**：E2E 必包含 `MICROSOFT_DEFENDER_BOT` UA / `OUTLOOK_SAFE_LINKS_BOT` UA 触发 token 链接 GET 的用例
 
 ### 2.3 不改 flock 上游文件（Fork discipline）
