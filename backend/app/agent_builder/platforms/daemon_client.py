@@ -343,6 +343,7 @@ class PlatformDaemonClient:
                     memory_bytes=self._sandbox_config.memory_bytes,
                     env=env,
                     cwd=self._cwd,
+                    docker_networks=self._sandbox_config.docker_networks,  # Phase 5.C Pattern 4
                 )
             else:
                 # 5.A 兼容路径（不动 5.A 11 测试 + 5/5 acid test）
