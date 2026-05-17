@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-last_updated: "2026-05-16T21:54:43.753Z"
+last_updated: "2026-05-17T06:10:00.000Z"
 progress:
-  total_phases: 5
+  total_phases: 7
   completed_phases: 3
-  total_plans: 38
-  completed_plans: 28
+  total_plans: 50
+  completed_plans: 30
 ---
 
 # Project State
@@ -23,11 +23,11 @@ See: .planning/PROJECT.md (updated 2026-05-16)
 ## Current Position
 
 Phase: 4 of 7 (审批链 + IM 通知)
-Plan: 2 of 12 in current phase（Wave 2 04-04 完成；04-02/04-03 并行进行中）
-Status: ⏳ Phase 4 Wave 2 进行 — 04-04 escalation 4 表达式 resolve + perform fan-out 完成；04-02 chain executor / 04-03 delegation 并行 dispatch 中
-Last activity: 2026-05-17 — Plan 04-04 完成（HITL-04 完整 4 表达式 prefix 路由 email/user:/role:/dept:NotImpl + perform_escalation 多 email fan-out 多 audit_log + structured logger hitl.escalation.resolved；19 个新测试通过 + 21 个 Phase 3 向后兼容测试全绿 = 40 个 escalation 测试；返回类型 str → list[str] 向后兼容；多租户越权防护 JOIN UserWorkspaceRole 强制 workspace_id；dept: Phase 5 hook NotImpl）
+Plan: 4 of 12 in current phase（Wave 2 完成 — 04-01 / 04-02 / 04-03 / 04-04 全部 SUMMARY 落地）
+Status: ✅ Phase 4 Wave 2 完成 — chain executor (04-02) + delegation API (04-03) + escalation 4 表达式 (04-04) 全部 SUMMARY 落地；Wave 3 04-05+ IM Provider 抽象 准备启动
+Last activity: 2026-05-17 — Plan 04-02 + 04-03 完成（HITL-02 chain 4 模式 service 层完整 + HITL-06 任务委托端点完整：submit_action 11 步插入 chain 分叉 + advisory_lock 内 invalidate_chain + 结构化日志 hitl.chain.advance；POST /hitl/action/<jwt>?op=delegate 端点 + create_delegate_token + 5 DelegateError 错误码 + 委托链深度 ≤ 3 + deadline 重置；总计 41 集成测试通过 真实 PG + Redis 全绿）
 
-Progress: [█████░░░░░] 44%（3/7 phases complete; Phase 4 2/12 plans done）
+Progress: [█████░░░░░] 46%（3/7 phases complete; Phase 4 4/12 plans done）
 
 ## Performance Metrics
 
@@ -66,7 +66,8 @@ Progress: [█████░░░░░] 44%（3/7 phases complete; Phase 4 2/
 | Phase 03-hitl-email P10 | 10min | 4 tasks | 10 files |
 | Phase 04-approval-chain-im P01 | 10min | 3 tasks | 6 files |
 | Phase 04-approval-chain-im P04 | 9min | 3 tasks | 6 files |
-| Phase 04-approval-chain-im P04 | 9 min | 3 tasks | 6 files |
+| Phase 04-approval-chain-im P02 | 16min | 3 tasks（Task0 reading doc + Task1 batch_create_tokens + Task2 chain executor）| 5 files (3 created + 2 modified) — 21 集成测试 (15 chain + 6 batch) |
+| Phase 04-approval-chain-im P03 | 11min | 3 tasks（Task0 reading doc + Task1 service + Task2 API endpoint + tests）| 6 files (3 created + 3 modified) — 20 集成测试 (11 service + 9 API) |
 
 ## Accumulated Context
 
@@ -224,6 +225,26 @@ Recent decisions affecting current work:
 - [Phase 04-04]: role: miss → fallback admin（与无 escalate_to 一致行为）—  不是「role: 必须命中」严格模式，保持 fallback chain 单一可预测
 - [Phase 04-04]: structured logger.info('hitl.escalation.resolved', extra={expression, matched_count, successful_count, ws_id, ns_id, instance_id}) — Phase 7 ELK / Loki 表达式命中可观测性输入
 - [Phase 04-04]: 单 email try/except 包住 — 一人发邮件失败不阻塞其他升级人（借鉴 Dify timeout task：单 form 异常不阻塞 worker）
+- [Phase 04-02]: submit_action 在 Phase 3 11 步流程中插入 step 6 chain 分叉 (compute_chain_advance) — 保留 Phase 3 advisory_lock / jti 消费 / sibling 失效原结构，最小侵入 + 100% 单人模式向后兼容
+- [Phase 04-02]: parallel_* mode invalidate_siblings 改为只失效自己其他 action token (_invalidate_self_other_actions) — 不像 single/sequential 整 node_state 失效（其他 actor 还需继续审批）
+- [Phase 04-02]: parallel_* 终止（任一 reject 或 parallel_any 任一 approve）→ invalidate_chain 在 advisory_lock 内调（Pitfall 2 防 race）
+- [Phase 04-02]: sequential approve 推进 → batch_create_tokens_for_actors(next_approvers, ['approve','return','reject']) — chain 中非首发审批人无 submit 权
+- [Phase 04-02]: audit_log per submission 加 chain_mode + invalidated_count + next_approvers — 多人审批审计完整
+- [Phase 04-02]: structured log message='hitl.chain.advance' + 8 字段 extra dict — Phase 7 ELK / Loki 结构化查询友好（vs 字符串拼接）
+- [Phase 04-02]: ChainActorNotAuthorized 翻译 compute_chain_advance ValueError → 403（actor 不在 approvers）；不在 service 层暴露 ValueError 给 API 层
+- [Phase 04-02]: chain_advance 失败 → 整事务回滚（jti 消费 + sibling 失效全 rollback） — 半状态防护
+- [Phase 04-02]: single 模式仍走 compute_chain_advance 包装（new_status 仍用 compute_next_status）—向后兼容 Phase 3 测试 100%
+- [Phase 04-02]: _supplement_notify 按 actor_id 去重发邮件 — A reject 时 B/C 6 token 失效只发 2 封（per actor 一封）避免邮件骚扰
+- [Phase 04-03]: deadline_at **重置** (now + node_config.timeout_seconds) — 不继承原 deadline（04-RESEARCH §三决策修正 CONTEXT）；被委托人新上岗给完整 timeout 窗口
+- [Phase 04-03]: 委托链深度 MAX_DELEGATION_DEPTH=3 常量定义 — 防责任稀释 + 防委托环；超过 raise DelegateError → 409 Conflict
+- [Phase 04-03]: 5 DelegateError 错误码 + HTTP 状态映射：depth_exceeded → 409；self_delegate / circular / recipient_not_found / cross_workspace → 422
+- [Phase 04-03]: 双层防环：to_user.id != from_user.id (self_delegate) + to_user.id NOT IN approvers_ids (circular)
+- [Phase 04-03]: 同 workspace 强校验 SQL JOIN user_workspace_roles — 跨 ws 返回 recipient_not_found（统一 422 防 tenant 存在性泄漏，非 403）
+- [Phase 04-03]: 原 token 立即失效 HitlTokenStore.consume + used_ip 标 ':delegate' 后缀识别来源（与 sibling-invalidate / chain-invalidate / 真实用户消费四种来源审计区分）
+- [Phase 04-03]: records 追加 type=delegate 一条（含 delegate_to_id + depth + ip + ua） + approval_chain.delegated[from_user_id] = {to, depth} immutable 更新
+- [Phase 04-03]: DelegateError 业务校验失败 → db.rollback 防 token 半状态（原 token 已 consume 但 new_tokens 未创建）
+- [Phase 04-03]: 用 op Query 参数路由 vs 新路由 /hitl/delegate — 选 op Query (复用 advisory_lock + JWT 解码 + cookie 校验)；新路由需重复 200+ 行前置代码
+- [Phase 04-03]: [Rule 3 - Blocking] 回归测试用 Accept: application/json 走 JSON 路径 — 规避 deferred-items.md §1 记录的 Starlette 1.0 HTML 模板预先存在 bug（不在 04-03 范围）
 
 ### Pending Todos
 
@@ -239,6 +260,6 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-05-17
-Stopped at: Completed 04-04-PLAN.md（Phase 4 Wave 2 — escalation 4 表达式 resolve + perform 多 email fan-out + 19 新测试通过）
+Stopped at: Completed 04-02-PLAN.md + 04-03-PLAN.md（Phase 4 Wave 2 完成：chain executor + delegation API + 41 集成测试 + 2 SUMMARY）
 Resume file: None
-Next action: 等待 Wave 2 同时并行的 04-02 chain executor + 04-03 delegation 完成 → Wave 3 04-05+ IM Provider 抽象
+Next action: Wave 3 04-05+ IM Provider 抽象（Protocol + Factory + im_jobs.py）启动；同 wave 04-06/07/08/09 5 家 IM Provider 可并行 dispatch

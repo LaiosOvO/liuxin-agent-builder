@@ -100,9 +100,9 @@ Plans:
   6. 审批人能把待办任务委托给同事，委托记录写入审计日志
 **Plans** (12 total, Wave 1+2+3+4+5+6+7):
 - [x] 04-01-PLAN.md — chain payload + invalidate_chain + Alembic 0005 partial index（ChainAdvanceResult frozen dataclass + compute_chain_advance 4 mode × 3 action 状态机 + HitlTokenStore.invalidate_chain + 40 测试通过；HITL-02 + HITL-06 基础设施层完成，2026-05-17 完成）
-- [ ] 04-02-PLAN.md — chain executor (HitlActionService 4 mode 完整支持)
-- [ ] 04-03-PLAN.md — delegation API + 服务方法
-- [ ] 04-04-PLAN.md — EscalationService 4 表达式扩展
+- [x] 04-02-PLAN.md — chain executor (HitlActionService.submit_action 4 mode 完整分支 + invalidate_chain in advisory_lock + 结构化日志 hitl.chain.advance 8 字段 + 21 集成测试通过；HITL-02 完成，2026-05-17 完成)
+- [x] 04-03-PLAN.md — delegation API (POST /hitl/action/<jwt>?op=delegate + create_delegate_token + DelegateError 5 错误码 + 委托链深度 ≤ 3 + deadline 重置 + 20 集成测试通过；HITL-06 完成，2026-05-17 完成)
+- [x] 04-04-PLAN.md — EscalationService 4 表达式扩展 (resolve email/user:/role:/dept:NotImpl + perform 多 email fan-out + 40 escalation 测试通过；HITL-04 完成，2026-05-17 完成)
 - [ ] 04-05-PLAN.md — IMProvider Protocol + Factory + im_jobs.py
 - [ ] 04-06-PLAN.md — Feishu Provider (lark-oapi 1.6.5)
 - [ ] 04-07-PLAN.md — WeCom Provider (wechatpy 1.8.18 + Bot fallback)
@@ -174,8 +174,8 @@ Plans:
 |-------|----------------|--------|-----------|
 | 1. Skeleton + 账号体系 | 6/6 | ✓ Complete | 2026-05-16 |
 | 2. DSL 引擎 + 基础节点 | 10/10 | ✓ Complete | 2026-05-17 |
-| 3. HITL 单节点 + Email 审批 | 6/10 | In Progress |  |
-| 4. 审批链 + IM 通知 | 2/12 | In Progress | - |
+| 3. HITL 单节点 + Email 审批 | 10/10 | ✓ Complete | 2026-05-17 |
+| 4. 审批链 + IM 通知 | 4/12 | In Progress | - |
 | 4.5. Bot Triggers + Slash | 0/TBD | Not started | - |
 | 5. IM 目录双向同步 | 0/TBD | Not started | - |
 | 6. 插件机制 | 0/TBD | Not started | - |
