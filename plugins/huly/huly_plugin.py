@@ -52,6 +52,68 @@ _HTTP_TIMEOUT_SECONDS = 5.0
 # ── Capability handlers ──────────────────────────────────────────────────────
 
 
+def _parse_network_allow() -> list[str]:
+    """从 env ``PLUGIN_NETWORK_ALLOW`` 解出 ``["host:port", ...]`` 白名单。
+
+    主进程（Plan 05b-04 daemon_client）会从 manifest ``sandbox.network`` 转化
+    为 ``,`` 分隔字符串注入子进程；本函数解析后供 ``make_sandboxed_http_client`` 用。
+
+    - env 未设 / 空字符串 → 返回 ``[]`` → ``im_send_card`` 走 5.A aiohttp fallback 路径
+      （保证 5.A acid test 0 regression — 5.A 测试 fixture 不设此 env）
+    - env 非空 → 走 Plan 05b-03 新 httpx + AllowlistTransport 路径
+    """
+    raw = os.environ.get("PLUGIN_NETWORK_ALLOW", "")
+    return [entry.strip() for entry in raw.split(",") if entry.strip()]
+
+
+async def _im_send_card_sandboxed(
+    params: dict[str, Any], allow_list: list[str]
+) -> dict[str, Any]:
+    """Plan 05b-03 新路径：用 AllowlistTransport 注入的 httpx.AsyncClient 发请求。
+
+    **lazy import**（HIGH-2 fix）— ``from app.agent_builder...`` 仅在此函数被调时才执行。
+    5.A acid test 不设 ``PLUGIN_NETWORK_ALLOW`` → ``_parse_network_allow()`` 返回 ``[]``
+    → ``im_send_card`` 走 aiohttp 分支 → 本函数从不被调用 → import 不执行
+    → 子进程 PYTHONPATH 未含 backend/ 也不会 ModuleNotFoundError。
+    """
+    # lazy import — 防 5.A acid test daemon spawn 时 PYTHONPATH 未含 backend/ 立即崩溃
+    from app.agent_builder.platforms.sandbox.network import (
+        make_sandboxed_http_client,
+    )
+
+    recipient = params["recipient"]
+    card = params["card"]
+    idempotency_key = params["idempotency_key"]
+
+    body = {
+        "channel": recipient["id"],
+        "message": f"## {card['title']}\n\n{card['body_markdown']}",
+        "idempotency_key": idempotency_key,
+    }
+
+    async with make_sandboxed_http_client(
+        allow_list, timeout=_HTTP_TIMEOUT_SECONDS
+    ) as client:
+        resp = await client.post(
+            f"{HULY_ENDPOINT}/api/v1/chunter/messages",
+            json=body,
+        )
+        if resp.status_code != 200:
+            raise RuntimeError(
+                f"Huly chunter API returned HTTP {resp.status_code}: {resp.text}"
+            )
+        data = resp.json()
+
+    return {
+        "plugin_name": "huly",
+        "native_id": data["message_id"],
+        "extras": {
+            "channel": recipient["id"],
+            "preview": data.get("echoed_message_preview", ""),
+        },
+    }
+
+
 async def im_send_card(params: dict[str, Any]) -> dict[str, Any]:
     """IMCapability.send_card 真实实现（acid test 核心路径）。
 
@@ -60,7 +122,13 @@ async def im_send_card(params: dict[str, Any]) -> dict[str, Any]:
     - card: ``asdict(NormalizedCard(title=..., body_markdown=..., actions=[...]))``
     - idempotency_key: str
 
-    实现：
+    **env-gated 双路径**（Plan 05b-03 引入；5.A 0 regression 关键）:
+
+    - ``PLUGIN_NETWORK_ALLOW`` 未设 / 空字符串 → 走 5.A 原 aiohttp 路径（fallback）
+    - ``PLUGIN_NETWORK_ALLOW="host:port,..."`` → 走 Plan 05b-03 新 httpx +
+      AllowlistTransport 路径（``_im_send_card_sandboxed``）
+
+    实现（共通）：
     1. 把 NormalizedCard 转 markdown body（``## title\\n\\n body_markdown``）
     2. POST 到 ``{HULY_ENDPOINT}/api/v1/chunter/messages``
        body: ``{channel, message, idempotency_key}``
@@ -71,8 +139,15 @@ async def im_send_card(params: dict[str, Any]) -> dict[str, Any]:
         ``{"plugin_name": "huly", "native_id": <huly message_id>, "extras": {...}}``
 
     Raises:
-        aiohttp.ClientError: HTTP 失败 → daemon dispatcher 转 JSONRPC -32000 error
+        aiohttp.ClientError / RuntimeError: HTTP 失败 → daemon dispatcher 转 JSONRPC -32000 error
+        NetworkBlockedError: 新路径下 HULY_ENDPOINT host 不在白名单时 raise（Plan 05b-03）
     """
+    allow_list = _parse_network_allow()
+    if allow_list:
+        # Plan 05b-03 新路径 — 仅在主进程明示注入 env 时走（5.A acid test 不触发）
+        return await _im_send_card_sandboxed(params, allow_list)
+
+    # 5.A 原路径 — aiohttp fallback（acid test 走此路径，0 regression）
     recipient = params["recipient"]
     card = params["card"]
     idempotency_key = params["idempotency_key"]
