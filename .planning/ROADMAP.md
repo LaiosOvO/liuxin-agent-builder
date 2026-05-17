@@ -105,7 +105,7 @@ Plans:
 - [x] 04-04-PLAN.md — EscalationService 4 表达式扩展 (resolve email/user:/role:/dept:NotImpl + perform 多 email fan-out + 40 escalation 测试通过；HITL-04 完成，2026-05-17 完成)
 - [x] 04-05-PLAN.md — IMProvider Protocol + Registry + MockIMProvider + IMCredentialsManager + im_jobs.send_hitl_card_job（鸭子类型 + 5 家 frozen dataclass 凭据 + Phase 4.5 接口预留 + tenacity 3 次重试 + 结构化日志 'im.card.send' + 43 单元/集成测试通过；Wave 3 抽象层完成，2026-05-17 完成）
 - [ ] 04-06-PLAN.md — Feishu Provider (lark-oapi 1.6.5)
-- [ ] 04-07-PLAN.md — WeCom Provider (wechatpy 1.8.18 + Bot fallback)
+- [x] 04-07-PLAN.md — WeCom Provider (wechatpy 1.8.18 + Bot Webhook fallback：spike 发现 wechatpy 1.8.18 完全无 template_card API + 双路径架构 markdown 4 链接 / 主路径 app message + Fallback Bot Webhook envelope 完全一致 / supports_card_update=False + update_card NotImplementedError 引导 send_supplement_text 兜底 / 错误统一包装 ConnectionError 触发 tenacity 重试 / WeComCredentials 新增 bot_webhook_key 字段向后兼容 / IMCredentialsManager 支持 fallback-only 模式 / lifespan 自动按凭据注册 / markdown 注入防护 5 类转义 + 2048 byte 边界 / 34 测试全绿 + 77 IM 测试 0 regression；NOTI-03 完成，2026-05-17 完成)
 - [x] 04-08-PLAN.md — DingTalk Provider (dingtalk-stream 0.24.3 + ActionCard btn_orientation="0" 横排 3 按钮 + OAPI asyncsend_v2 直调 + update_card→NotImplemented 走 send_supplement_text + lifespan 按需注册 + 37 测试通过；NOTI-04 完成，2026-05-17 完成)
 - [ ] 04-09-PLAN.md — Slack + Mattermost Provider
 - [ ] 04-10-PLAN.md — NotificationService 多通道 fan-out + schema 扩展

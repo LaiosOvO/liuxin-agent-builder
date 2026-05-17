@@ -71,6 +71,7 @@ Progress: [███████░░░] 58%（3/7 phases complete; Phase 4 9/
 | Phase 04-approval-chain-im P05 | 25min | 4 tasks | 14 files |
 | Phase 04 P08 | 9min | 3 tasks（Task0 reading doc + Task1 card builder + Task2 Provider）| 7 files (5 created + 2 modified) — 37 测试 (19 单元 + 18 集成) / 80 IM 测试 0 regression / 锁定 dingtalk-stream==0.24.3 |
 | Phase 04-approval-chain-im P06 | 12min | 3 tasks | 7 files |
+| Phase 04-approval-chain-im P07 | ~10min | 4 tasks（Task0 reading doc + Task1 spike 30min 上限内 5min 完成 + Task2 card builder + Task3 Provider/lifespan）| 8 files (5 created + 3 modified) — 34 测试 (17 card + 17 provider) / 77 IM 测试 0 regression / wechatpy 1.8.18 模块路径 enterprise 而非 work + 无 template_card API → 双路径 markdown 方案 |
 
 ## Accumulated Context
 
@@ -278,6 +279,20 @@ Recent decisions affecting current work:
 - [Phase 04-approval-chain-im]: [Phase 04-06] importlib.metadata.version 取代不存在的 lark.__version__ — SDK 版本校验陷阱
 - [Phase 04-approval-chain-im]: [Phase 04-06] update_card 24h 过期 (code=234016) → log warning 不抛错，避免 tenacity 无谓重试
 - [Phase 04-approval-chain-im]: [Phase 04-06] 同步 lark-oapi 1.6.5 在 asyncio 内通过 loop.run_in_executor 包装 — 未公开 AsyncClient
+- [Phase 04-07]: Spike 关键发现 — wechatpy 1.8.18 模块路径是 `wechatpy.enterprise` 不是 `wechatpy.work`（现代版本路径不存在），且完全无 template_card/button_interaction API；唯一能放置多链接的是 `send_markdown`（markdown 子集支持 `[text](url)`）
+- [Phase 04-07]: 不引入 wxwork/wecom-api 替代 SDK — 未审计供应链风险更大；wechatpy markdown 4 链接是等效体验
+- [Phase 04-07]: 双路径架构（主路径 wechatpy app message user-targeted + Fallback Bot Webhook 群投递）— SDK 停更时 fallback 完全独立运作（仅依赖 httpx）
+- [Phase 04-07]: 自动 fallback 选择 — app 凭据缺失但 bot_webhook_key 存在 → use_bot_fallback=True 自动开启（用户无需手动配置 flag）
+- [Phase 04-07]: 主路径 + fallback 共享 build_wecom_markdown_content（envelope 完全一致：{msgtype:markdown, markdown:{content}}）— DRY
+- [Phase 04-07]: WeChatClientException + 业务 errcode≠0 + httpx 错误**统一**包装为 ConnectionError → 让 im_jobs tenacity 3 次重试（token 抖动 / 临时权限刷新场景必须可重试）
+- [Phase 04-07]: 错误消息截断 200 字符（CLAUDE.md security 防 secret 泄露 / 日志爆量）
+- [Phase 04-07]: update_card 显式 NotImplementedError + supports_card_update=False 类属性 — 让 04-10 fan-out 调用方据此自动选择 send_supplement_text 兜底
+- [Phase 04-07]: WeComCredentials 新增 bot_webhook_key 字段默认 ""（向后兼容 — 上游 15 个 credentials 单元测试零修改）
+- [Phase 04-07]: IMCredentialsManager._load_from_env 支持 fallback-only 模式（仅 bot_webhook_key 配置时创建 WeComCredentials with empty app fields）
+- [Phase 04-07]: WeComProvider 延迟 SDK import + _get_client 私有方法 — 测试 monkeypatch 可拦截 client，主代码无需 wechatpy 可成功 import
+- [Phase 04-07]: markdown 注入防护 5 类转义（方括号 `[` `]` / 反引号 `` ` `` / 星号 `*` / 下划线 `_` / 角括号 `<` `>`）+ 2048 byte 边界保护（超长截断 description + utf-8 字符边界对齐）
+- [Phase 04-07]: [Rule 1 - Test Bug] test_content_with_only_subset_of_deeplinks 误判（'详情' 在 description label 中也出现） → 改为 `[详情](` 链接形态精确匹配
+- [Phase 04-07]: [Rule 1 - Test Bug] test_send_via_app_message_passes_correct_agent_id_and_recipient agent_id 期望 str → wechatpy 要求 int，调整断言为 int
 
 ### Pending Todos
 
@@ -293,6 +308,6 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-05-17
-Stopped at: Completed 04-08-PLAN.md（Phase 4 Wave 4：钉钉 ActionCard 工作通知出站投递 — DingTalkProvider 实现 IMProvider Protocol + build_dingtalk_action_card (btn_orientation="0" 横排 3 中文按钮) + access_token via SDK + httpx.AsyncClient OAPI 直调 + update_card → NotImplementedError + send_supplement_text 兜底 + agent_builder/main.py lifespan 按需注册扩展点 + 37 测试全绿 + 80 IM 测试 0 regression）
+Stopped at: Completed 04-07-PLAN.md（Phase 4 Wave 4：企微 WeCom IM 通知出站投递 — wechatpy 1.8.18 spike 发现完全无 template_card API → markdown 4 链接方案 + Bot Webhook fallback 双路径架构 + 共享 build_wecom_markdown_content / app_message / webhook envelope 完全一致 + supports_card_update=False 类属性 + update_card NotImplementedError 引导 send_supplement_text 兜底 + 错误统一包装为 ConnectionError 触发 tenacity 重试 + WeComCredentials 新增 bot_webhook_key 字段向后兼容 + IMCredentialsManager 支持 fallback-only 模式 + lifespan 自动按凭据注册 + markdown 注入防护 + 2048 byte 边界保护 + 34 测试全绿 / 77 IM 测试 0 regression）
 Resume file: None
 Next action: Wave 5 04-10 multichannel fan-out（NotificationService 扩展支持 notify_channels 数组 + 并发投递路由到 5 家 Provider Registry + sibling token 跨通道失效）
