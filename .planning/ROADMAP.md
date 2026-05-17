@@ -15,9 +15,12 @@
 - [x] **Phase 3: HITL 单节点 + Email 审批** - 四态决策、Token 即登录、邮件深链、公网回调 ✓ 2026-05-17
 - [x] **Phase 4: 审批链 + IM 通知** - 4 种审批链模式、飞书/企微/钉钉/Slack/Mattermost 通知卡片（12/12 plan Complete，待 /gsd:verify-work 验证）
 - [ ] **Phase 4.5: Bot Triggers + Slash 分发 + Reply (双向 IM)** - 通用 Bot Trigger/Reply 节点 + Slash 命令路由，Mattermost 先行，飞书/企微/钉钉/Slack 后补
-- [ ] **Phase 5: IM 目录双向同步** - 三家 IM 用户/部门同步、Assignee 多形态解析、高级节点
-- [ ] **Phase 6: 插件机制** - 沙箱执行、插件安装/注册/卸载、画布动态加载
-- [ ] **Phase 7: 可观测性 + 运维工具** - 实例 Timeline、预置模板、审计日志、运维工具
+- [ ] **Phase 5.A: PlatformPlugin 框架（Dify-style）** - PlatformPlugin / 6 Capability Protocols / Manifest / Registry / LegacyAdapter（不破 Phase 4）
+- [ ] **Phase 5.B: Plugin 沙箱 + Daemon 通信** - JSONRPC over stdio + 资源限制 + fault isolation（合并原 Phase 6 沙箱）
+- [ ] **Phase 5.C: DocCapability 真接入** - Outline + Lark + Huly multi-capability plugin（CRDT collab edit + 全量 replace 双路径）
+- [ ] **Phase 5.D: HRCapability + Identity 反向 sync** - 飞书/企微/钉钉/Huly HR 接入 + user_platform_mappings 反向同步 + dept: 表达式解析
+- [ ] **Phase 6: Plugin Marketplace** - 第三方上传 zip / dry-run / 注册 / 画布动态加载（与 Phase 5.B 沙箱接力）
+- [ ] **Phase 7: 可观测性 + 运维工具** - 实例 Timeline、预置模板、审计日志、运维工具、每节点可视化 Run Viewer
 
 ## Phase Details
 
@@ -125,21 +128,60 @@ Plans:
   6. Bot 鉴权 / Webhook 签名验证 (防伪造)
 **Plans**: TBD (详见 OUTLINE.md, 大约 7-9 plans)
 
-### Phase 5: IM 目录双向同步
-**Goal**: 节点 assignee 能按邮箱/用户名/部门表达式解析，IM 用户与本地账号自动匹配
-**Depends on**: Phase 4
-**Requirements**: IM-01, IM-02, IM-03, IM-04, IM-05, NODE-04, NODE-08, NODE-09, NODE-10
+### Phase 5.A: PlatformPlugin 框架（Dify-style）
+**Goal**: 把分散的 IMProvider / 计划中 DocProvider / HRProvider 统一为 PlatformPlugin 通用插件框架，达到 Dify 级别第三方平台接入能力 — 一份 YAML manifest 即可声明多 capability 接入
+**Depends on**: Phase 4 (IMProvider 实测 + Huly acid test 5 gap 已暴露)
+**Authoritative spec**: `docs/plans/2026-05-17-platform-plugin-framework-ADR.md` (ADR-001)
+**Requirements**: 新增 PLUG-* / IM-* 子集（Phase 5.A 阶段定义 v1.1）
 **Success Criteria**（什么状态为完成）:
-  1. 管理员触发同步后，飞书/企微/钉钉的用户列表和部门树能导入到本地 im_directory 表
-  2. IM 用户按邮箱自动匹配本地账号，users.im_bindings 自动更新
-  3. HITL 节点 assignee 填 `dept:研发部` 时，系统能正确解析为该部门所有成员的 user_id
-  4. 画布上能拖拽 FanOut/FanIn 并行节点、Subgraph 嵌套节点、Loop 节点并正确执行
-  5. EDIT-05 步进调试：选定节点输入测试数据，能看到该节点的输出和状态变更
+  1. `PlatformPlugin` + 6 Capability Protocols（IM/Doc/HR/Identity/Trigger/Tool）完整定义 + 单测覆盖
+  2. `platform.yaml` manifest Pydantic schema 校验通过；多 capability 声明可解析
+  3. `PlatformPluginRegistry` discover / install / get_capability 工作（含 per-workspace 隔离）
+  4. `LegacyIMProviderAdapter` 让 Phase 4 6 家 IMProvider 通过新 IMCapability 接口被调用，Phase 4 测试**零 regression**
+  5. **Acid test**：真实写一个 HulyPlugin stub（manifest + 4 facade + JSONRPC over stdio）+ 至少 1 capability call 通过单测（user 2026-05-17 硬性要求 — 不再让"抽象只在纸面"发生）
+  6. DocCapability 设计稿 + Mock 单测覆盖 replace_content / apply_document_delta 双路径
+  7. HRCapability 设计稿 + Mock 单测含 resolve_department_members（服务后续 dept: 表达式）
 **Plans**: TBD
 
-### Phase 6: 插件机制
-**Goal**: 管理员能上传第三方插件 zip，插件在沙箱中执行，画布节点面板出现新节点类型
-**Depends on**: Phase 5
+### Phase 5.B: Plugin 沙箱 + Daemon 通信
+**Goal**: Plugin 跑在独立沙箱进程，主进程通过 JSONRPC over stdio 通信，fault isolation
+**Depends on**: Phase 5.A (PlatformDaemonClient 接口已定)
+**Requirements**: 合并原 Phase 6 沙箱要求
+**Success Criteria**:
+  1. `PlatformDaemonClient` JSONRPC over stdio 双向通信，含 lifecycle hooks (connect/close)
+  2. 沙箱进程资源限制：CPU / memory / network whitelist（manifest sandbox 段声明）
+  3. Plugin 异常不影响主进程；超时强杀
+  4. Multi-capability plugin 单 daemon 进程共享底层 client（如 HulyPlugin 4 facet 共享 1 WS）
+**Plans**: TBD
+
+### Phase 5.C: DocCapability 真接入
+**Goal**: Outline + Lark + Huly multi-capability plugin 真实跑通，CRDT collab edit 不冲突
+**Depends on**: Phase 5.B
+**Requirements**: DOC-* (Phase 5.C 阶段定义)
+**Success Criteria**:
+  1. OutlineProvider plugin manifest + 全 6 method 实现 + 集成测试 (实跑 Outline self-hosted)
+  2. LarkDocsProvider plugin + markdown→blocks 转换 + 评论 + @人
+  3. HulyPlugin DocCapability facet 真接入 + Y.js CRDT delta apply 工作
+  4. DAG 节点 `doc_write` / `doc_mention` 集成 + AI suggest mentions LLM 钩子
+  5. E2E with browser-use/browser-harness：DAG 跑完 → Outline 出文档 → 协作人收 @ 提醒
+**Plans**: TBD
+
+### Phase 5.D: HRCapability + Identity 反向 sync
+**Goal**: HR module 接入 + user_platform_mappings 反向同步（Huly / 飞书 source-of-truth → us）+ dept: 表达式解析
+**Depends on**: Phase 5.C
+**Requirements**: IM-01..05, NODE-04/08/09/10（原 Phase 5）+ HR-* + IDENT-* 新增
+**Success Criteria**:
+  1. user_platform_mappings 表 + identity_source enum + is_authoritative flag + identity_sync_jobs 表
+  2. 4 家 HRCapability 实现（飞书 / 企微 / 钉钉 / Huly），含 resolve_department_members
+  3. HITL 节点 assignee `dept:研发部` → 调 active HRCapability.resolve_department_members 解析正确
+  4. IdentityCapability.watch_user_changes 反向 sync（Huly user 变化自动同步到 agent-builder users）
+  5. 画布拖 FanOut/FanIn/Subgraph/Loop 节点正确执行（原 Phase 5 #4）
+  6. EDIT-05 步进调试（原 Phase 5 #5）
+**Plans**: TBD
+
+### Phase 6: Plugin Marketplace
+**Goal**: 管理员能上传第三方插件 zip，插件经 Phase 5.B 沙箱跑起来 + 注册到 workspace + 画布节点面板自动出现
+**Depends on**: Phase 5.D
 **Requirements**: PLUG-01, PLUG-02, PLUG-03, PLUG-04, EDIT-04, DEPL-03
 **Success Criteria**（什么状态为完成）:
   1. 管理员上传插件 zip 后，系统自动解压校验 manifest + schema，沙箱 dry-run 通过后状态变为 registered
@@ -168,15 +210,18 @@ Plans:
 
 ## 进度
 
-**执行顺序**: Phase 1 → 2 → 3 → 4 → 5 → 6 → 7
+**执行顺序**: Phase 1 → 2 → 3 → 4 → 4.5 → 5.A → 5.B → 5.C → 5.D → 6 → 7
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Skeleton + 账号体系 | 6/6 | ✓ Complete | 2026-05-16 |
 | 2. DSL 引擎 + 基础节点 | 10/10 | ✓ Complete | 2026-05-17 |
 | 3. HITL 单节点 + Email 审批 | 10/10 | ✓ Complete | 2026-05-17 |
-| 4. 审批链 + IM 通知 | 11/12 | In Progress|  |
+| 4. 审批链 + IM 通知 | 12/12 | ✓ Complete | 2026-05-17 |
 | 4.5. Bot Triggers + Slash | 0/TBD | Not started | - |
-| 5. IM 目录双向同步 | 0/TBD | Not started | - |
-| 6. 插件机制 | 0/TBD | Not started | - |
+| 5.A. PlatformPlugin 框架（Dify-style）| 0/TBD | Not started | - |
+| 5.B. Plugin 沙箱 + Daemon 通信 | 0/TBD | Not started | - |
+| 5.C. DocCapability 真接入 | 0/TBD | Not started | - |
+| 5.D. HRCapability + Identity 反向 sync | 0/TBD | Not started | - |
+| 6. Plugin Marketplace | 0/TBD | Not started | - |
 | 7. 可观测性 + 运维工具 | 0/TBD | Not started | - |
