@@ -1,17 +1,24 @@
-"""PlatformManifest Pydantic v2 schema 单测（PLUG-FW-02）。
+"""PlatformManifest Pydantic v2 schema 单测（PLUG-FW-02 + Phase 5.B Plan 05b-01 PLUG-FW-13）。
 
-测试覆盖（PLAN.md ≥ 8 测试要求）：
+测试覆盖（Phase 5.A ≥ 13 + Phase 5.B Plan 05b-01 ≥ 14）：
+
+Phase 5.A（PLUG-FW-02 manifest 基础）：
 1. test_valid_huly_manifest_parses — 完整 huly fixture 加载成功 + 字段语义正确
-2. test_extra_field_rejected — extra=forbid 模式触发（manifest_invalid_extra_field.yaml）
+2. test_extra_field_rejected — extra=forbid 模式触发
 3. test_empty_capabilities_rejected — @field_validator at_least_one_capability 触发
 4. test_invalid_semver_rejected — version="1.0" 不匹配 SemVer 三段
 5. test_invalid_name_format_rejected — name 含大写 / 空格 → raise
-6. test_runtime_type_python_only — runtime.type="node" → raise（v1 仅 Python）
+6. test_runtime_type_python_only — runtime.type="node" → raise
 7. test_capability_literal_enum_enforced — capabilities=["unknown_cap"] → raise
 8. test_yaml_not_a_mapping_rejected — YAML 顶层是 list 而非 mapping → raise
 9. test_load_manifest_file_not_found — 文件不存在 → raise
 10. test_load_manifest_invalid_yaml_syntax — YAML 语法错误 → raise
-11. test_load_manifest_returns_correct_subtypes — 嵌套 RuntimeConfig / CapabilitySpec / SandboxConfig 正确实例化
+11. test_load_manifest_returns_correct_subtypes — 嵌套子类型正确
+12. test_nested_extra_field_rejected — 嵌套 extra=forbid
+13. test_optional_fields_use_defaults — Optional 默认值
+
+Phase 5.B Plan 05b-01（PLUG-FW-13 SandboxConfig 扩展）：
+TestSandboxConfig class 含 14 测试 — 见类内 docstring。
 
 Reference: Dify `core/plugin/entities/plugin.py` Pydantic v2 校验模式（AGPL-3.0，仅借鉴）。
 """
@@ -21,6 +28,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+from pydantic import ValidationError
 
 from app.agent_builder.platforms.exceptions import ManifestValidationError
 from app.agent_builder.platforms.manifest import (
@@ -342,3 +350,137 @@ config_schema: {}
     assert manifest.hr is None
     assert manifest.identity is None
     assert manifest.sandbox is None
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Phase 5.B Plan 05b-01 — TestSandboxConfig (PLUG-FW-13)
+# ──────────────────────────────────────────────────────────────────────────────
+
+
+class TestSandboxConfig:
+    """Phase 5.B Plan 05b-01: SandboxConfig 7 字段 + 2 派生属性 + 3 validators 单测。
+
+    测试矩阵（14 测试）:
+        - 默认值 / extra=forbid 兼容（2）
+        - memory validator + memory_bytes property（3）
+        - cpu_limit pattern + cpu_limit_seconds property（2）
+        - network validator（3：缺 port / 含 scheme / 大写）
+        - timeout_invoke / timeout_idle 范围（3）
+        - env_allowlist 默认（1）
+        - huly platform.yaml 加 sandbox 段后 load_manifest 不报错（1）
+    """
+
+    # ── 默认值 + extra=forbid ─────────────────────────────────────────────────
+
+    def test_default_values(self) -> None:
+        """SandboxConfig() 默认值（restrictive baseline）。"""
+        c = SandboxConfig()
+        assert c.cpu_limit == "2.0"
+        assert c.memory == "1Gi"
+        assert c.network == []  # 默认禁所有出站（CONTEXT.md decision）
+        assert c.timeout_invoke == 30
+        assert c.timeout_idle == 300
+        assert c.use_cgroups is False
+        assert c.env_allowlist == []  # Pitfall 8 默认 strip all
+
+    def test_extra_field_rejected(self) -> None:
+        """extra=forbid 兼容 5.A 决策 — 任何未声明字段 raise。"""
+        with pytest.raises(ValidationError, match="unknown_field|extra|forbid"):
+            SandboxConfig(unknown_field="x")  # type: ignore[call-arg]
+
+    # ── memory validator + memory_bytes property ──────────────────────────────
+
+    def test_memory_invalid_format_raises(self) -> None:
+        """'512MB' 不合法（K8s 必须 Mi 不是 MB）。"""
+        with pytest.raises(ValidationError, match="K8s 单位"):
+            SandboxConfig(memory="512MB")
+
+    def test_memory_bytes_property(self) -> None:
+        """memory_bytes property 派生正确（'512Mi' → 512 * 1024^2）。"""
+        c = SandboxConfig(memory="512Mi")
+        assert c.memory_bytes == 512 * 1024**2
+
+    def test_memory_default_bytes(self) -> None:
+        """默认 '1Gi' → 1024^3 bytes。"""
+        c = SandboxConfig()
+        assert c.memory_bytes == 1024**3
+
+    # ── cpu_limit pattern + cpu_limit_seconds property ────────────────────────
+
+    def test_cpu_limit_pattern_rejects_letters(self) -> None:
+        """cpu_limit='abc' 不匹配 pattern ^\\d+(\\.\\d+)?$。"""
+        with pytest.raises(ValidationError, match="cpu_limit|pattern|string_pattern"):
+            SandboxConfig(cpu_limit="abc")
+
+    def test_cpu_limit_seconds_property(self) -> None:
+        """cpu_limit_seconds property 派生正确（'1.5' → 1.5 * 3600 = 5400）。"""
+        c = SandboxConfig(cpu_limit="1.5")
+        assert c.cpu_limit_seconds == 5400
+
+    # ── network validator (3 失败 case) ───────────────────────────────────────
+
+    def test_network_entry_invalid_format_raises(self) -> None:
+        """含 scheme 不合法（'http://example.com' 必须裸 host:port）。"""
+        with pytest.raises(ValidationError, match="host:port"):
+            SandboxConfig(network=["http://example.com"])
+
+    def test_network_entry_must_have_port(self) -> None:
+        """缺 port 不合法（'example.com'）。"""
+        with pytest.raises(ValidationError, match="host:port"):
+            SandboxConfig(network=["example.com"])
+
+    def test_network_uppercase_host_raises(self) -> None:
+        """大写 host 不合法（regex 仅匹配小写）。"""
+        with pytest.raises(ValidationError, match="host:port"):
+            SandboxConfig(network=["Example.com:443"])
+
+    def test_network_valid_entries_pass(self) -> None:
+        """合法 host:port 列表（多 entry / 子域名 / 含 -）。"""
+        c = SandboxConfig(
+            network=[
+                "example.com:443",
+                "api.feishu.cn:443",
+                "huly-prod.example.com:8443",
+            ]
+        )
+        assert len(c.network) == 3
+
+    # ── timeout 范围（gt=0, le=3600 / le=86400）─────────────────────────────────
+
+    def test_timeout_invoke_must_be_positive(self) -> None:
+        """timeout_invoke=0 触发 gt=0 限制。"""
+        with pytest.raises(ValidationError, match="timeout_invoke|greater"):
+            SandboxConfig(timeout_invoke=0)
+
+    def test_timeout_invoke_max_3600(self) -> None:
+        """timeout_invoke=3601 超 le=3600 限制。"""
+        with pytest.raises(ValidationError, match="timeout_invoke|less"):
+            SandboxConfig(timeout_invoke=3601)
+
+    def test_timeout_idle_max_86400(self) -> None:
+        """timeout_idle=86401 超 le=86400 限制（一天 = 86400s）。"""
+        with pytest.raises(ValidationError, match="timeout_idle|less"):
+            SandboxConfig(timeout_idle=86401)
+
+    # ── huly platform.yaml 加 sandbox 段后 load_manifest 不报错 ────────────────
+
+    def test_huly_platform_yaml_parses_sandbox_section(self) -> None:
+        """plugins/huly/platform.yaml 含 sandbox 段后 load_manifest 仍通过。
+
+        验证 Plan 05b-01 对 plugins/huly/platform.yaml 的扩展未破坏 5.A acid test 数据源。
+        """
+        # plugins/huly/platform.yaml 相对 backend/ 路径 = ../plugins/huly/platform.yaml
+        huly_path = Path(__file__).parent.parent.parent.parent / "plugins" / "huly" / "platform.yaml"
+        assert huly_path.is_file(), f"huly platform.yaml not found at {huly_path}"
+
+        manifest = load_manifest(huly_path)
+        assert manifest.sandbox is not None
+        assert manifest.sandbox.memory == "512Mi"
+        assert manifest.sandbox.network == ["huly.example.com:443"]
+        assert manifest.sandbox.env_allowlist == ["HULY_ENDPOINT"]
+        assert manifest.sandbox.timeout_invoke == 30
+        assert manifest.sandbox.timeout_idle == 300
+        assert manifest.sandbox.use_cgroups is False
+        # 派生属性
+        assert manifest.sandbox.memory_bytes == 512 * 1024**2
+        assert manifest.sandbox.cpu_limit_seconds == 3600  # cpu_limit='1.0' → 3600
