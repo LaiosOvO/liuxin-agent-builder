@@ -104,7 +104,7 @@ Plans:
 **Plans** (12 total, Wave 1+2+3+4+5+6+7):
 - [x] 04-01-PLAN.md — chain payload + invalidate_chain + Alembic 0005 partial index（ChainAdvanceResult frozen dataclass + compute_chain_advance 4 mode × 3 action 状态机 + HitlTokenStore.invalidate_chain + 40 测试通过；HITL-02 + HITL-06 基础设施层完成，2026-05-17 完成）
 - [x] 04-02-PLAN.md — chain executor (HitlActionService.submit_action 4 mode 完整分支 + invalidate_chain in advisory_lock + 结构化日志 hitl.chain.advance 8 字段 + 21 集成测试通过；HITL-02 完成，2026-05-17 完成)
-- [x] 04-03-PLAN.md — delegation API (POST /hitl/action/<jwt>?op=delegate + create_delegate_token + DelegateError 5 错误码 + 委托链深度 ≤ 3 + deadline 重置 + 20 集成测试通过；HITL-06 完成，2026-05-17 完成)
+- [x] 04-03-PLAN.md — delegation API (POST /hitl/action/<jwt>?op=delegate + create_delegate_token + DelegateError 5 错误码 + 委托链深度 ≤ 3 + deadline 重置 + 20 集成测试通过；HITL-06 完成,2026-05-17 完成)
 - [x] 04-04-PLAN.md — EscalationService 4 表达式扩展 (resolve email/user:/role:/dept:NotImpl + perform 多 email fan-out + 40 escalation 测试通过；HITL-04 完成，2026-05-17 完成)
 - [x] 04-05-PLAN.md — IMProvider Protocol + Registry + MockIMProvider + IMCredentialsManager + im_jobs.send_hitl_card_job（鸭子类型 + 5 家 frozen dataclass 凭据 + Phase 4.5 接口预留 + tenacity 3 次重试 + 结构化日志 'im.card.send' + 43 单元/集成测试通过；Wave 3 抽象层完成，2026-05-17 完成）
 - [x] 04-06-PLAN.md — Feishu Provider (lark-oapi 1.6.5 + Interactive Card 2.0 + multi_url 4 URL 全填 + 按钮颜色映射 + 24h 过期 234016 跳过 + importlib.metadata 取版本 + loop.run_in_executor 包装同步 SDK / 45 单元测试通过；NOTI-02 完成，2026-05-17 完成)
@@ -150,16 +150,25 @@ Plans:
   - [x] 05a-06-PLAN.md — LegacyIMProviderAdapter + base.py 双轨注册 + Registry fallback to legacy (Wave 4) — 2026-05-17 完成（23 测试 20 adapter + 3 registry fallback / 全 pass / LegacyIMProviderAdapter 311 行 Phase 4 6 家 IMProvider → IMCapability 适配零接口破坏共享 raw provider 实例 / base.py +78 行 _PROVIDERS_AS_CAP 双轨 + _maybe_wrap_for_capability hook 静默降级 + helper / registry.py +27 行 IM-only fallback Blocker 3 修复 / Phase 4 IM 61 + notification 33 + e2e_v2 26 specs collect 三套 0 regression / 用户硬性 DoD #3 达成 / 5 借鉴点 Dify data_migration+plugin_migration / License attribution / PLUG-FW-04 + IM-LEGACY-WRAP 双 requirement 完成）
   - [ ] 05a-07-PLAN.md — HulyPlugin acid test：真 subprocess + mock huly server + 1 send_card 端到端 + fault isolation (Wave 5)
 
-### Phase 5.B: Plugin 沙箱 + Daemon 通信
-**Goal**: Plugin 跑在独立沙箱进程，主进程通过 JSONRPC over stdio 通信，fault isolation
-**Depends on**: Phase 5.A (PlatformDaemonClient 接口已定)
-**Requirements**: 合并原 Phase 6 沙箱要求
+### Phase 5.B: Plugin 沙箱 + Daemon 通信资源限制
+**Goal**: Plugin daemon 跑在受限沙箱进程内 — manifest sandbox 段消费 + resource.setrlimit baseline + 可选 cgroups v2 + 网络白名单 + 三层超时强杀（invoke timeout / watchdog SIGTERM grace SIGKILL / idle 自动回收）
+**Depends on**: Phase 5.A (PlatformDaemonClient 接口已定，5/5 acid test pass)
+**Authoritative spec**: `.planning/phases/05b-plugin-sandbox/05b-RESEARCH.md`
+**Requirements**: PLUG-FW-09 (PosixResourceSandbox), PLUG-FW-10 (CgroupsV2Sandbox), PLUG-FW-11 (AllowlistTransport), PLUG-FW-12 (Watchdog + IdleReaper), PLUG-FW-13 (SandboxConfig schema), PLUG-03 (Phase 6 marketplace 基础设施前置)
 **Success Criteria**:
-  1. `PlatformDaemonClient` JSONRPC over stdio 双向通信，含 lifecycle hooks (connect/close)
-  2. 沙箱进程资源限制：CPU / memory / network whitelist（manifest sandbox 段声明）
-  3. Plugin 异常不影响主进程；超时强杀
-  4. Multi-capability plugin 单 daemon 进程共享底层 client（如 HulyPlugin 4 facet 共享 1 WS）
-**Plans**: TBD
+  1. PlatformDaemonClient 沙箱进程资源限制：CPU / memory baseline 通过 resource.setrlimit + RLIMIT_NPROC/NOFILE 防 fork bomb（Linux CI 真 enforcement 测）
+  2. cgroups v2 opt-in（`use_cgroups: true` + Linux + systemd-userdbd 可用）走 systemd-run --user --scope；其它环境优雅降级到 PosixResourceSandbox + warning
+  3. AllowlistTransport 应用层网络白名单 — plugin daemon 显式调 `make_sandboxed_http_client(allow_list)`；非白名单 host raise NetworkBlockedError
+  4. 三层超时强杀：invoke timeout (5.A 30s) / watchdog SIGTERM 3s grace → SIGKILL（os.killpg 整组）/ idle daemon 300s auto-close
+  5. env 变量 strip-all-allowlist（默认仅 PATH/HOME/LANG/TZ；manifest env_allowlist opt-in；AGENT_BUILDER_*/HMAC_*/DATABASE_* 永远拒绝）
+  6. 5.A 5/5 acid test + 162 platforms 测试 + Phase 4 81 IM 0 regression
+  7. macOS dev 全 suite 通过（含 enforcement test skip）；Linux CI ubuntu-latest 全 suite 通过（含 RLIMIT 真行为验证）
+**Plans**: 5 plans (Wave 1 → 2⇉ → 3⇉)
+  - [ ] 05b-01-PLAN.md — SandboxConfig manifest schema 扩展 + parser.py + Dify reading doc（Wave 1，PLUG-FW-13）
+  - [ ] 05b-02-PLAN.md — SandboxRunner Protocol + PosixResourceSandbox + RLIMIT 4 类 + os.setsid 进程组 + Linux CI enforcement test（Wave 2 并行, PLUG-FW-09）
+  - [ ] 05b-03-PLAN.md — AllowlistTransport（httpx Transport API）+ NetworkBlockedError + make_sandboxed_http_client + huly_plugin env-gated 集成（Wave 2 并行，PLUG-FW-11）
+  - [ ] 05b-04-PLAN.md — SandboxWatchdog（SIGTERM 3s grace → SIGKILL）+ IdleDaemonReaper + PlatformDaemonClient 集成（_choose_runner + _build_filtered_env strip-all + last_invoke_at）（Wave 3，PLUG-FW-12）
+  - [ ] 05b-05-PLAN.md — CgroupsV2Sandbox（systemd-run --user --scope）+ is_cgroups_v2_available 4 检查 + 真试 + 优雅降级（Wave 3 并行，PLUG-FW-10）
 
 ### Phase 5.C: DocCapability 真接入
 **Goal**: Outline + Lark + Huly multi-capability plugin 真实跑通，CRDT collab edit 不冲突
@@ -227,8 +236,10 @@ Plans:
 | 4. 审批链 + IM 通知 | 12/12 | ✓ Complete | 2026-05-17 |
 | 4.5. Bot Triggers + Slash | 0/TBD | Not started | - |
 | 5.A. PlatformPlugin 框架（Dify-style）| 7/7 | ✓ Complete | 2026-05-17 |
-| 5.B. Plugin 沙箱 + Daemon 通信 | 0/TBD | Not started | - |
+| 5.B. Plugin 沙箱 + Daemon 通信资源限制 | 0/5 | Planned | - |
 | 5.C. DocCapability 真接入 | 0/TBD | Not started | - |
 | 5.D. HRCapability + Identity 反向 sync | 0/TBD | Not started | - |
 | 6. Plugin Marketplace | 0/TBD | Not started | - |
 | 7. 可观测性 + 运维工具 | 0/TBD | Not started | - |
+</content>
+</invoke>
