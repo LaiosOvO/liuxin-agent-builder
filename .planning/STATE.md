@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: milestone
 status: unknown
-last_updated: "2026-05-17T13:04:57.496Z"
+last_updated: "2026-05-17T13:02:44Z"
 progress:
   total_phases: 6
   completed_phases: 4
   total_plans: 45
-  completed_plans: 43
+  completed_plans: 44
 ---
 
 # Project State
@@ -22,12 +22,12 @@ See: .planning/PROJECT.md (updated 2026-05-16)
 
 ## Current Position
 
-Phase: 5.A of 7 (PlatformPlugin 框架，Dify-style) — Wave 4 进行中
-Plan: 06 of 07 in current phase（Plan 01-06 ✓ Wave 4 LegacyIMProviderAdapter 完成）
-Status: 🚀 Plan 05a-06 Complete（LegacyIMProviderAdapter Phase 4 IMProvider → IMCapability 适配 + base.py 双轨 _PROVIDERS_AS_CAP + Registry IMCapability fallback to LegacyAdapter — Blocker 3 修复 + 用户硬性 DoD #3 达成）
-Last activity: 2026-05-17 — Plan 05a-06 完成（Wave 4：LegacyIMProviderAdapter 311 行实现 Phase 4 IMProvider → IMCapability 适配 + 零接口破坏 register_provider 签名不变 + 同一 raw provider 实例共享不变量 adapter._legacy is get_provider(name) + 参数映射 RecipientSpec/NormalizedCard → 8 字段 send_hitl_card + title.split " — " 拆 flow_title/node_title lossy 还原 + cap flags 推导 webhook 唯一例外 supports_native_buttons / getattr supports_card_update / supports_threads=False + subscribe_events raise NotImplementedError if False yield {} async generator 标记 Phase 4.5 业务层处理 + base.py +78 行 _PROVIDERS_AS_CAP dict 双轨 + _maybe_wrap_for_capability hook try/except ImportError 静默降级 + get_capability_for_legacy/list_legacy_capabilities helper + register_provider 末尾追加副作用 + clear_providers 清空双 dict + registry.py +27 行 get_capability 末尾追加 IM-only fallback prefer 优先 sorted name fallback + 23 新测试 pass 20 adapter+3 registry fallback + Phase 4 IM 61 测试 0 regression + Phase 4 notification 33 测试 0 regression + e2e_v2 26 specs collect 成功 0 regression + 5 借鉴点 Dify data_migration/plugin_migration/auto_upgrade 模块 + License attribution AGPL-3.0 vs Apache-2.0 + ruff clean + black clean）
+Phase: 5.A of 7 (PlatformPlugin 框架，Dify-style) — Wave 4 完成
+Plan: 05 of 07 in current phase（Plan 01-06 全 ✓ Wave 4 完成；Plan 07 Wave 5 acid test 待启动）
+Status: 🚀 Plan 05a-05 Complete（PlatformDaemonClient JSONRPC over stdio + 4 capability facades 真接入 daemon + MockPlatformPlugin + echo_daemon fixture — PLUG-FW-05 + PLUG-FW-06 双 requirement 完成）
+Last activity: 2026-05-17 — Plan 05a-05 完成（Wave 4 后半：PlatformDaemonClient 460 行 JSONRPC over stdio asyncio.create_subprocess_exec python -u -m unbuffered + UUID4 hex request_id 路由 _pending dict[str, asyncio.Future] + line-delimited JSON envelope + _read_loop stdout EOF 检测 _fail_all_pending Pitfall 2 fault isolation 立即失败 < 2s + _stderr_drain 独立 task Pitfall 8 防 pipe buffer 满死锁 + close 幂等 terminate→wait 5s→kill + start 幂等 + close 后 re-start 重置 _closed + structured log capability/method/latency_ms/outcome Phase 7 Run Viewer 钩子 + capability_facades 192→527 行 替换 Plan 04 stub 真转发 IMFacade/DocFacade/HRFacade/IdentityFacade 共享 _BaseFacade _ensure_daemon fail-fast PluginError + dataclass asdict 序列化 + 返回 dict 重建 dataclass + CRDTDelta.payload bytes → base64 encode + subscribe_events/watch_user_changes 保 if False yield {} asyncgenfunction 标记 + mock_plugin.py 299 行 MockPlatformPlugin 4 capability in-process MockIMCapability/MockDocCapability/MockHRCapability/MockIdentityCapability records sent/updated/texts/created 历史 + Mock 类直接 isinstance Protocol 不强制继承 + MockDocCapability supports_collaborative_edit=False apply_document_delta raise 测双路径分流 + MockIdentityCapability is_source_of_truth=False watch_user_changes raise + echo_daemon.py 141 行 测试用 daemon im.send_card/update_card/send_text/echo_error/im.crash sys.exit(1)/im.slow + 24 新测试 pass 11 daemon_client 含 test_daemon_crash_fails_pending_future Pitfall 2 关键 invoke_timeout=2.0 timing assert elapsed<2.0 + 13 mock_plugin 含 isinstance Protocol/records history/CRDT raise 测试 + 141/141 全 platforms tests pass + Phase 4 IM 51 测试 0 regression + 集成手工验证 facade→daemon→echo_daemon→response→dataclass rebuilt 通过 + Plan 04 test_plugin_facades 1 测试改写 NotImplementedError→PluginError Plan 05 新合约 [Deviation Rule 1 Bug fix] + 5 借鉴点 Dify entities/plugin_daemon.py PluginDaemonBasicResponse[T]/PluginDaemonError/dify-plugin-daemon Go→Python 简化/PluginInstallTask 异步→v1 同步/spawn-restart→v1 crash 不自动重启 + License attribution Dify AGPL-3.0 vs agent-builder Apache-2.0 严禁拷源代码 + ruff clean + black clean）
 
-Progress: [██████████] 95%（4/7 phases complete; Phase 5.A 6/7 plans done — Wave 4 完成，Wave 5 待 Plan 07 HulyPlugin acid test 端到端验证）
+Progress: [██████████] 96%（4/7 phases complete; Phase 5.A 6/7 plans done — Wave 4 完成，Wave 5 待 Plan 07 HulyPlugin acid test 端到端验证）
 
 ## Performance Metrics
 
@@ -80,6 +80,7 @@ Progress: [██████████] 95%（4/7 phases complete; Phase 5.A 
 | Phase 05a-platform-plugin-framework P03 | 15min | 3 tasks | 10 files |
 | Phase 05a-platform-plugin-framework P04 | 15m | 3 tasks | 12 files |
 | Phase 05a-platform-plugin-framework P06 | 14min | 3 tasks | 7 files |
+| Phase 05a-platform-plugin-framework P05 | 16min | 3 tasks（Task 0 reading doc + Task 1 PlatformDaemonClient + echo_daemon + 11 单测 + Task 2 capability_facades 替换 stub + MockPlatformPlugin + 13 单测）| 9 files (6 created + 2 modified) — 24 新测试 pass（含 Pitfall 2 fault isolation 关键 test_daemon_crash_fails_pending_future invoke_timeout=2.0 elapsed<2.0s）+ 141/141 全 platforms tests pass + Phase 4 IM 51 测试 0 regression + 集成手工验证 facade→daemon→echo_daemon→response→dataclass rebuilt 通过 |
 
 ## Accumulated Context
 
@@ -369,6 +370,26 @@ Recent decisions affecting current work:
 - [Phase 05a-platform-plugin-framework]: Plan 06: LegacyIMProviderAdapter 共享同一 raw provider 实例 — Phase 4 0 regression 关键不变量
 - [Phase 05a-platform-plugin-framework]: Plan 06: register_provider 接口签名不变 + 内部追加 _maybe_wrap_for_capability hook 副作用 — Phase 4 调用 0 改动
 - [Phase 05a-platform-plugin-framework]: Plan 06: Registry.get_capability(IMCapability) fallback to _PROVIDERS_AS_CAP — Blocker 3 修复 让新老 plugin 共存真正落地
+- [Phase 05a-05]: PlatformDaemonClient JSONRPC 2.0 协议严格遵守 — jsonrpc/id/method/params/result/error 字段名标准 + 错误码 -32601 Method not found / -32602 Invalid params / -32603 Internal error / -32000~-32099 plugin 业务错误（与 Dify PluginDaemonError 借鉴点 #2 对齐）
+- [Phase 05a-05]: PlatformDaemonClient request_id = uuid.uuid4().hex —— 36 字符 hex，0 碰撞概率（vs int(time.time()) 类 simple id 跨进程可能撞 — Pitfall 7 防护）
+- [Phase 05a-05]: PlatformDaemonClient python -u 强制 unbuffered stdout —— 隐含 pitfall：默认 buffer 64KB 会让 JSONRPC response 卡在 daemon 不返回主进程（必须 -u 或 PYTHONUNBUFFERED=1）
+- [Phase 05a-05]: PlatformDaemonClient daemon 子进程语言 v1 锁定 Python — node/go 留 v2（CONTEXT.md §Deferred Ideas 明确）；stdio JSONRPC vs HTTP RPC 简化 daemon 内嵌部署不需 HTTP overhead（stdio 比 HTTP 快 ~10x）
+- [Phase 05a-05]: PlatformDaemonClient Pitfall 2 fault isolation 关键 — daemon crash 必须 < 2s 内立即失败（test_daemon_crash_fails_pending_future invoke_timeout=2.0 + timing assert elapsed < 2.0s 实测通过）；stdout EOF 检测 → _fail_all_pending(PluginDaemonExitedError) 立即失败而非 30s timeout
+- [Phase 05a-05]: PlatformDaemonClient Pitfall 8 stderr 独立 drain task — 防 pipe buffer 满导致 daemon write() block；不读 stderr daemon 可能假死 RSS 上升
+- [Phase 05a-05]: PlatformDaemonClient v1 daemon crash 不自动重启 — 调用方下次 invoke 走 re-spawn（test_invoke_after_close_starts_new）；Phase 5.B 加 supervisor + restart policy（CONTEXT.md decision）
+- [Phase 05a-05]: PlatformDaemonClient close 幂等 + close 后 re-start — _closed 标志在 start 重置（test_invoke_after_close_starts_new 验证）；start 幂等防并发首次 invoke 重复 spawn
+- [Phase 05a-05]: PlatformDaemonClient structured log capability/method/latency_ms/outcome 埋点 — Phase 7 Run Viewer 直接消费此日志可视化每次 capability call latency
+- [Phase 05a-05]: capability_facades 4 facade 真接入 daemon 替换 Plan 04 stub — Plan 04 raise NotImplementedError → Plan 05 await daemon.invoke()；接口签名 + 文件位置 0 改动 → Plan 04 调用方代码 0 破坏（_BaseFacade(_daemon, _manifest) 设计保持）
+- [Phase 05a-05]: capability_facades dataclass asdict() 序列化 → JSONRPC params；list[dataclass] 走 [asdict(x) for x in xs]（asdict 不递归 list 内）；返回 dict 重建 dataclass + plugin_name fallback self.name
+- [Phase 05a-05]: capability_facades CRDTDelta.payload bytes → base64 encode 字符串 — JSONRPC 协议不支持 bytes 直传；daemon side base64 decode 恢复（约定 {"format": "yjs", "payload_b64": "..."} envelope）
+- [Phase 05a-05]: capability_facades _ensure_daemon() fail-fast — daemon=None 时立即 raise PluginError 防 silent 失败；调用方应先 PlatformPlugin.attach_daemon(daemon) 再调 method
+- [Phase 05a-05]: MockPlatformPlugin 4 capability records 调用历史（sent/updated/texts/created）— 便于业务 test 断言 cap.sent 列表内容
+- [Phase 05a-05]: MockDocCapability supports_collaborative_edit=False — apply_document_delta raise（让调用方测试双路径分流）
+- [Phase 05a-05]: MockHRCapability/MockIdentityCapability is_source_of_truth=False — create_leave_request / watch_user_changes raise（验证 Phase 03 source_of_truth 决策的运行时 gate）
+- [Phase 05a-05]: Mock 类直接 isinstance Protocol（duck typing）— 不强制 Protocol 继承（Plan 02/03 决策延续）；MockX() 都 isinstance(IMCapability/DocCapability/HRCapability/IdentityCapability) 通过
+- [Phase 05a-05]: echo_daemon fixture im.crash sys.exit(1) — Pitfall 2 fault isolation 测试入口；最小测试 daemon 模式 + 各种 method 覆盖（im.send_card/update_card/send_text/echo_error/im.slow）便于后续 plugin daemon 复用模板
+- [Phase 05a-05]: [Rule 1 - Bug] test_plugin_facades.py test_facade_methods_raise_not_implemented 改为 test_facade_methods_raise_plugin_error_when_daemon_missing — Plan 04 stub 合约升级为 Plan 05 新合约（NotImplementedError → PluginError）；deferred-items.md Plan 06 已 log 此场景，本 plan Rule 1 修复 close loop
+- [Phase 05a-05]: [Rule 3 - Blocking] ruff B007 unused loop variable + 3 F401 unused import + 4 文件 black 需 reformat — ruff --fix + black 自动修复全部；re-run 24 单测全 pass 确认无回归
 
 ### Pending Todos
 
@@ -384,9 +405,9 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-05-17
-Stopped at: Completed 05a-04-PLAN.md（PlatformManifest Pydantic v2 schema extra=forbid 严格 + 3 嵌套子类型 + load_manifest yaml.safe_load 异常翻译 + PlatformPluginRegistry classmethod-only 进程级 singleton + _PLUGINS (workspace_id, plugin_name) tuple key Pitfall 5 防护 + discover() fail-fast + duplicate name 检测 + get_plugin 懒加载缓存 + get_capability 按类型路由 fail-quiet + prefer 参数 + PlatformPlugin 4 lazy facade 共享 _daemon + attach_daemon 注入预留 + 重复 attach raise + capability_facades 4 stub class 共享 _BaseFacade Plan 05 替换 0 接口破坏 + subscribe_events/watch_user_changes 保 async generator 标记 + plugins/huly/platform.yaml Plan 07 入口 + 36 单测 pass 13/13/10 + 94/94 全 platforms tests 累积 + Phase 4 IM 51 测试 0 regression + 6 借鉴点指回 Dify Manifest/PluginService/Permission 模块 + License attribution Apache-2.0 vs AGPL-3.0 + ruff clean + black clean）
+Stopped at: Completed 05a-05-PLAN.md（PlatformDaemonClient JSONRPC over stdio 460 行 asyncio.create_subprocess_exec python -u -m unbuffered + UUID4 hex request_id 路由 + _read_loop stdout EOF Pitfall 2 fault isolation 立即失败 < 2s + _stderr_drain Pitfall 8 防死锁 + close 幂等 + structured log capability/method/latency_ms/outcome Phase 7 Run Viewer 钩子 + 4 capability facades 替换 Plan 04 stub 真转发 daemon.invoke dataclass asdict 序列化 + bytes base64 encode + 返回 dict 重建 dataclass + _ensure_daemon fail-fast PluginError + MockPlatformPlugin 4 capability in-process + Mock 类 isinstance Protocol duck typing + echo_daemon fixture im.crash sys.exit(1) Pitfall 2 测试入口 + 24 新测试 pass 含 test_daemon_crash_fails_pending_future invoke_timeout=2.0 timing assert + 141/141 全 platforms tests + Phase 4 IM 51 测试 0 regression + 集成手工验证 facade→daemon→echo_daemon roundtrip + Plan 04 test_plugin_facades 1 测试改写 NotImplementedError→PluginError Plan 05 新合约 + 5 借鉴点 Dify entities/plugin_daemon.py + License attribution AGPL-3.0 vs Apache-2.0 + ruff clean + black clean）
 Resume file: None
-Next action: Plan 05 (LegacyIMProviderAdapter + PlatformDaemonClient + MockPlatformPlugin) / Wave 4 启动
+Next action: Plan 07 (HulyPlugin acid test) / Wave 5 启动 — plugins/huly/__init__.py + huly_plugin.py daemon entry + mock huly server + tests/platforms_integration/test_huly_acid_test.py 端到端
 
 ### Plan 05a-03 关键决策
 
