@@ -52,6 +52,7 @@ async def lifespan(app: FastAPI):
     """FastAPI lifespan：启动时初始化异步资源，关闭时清理。
 
     Phase 2+：创建 LangGraph checkpoint 表（ensure_checkpoint_tables 幂等）。
+    Phase 4 Wave 4：按需注册 IM Provider（凭据齐全才注册）。
     """
     # ── 启动阶段 ──────────────────────────────────────────────────────────────
     try:
@@ -62,11 +63,68 @@ async def lifespan(app: FastAPI):
         # checkpoint 表创建失败不阻断启动（测试环境可能无 DB），仅记录警告
         _logger.warning("LangGraph checkpoint 表初始化失败（非阻断）: %s", exc)
 
+    # ── IM Provider 注册（Phase 4 Wave 4）─────────────────────────────────────
+    # 仅在凭据齐全时注册；缺失凭据时跳过（IM 通道按需配置 — 04-05 设计约定）
+    _register_im_providers_if_configured()
+
     yield  # 应用运行中
 
     # ── 关闭阶段 ──────────────────────────────────────────────────────────────
+    # 清理 IM Provider 持有的资源（如 httpx client 连接池）
+    await _close_registered_im_providers()
     await engine.dispose()
     _logger.info("数据库连接池已释放")
+
+
+def _register_im_providers_if_configured() -> None:
+    """按需注册 IM Provider — 凭据缺失时跳过（非致命）。
+
+    Phase 4 Wave 4 各 Provider plan 在此挂载：
+    - 04-06 Feishu
+    - 04-07 WeCom
+    - 04-08 DingTalk  ← 本 plan 实现
+    - 04-09 Slack / Mattermost
+    """
+    from app.agent_builder.core.im_credentials import IMCredentialsManager
+    from app.agent_builder.notification.providers.base import register_provider
+
+    mgr = IMCredentialsManager()
+
+    # 钉钉 DingTalkProvider (Plan 04-08)
+    if mgr.has_dingtalk():
+        try:
+            from app.agent_builder.notification.providers.dingtalk import DingTalkProvider
+
+            agent_id_str = os.environ.get("DINGTALK_AGENT_ID", "").strip()
+            if not agent_id_str:
+                _logger.warning(
+                    "钉钉凭据存在但缺 DINGTALK_AGENT_ID — DingTalkProvider 跳过注册"
+                )
+            else:
+                provider = DingTalkProvider(
+                    credentials=mgr.dingtalk(),
+                    agent_id=int(agent_id_str),
+                )
+                register_provider(provider)
+                _logger.info("DingTalkProvider 注册成功 agent_id=%s", agent_id_str)
+        except Exception as exc:
+            _logger.warning("DingTalkProvider 注册失败（非阻断）: %s", exc)
+
+
+async def _close_registered_im_providers() -> None:
+    """关闭已注册 IM Provider 持有的资源（如 httpx client）。
+
+    各 Provider 若实现 aclose() 则调用；否则跳过。
+    """
+    from app.agent_builder.notification.providers.base import list_providers, get_provider
+
+    for name in list_providers():
+        try:
+            provider = get_provider(name)
+            if hasattr(provider, "aclose"):
+                await provider.aclose()
+        except Exception as exc:
+            _logger.warning("关闭 IM Provider %s 失败（非阻断）: %s", name, exc)
 
 
 # 创建 FastAPI 应用

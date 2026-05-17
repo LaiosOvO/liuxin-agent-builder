@@ -84,6 +84,7 @@ dependencies = [
     "greenlet>=3.5.0",
     "pytest-httpx>=0.36.2",
     "fakeredis[aioredis]>=2.0",
+    "dingtalk-stream==0.24.3",
 ]
 
 [project.optional-dependencies]
