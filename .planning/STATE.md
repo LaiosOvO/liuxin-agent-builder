@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-last_updated: "2026-05-17T03:02:08.444Z"
+last_updated: "2026-05-17T03:05:00.000Z"
 progress:
   total_phases: 5
   completed_phases: 3
   total_plans: 38
-  completed_plans: 33
+  completed_plans: 35
 ---
 
 # Project State
@@ -23,11 +23,11 @@ See: .planning/PROJECT.md (updated 2026-05-16)
 ## Current Position
 
 Phase: 4 of 7 (审批链 + IM 通知)
-Plan: 8 of 12 in current phase（Wave 4 04-08 完成 — DingTalkProvider ActionCard 实现，与 04-06/07/09 并行进行中）
-Status: ✅ Phase 4 Wave 4 进行中 — 04-06 Feishu / 04-07 WeCom / 04-08 DingTalk / 04-09 Slack 4 家 Provider 并行完成；Wave 5 04-10 multichannel fan-out 待启动
-Last activity: 2026-05-17 — Plan 04-08 完成（钉钉 ActionCard 工作通知出站投递：dingtalk-stream 0.24.3 token + httpx OAPI 直调 asyncsend_v2 + btn_orientation="0" 横排 3 中文按钮 + update_card NotImplemented → send_supplement_text 兜底 + ConnectionError 统一包装触发 tenacity 重试 + lifespan 按需注册基础设施 + 37 测试全绿 / 80 IM 测试 0 regression）
+Plan: 9 of 12 in current phase（Wave 4 04-07 完成 — WeComProvider wechatpy + Bot Webhook 双路径架构）
+Status: ✅ Phase 4 Wave 4 进行中 — 04-06 Feishu / 04-07 WeCom / 04-08 DingTalk / 04-09 Slack 4 家 Provider 已全部完成；Wave 5 04-10 multichannel fan-out 待启动
+Last activity: 2026-05-17 — Plan 04-07 完成（企微 IM 通知出站投递 NOTI-03：wechatpy 1.8.18 spike 发现完全无 template_card API → markdown 4 链接方案 + Bot Webhook fallback 双路径架构 + 共享 build_wecom_markdown_content / app_message / webhook envelope 完全一致 + supports_card_update=False 类属性 + update_card 显式 NotImplementedError 引导 send_supplement_text 兜底 + WeChatClientException/errcode≠0/httpx 错误统一包装为 ConnectionError 触发 im_jobs tenacity 重试 + WeComCredentials 新增 bot_webhook_key 字段向后兼容 + IMCredentialsManager 支持 fallback-only 模式 + lifespan 自动按凭据注册 + markdown 注入防护 5 类转义 + 2048 byte 边界保护 + 34 测试全绿 / 77 IM 测试 0 regression）
 
-Progress: [███████░░░] 56%（3/7 phases complete; Phase 4 8/12 plans done — Wave 4 4 家 Provider 全部完成）
+Progress: [███████░░░] 58%（3/7 phases complete; Phase 4 9/12 plans done — Wave 4 4 家 Provider 全部完成）
 
 ## Performance Metrics
 
@@ -70,6 +70,7 @@ Progress: [███████░░░] 56%（3/7 phases complete; Phase 4 8/
 | Phase 04-approval-chain-im P03 | 11min | 3 tasks（Task0 reading doc + Task1 service + Task2 API endpoint + tests）| 6 files (3 created + 3 modified) — 20 集成测试 (11 service + 9 API) |
 | Phase 04-approval-chain-im P05 | 25min | 4 tasks | 14 files |
 | Phase 04 P08 | 9min | 3 tasks（Task0 reading doc + Task1 card builder + Task2 Provider）| 7 files (5 created + 2 modified) — 37 测试 (19 单元 + 18 集成) / 80 IM 测试 0 regression / 锁定 dingtalk-stream==0.24.3 |
+| Phase 04-approval-chain-im P06 | 12min | 3 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -274,6 +275,9 @@ Recent decisions affecting current work:
 - [Phase 04-08]: DINGTALK_AGENT_ID 直接从 env 读（非 IMCredentialsManager 字段）— 是部署 config 而非凭据本身，避免改 04-05 已完成 plan
 - [Phase 04-08]: [Rule 3 - Blocking] pyproject.toml 加 dingtalk-stream==0.24.3 锁定（手工 pip install 仅本地生效）
 - [Phase 04-08]: [Rule 2 - Missing Critical] lifespan 新增 _register_im_providers_if_configured + _close_registered_im_providers 基础设施，为 Wave 4 其他 Provider plan 建好扩展点
+- [Phase 04-approval-chain-im]: [Phase 04-06] importlib.metadata.version 取代不存在的 lark.__version__ — SDK 版本校验陷阱
+- [Phase 04-approval-chain-im]: [Phase 04-06] update_card 24h 过期 (code=234016) → log warning 不抛错，避免 tenacity 无谓重试
+- [Phase 04-approval-chain-im]: [Phase 04-06] 同步 lark-oapi 1.6.5 在 asyncio 内通过 loop.run_in_executor 包装 — 未公开 AsyncClient
 
 ### Pending Todos
 
