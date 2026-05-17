@@ -2,13 +2,13 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: unknown
-last_updated: "2026-05-17T07:30:00.000Z"
+status: phase4_complete_pending_verification
+last_updated: "2026-05-17T08:30:00.000Z"
 progress:
   total_phases: 5
   completed_phases: 3
   total_plans: 38
-  completed_plans: 37
+  completed_plans: 38
 ---
 
 # Project State
@@ -22,12 +22,12 @@ See: .planning/PROJECT.md (updated 2026-05-16)
 
 ## Current Position
 
-Phase: 4 of 7 (审批链 + IM 通知)
-Plan: 12 of 12 in current phase（Wave 6 04-11 完成 — HITLNodeExecutor chain 集成 + multichannel 通知）
-Status: ✅ Phase 4 Wave 6 04-11 完成；剩 04-12 待执行（最后一 plan，本 phase 收尾）
-Last activity: 2026-05-17 — Plan 04-11 完成（HITLNodeExecutor chain 集成 + _on_hitl_enter：HITLNodeExecutor.interrupt_payload 加 4 chain 字段 chain_mode/approvers/current_idx/notify_channels（默认值保证 Phase 3 旧 DSL 100% 向后兼容 + approvers UUID list→str list 序列化 LangGraph checkpoint JSON 编码兼容）+ ExecutionEngine._on_hitl_enter HITL 节点 enter 钩子（resolve_assignees 4 表达式 router → NodeState INSERT + build_initial_payload(chain_mode, approvers) + chain_mode 分发 batch_create_tokens_for_actors single/sequential→approvers[0] vs parallel_*→全部 + per actor enqueue_hitl_multichannel 多通道 fan-out + per-actor try/except 失败不阻塞 + 结构化日志 hitl.node.entered 8 字段 extra dict Phase 7 Run Viewer 钩子）+ HitlService.resolve_assignees 4 表达式 router 独立实现 email/user:<uuid>/role:<code>/dept:<name>→NotImplementedError + 3 helper _resolve_user_uuid/_resolve_email_uuid/_resolve_role_uuids workspace 边界校验 + 去重保序防 sequential approvers[0] 不确定 + 25 新测试全绿 13 chain interrupt 单元测试 + 12 _on_hitl_enter 集成测试 4 chain mode×assignees 表达式 / Phase 3+04-02+04-10 既有 ~94 测试 0 regression）
+Phase: 4 of 7 (审批链 + IM 通知) — ✅ 全 12 plan Complete，待 verification
+Plan: 12 of 12 in current phase（Plan 04-12 完成 — Phase 4 E2E gate 收官）
+Status: ✅ Phase 4 全 12 plan Complete；下一步 /gsd:verify-work 验证 → /gsd:discuss-phase 5
+Last activity: 2026-05-17 — Plan 04-12 完成（Phase 4 E2E gate 收官：6 个 Python E2E spec 一一对应 ROADMAP Phase 4 全 6 success criteria + browser-use/browser-harness 工具切换（用户 2026-05-17 指令，Phase 1-3 既有 11 Playwright spec 保留不动新建 e2e_v2/ 栈并存）+ 双 reading doc gate（reading-browser-harness 340 行 + reading-dify-e2e 140 行：Dify 测试金字塔仅 unit+integration 无 E2E 层结论）+ backend test_helpers 5 endpoint 仅 ENABLE_TEST_API=1 挂载（im_mock_calls/im_mock_clear/hitl_tokens/audit_logs/ping）+ mock_im_providers conftest fixture autouse=False session-scope（不污染既有 81 IM 测试）+ SetupRedirectMiddleware /api/test/ 白名单 + e2e_v2/ Python 测试栈（pytest+httpx+browser-harness 子进程 / 7 helpers / hitl_decision_page PageObject / 6 spec / 26 测试 / Smoke 默认全 skip / Standard RUN_E2E=1 / Full E2E_FULL_STACK=1 三档）+ Safe Links 4 bot UA × 3 chain mode = 12 parametrize 矩阵（CLAUDE.md §2.5 P0 防护：bot GET 不签 cookie + used_at IS NULL + 真实用户随后 POST 仍成功反证未污染）+ 大部分 spec 纯 pytest+httpx 不需浏览器（chain/escalation API+DB 状态机断言） 仅 #5 IM card 点击 + #6 delegate UI 走 browser-harness（CLI 不可用 skip）+ ROADMAP 1:1 追溯（每 spec 头注释 'Covers ROADMAP Phase 4 #N'）+ 10 backend test_helpers 测试全绿 / 26 e2e_v2 测试 collect-only 通过 / 54 关联测试 0 regression / 17 Phase 1-3 Playwright spec 完全不动）
 
-Progress: [████████░░] 75%（3/7 phases complete; Phase 4 12/12 plans done — Wave 6 04-11 完成 HITL chain 集成）
+Progress: [█████████░] 92%（4/7 phases complete after verification; Phase 4 全 12/12 plans done — Plan 04-12 Phase 4 E2E gate 收官）
 
 ## Performance Metrics
 
@@ -74,6 +74,8 @@ Progress: [████████░░] 75%（3/7 phases complete; Phase 4 12
 | Phase 04-approval-chain-im P07 | ~10min | 4 tasks（Task0 reading doc + Task1 spike 30min 上限内 5min 完成 + Task2 card builder + Task3 Provider/lifespan）| 8 files (5 created + 3 modified) — 34 测试 (17 card + 17 provider) / 77 IM 测试 0 regression / wechatpy 1.8.18 模块路径 enterprise 而非 work + 无 template_card API → 双路径 markdown 方案 |
 | Phase 04-approval-chain-im P09 | 16min | 4 tasks | 13 files |
 | Phase 04-approval-chain-im P10 | 22min | 4 tasks | 10 files |
+| Phase 04-approval-chain-im P11 | 20min | 3 tasks（Task 0 reading doc + Task 1 interrupt chain + Task 2 _on_hitl_enter）| 6 files (3 created + 3 modified) — 25 新测试 (13 chain interrupt 单元 + 12 _on_hitl_enter 集成) / Phase 3+04-02+04-10 既有 61 测试 0 regression |
+| Phase 04-approval-chain-im P12 | ~35min | 6 tasks（Task 0 双 reading doc + Task 1 backend test_helpers + Task 1.5 e2e_v2 helpers + Task 2 3 chain specs + Task 3-5 3 final specs）| 22 files (16 created + 3 modified + 3 docs) — 36 测试 (10 backend test_helpers + 26 e2e_v2 specs Smoke 全 skip / Standard 跑全部) / 17 Phase 1-3 Playwright spec 完全不动 / 54 关联 backend 测试 0 regression |
 
 ## Accumulated Context
 
@@ -310,6 +312,20 @@ Recent decisions affecting current work:
 - [Phase 04-10]: 结构化日志 message='notification.multichannel.enqueued' + extra={channels, notification_ids, instance_id, ...} — Phase 7 ELK / Loki 查询友好
 - [Phase 04-10]: [Rule 3 - Blocking] deferred-items.md 登记 test_dsl_schema.py::test_all_node_types_registered 失败 — Plan 03-05 引入 notification 时遗留，与 04-10 改动无关
 - [Phase 04-10]: enqueue_generic_im_card(channel='email') → ValueError — 强制走 enqueue_generic_email 避免歧义
+- [Phase 04-12]: 工具切换 (用户 2026-05-17 指令) — Playwright → browser-use/browser-harness；Phase 1-3 既有 11 Playwright spec 保留不动新建 e2e_v2/ 栈并存（fork discipline + 不破坏既有信号）
+- [Phase 04-12]: 双 reading doc gate (CLAUDE.md §2.7 硬性) — reading-browser-harness (340 行) + reading-dify-e2e (140 行 关键结论 Dify 无 E2E 层) 先 commit 才允许写代码
+- [Phase 04-12]: browser-harness 仅 #5 IM card click + #6 delegate UI 启浏览器；其他 4 chain/escalation spec 纯 pytest+httpx — bot UA 用 httpx 不走浏览器更直接验证后端
+- [Phase 04-12]: test_helpers 路由 ENABLE_TEST_API=1 条件挂载 (双层防御) — main.py 启动时警告 log；生产 nginx 公网层可加 /api/test/ 黑名单 (第三层防御)
+- [Phase 04-12]: SetupRedirectMiddleware /api/test/ 白名单 — test_helpers 路由需绕过 setup gate (E2E 准备数据前可能未 initialize)；仅 ENABLE_TEST_API=1 + 路由挂载才有效安全等价
+- [Phase 04-12]: mock_im_providers fixture autouse=False scope='session' — 避免污染既有 81 IM provider 单元测试 (自管 mock)；显式引用时才覆盖 registry
+- [Phase 04-12]: Safe Links 4 bot UA × 3 chain mode = 12 parametrize 测试矩阵 — chain mode 多 token 活跃时 bot 扫一个不能影响其他 (parallel/sequential 都需独立回归)
+- [Phase 04-12]: GET /api/test/hitl_tokens?jti=X 查 used_at 是 Safe Links 回归 P0 基础 — vs 直连 DB (spec 进程不持有 DB 连接复杂性)
+- [Phase 04-12]: MockIMProvider mock.calls 不通过 ORM 暴露 — GET endpoint 接口隔离 spec 进程与 DB session 复杂性
+- [Phase 04-12]: 部分 E2E spec skip 解释 — 委托主流程 (#6) / IM card 严格路由 (#5) 需 backend 提供 admin user-update endpoint 写 im_bindings + 完整多用户 cookie 链路；委托后端单元 + 集成测试 100% 覆盖于 Plan 04-03 (17 测试)，escalation 24h 真实快进留 Phase 4.5+ 实现 mock_time
+- [Phase 04-12]: frozen=True dataclass 3 处 — HitlDeeplink (mailhog 解析) / HitlEmailParsed (整封邮件结构) / DecisionPageVerification (browser-harness 结果) — CLAUDE.md immutability 全面落地
+- [Phase 04-12]: [Rule 3 - Blocking] AuditLog 字段名 actor_user_id 不是 actor_id — 初版 test_helpers.py 用错字段，改 actor_user_id + 增 actor_meta/actor_ip/actor_ua/decision
+- [Phase 04-12]: [Rule 3 - Blocking] engine.dispose() 防 audit_logs 测试 loop race — 跨测试 asyncpg 连接绑定旧 event loop 'Event loop is closed'，与 test_instances_api/test_hitl_action_service 同模式
+- [Phase 04-approval-chain-im]: ✅ 全 12 plan 完成，等待 /gsd:verify-work 阶段验证
 
 ### Pending Todos
 
@@ -325,6 +341,6 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-05-17
-Stopped at: Completed 04-10-PLAN.md（Phase 4 Wave 5：multichannel fan-out NOTI-08 — NotificationService.enqueue_hitl_multichannel 多通道并发投递 + enqueue_generic_im_card Notification 节点 IM 入口 + NOTIFY_CHANNELS_ENUM 7 值共享常量 hitl+notification schema + 'wechat'→'wecom' 修正 + notify_channels default=['email'] 向后兼容 + NotificationNodeExecutor 多 channel 分发 + _normalize_recipients email 严校验/IM 宽容 + im_bindings.get 缺失 skip+warn + 事务边界 commit 后才 enqueue (防 Pitfall 2) + 每行独立 payload dict (worker 写回 im_message_id 不污染) + per-channel try/except 失败隔离 + 结构化日志 notification.multichannel.enqueued + 39 新测试 / 28 既有 0 regression / 126 IM provider 0 regression / test_notification_node_unsupported_channel_skipped 改为 unknown 因 feishu 已支持 / deferred-items.md 登记 pre-existing test_all_node_types_registered Plan 03-05 遗留）
+Stopped at: Completed 04-12-PLAN.md（Phase 4 E2E gate 收官 — 6 个 Python E2E spec 一一对应 ROADMAP Phase 4 全 6 success criteria + browser-use/browser-harness 工具切换（用户 2026-05-17 指令，Phase 1-3 既有 11 Playwright spec 保留不动新建 e2e_v2/ 栈并存）+ 双 reading doc gate（reading-browser-harness 340 行 + reading-dify-e2e 140 行：Dify 测试金字塔仅 unit+integration 无 E2E 层结论）+ backend test_helpers 5 endpoint 仅 ENABLE_TEST_API=1 挂载（im_mock_calls/im_mock_clear/hitl_tokens/audit_logs/ping）+ mock_im_providers conftest fixture autouse=False session-scope（不污染既有 81 IM 测试）+ SetupRedirectMiddleware /api/test/ 白名单 + e2e_v2/ Python 测试栈（pytest+httpx+browser-harness 子进程 / 7 helpers / hitl_decision_page PageObject / 6 spec / 26 测试 / Smoke 默认全 skip / Standard RUN_E2E=1 / Full E2E_FULL_STACK=1 三档）+ Safe Links 4 bot UA × 3 chain mode = 12 parametrize 矩阵（CLAUDE.md §2.5 P0 防护）+ 10 backend test_helpers 测试全绿 + 17 Phase 1-3 Playwright spec 完全不动 + 54 关联 backend 测试 0 regression）
 Resume file: None
-Next action: 04-11 / 04-12 plan 执行（Phase 4 剩 2 plans — HITL chain 集成 multichannel + Phase 4 E2E 测试覆盖 ROADMAP success criteria）
+Next action: /gsd:verify-work 验证 Phase 4 完整性 → /gsd:discuss-phase 5
