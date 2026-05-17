@@ -101,6 +101,7 @@ class PlatformDaemonClient:
         module_entry: str,
         env: dict[str, str] | None = None,
         invoke_timeout: float = _DEFAULT_INVOKE_TIMEOUT,
+        cwd: str | None = None,
     ) -> None:
         """构造 client（不实际 spawn 进程；首次 invoke 时懒启动）。
 
@@ -110,10 +111,15 @@ class PlatformDaemonClient:
             env: 额外环境变量（merge 进 os.environ）— 如 ``{"HULY_ENDPOINT": "http://..."}``
             invoke_timeout: 每个 invoke 等响应的超时（秒）；默认 30.0
                             **重要**：fault isolation test 必须用 ≤ 2.0 验证 crash 立即失败
+            cwd: 子进程工作目录；默认 None 表示继承主进程 cwd。
+                 Plan 07 acid test 注入项目根目录（让 ``python -m plugins.huly.huly_plugin``
+                 能从根目录找到 ``plugins/`` 包，主进程的 pytest 跑在 ``backend/`` 下时
+                 必须显式指定 cwd 让 daemon 看见 ``plugins/`` 包）。
         """
         self._module_entry = module_entry
         self._env = env
         self._invoke_timeout = invoke_timeout
+        self._cwd = cwd
 
         self._proc: asyncio.subprocess.Process | None = None
         self._pending: dict[str, asyncio.Future[Any]] = {}
@@ -161,6 +167,7 @@ class PlatformDaemonClient:
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
                 env=merged_env,
+                cwd=self._cwd,
             )
             self._reader_task = asyncio.create_task(
                 self._read_loop(),
