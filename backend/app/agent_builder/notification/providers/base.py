@@ -28,6 +28,7 @@ PROVIDER_WECOM = "wecom"
 PROVIDER_DINGTALK = "dingtalk"
 PROVIDER_SLACK = "slack"
 PROVIDER_MATTERMOST = "mattermost"
+PROVIDER_WEBHOOK = "webhook"  # Plan 04-09 NOTI-07：通用 HTTP webhook 投递
 
 KNOWN_PROVIDERS: frozenset[str] = frozenset(
     {
@@ -36,6 +37,7 @@ KNOWN_PROVIDERS: frozenset[str] = frozenset(
         PROVIDER_DINGTALK,
         PROVIDER_SLACK,
         PROVIDER_MATTERMOST,
+        PROVIDER_WEBHOOK,
     }
 )
 

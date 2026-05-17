@@ -27,6 +27,7 @@ from app.agent_builder.core.im_credentials import (
     IMCredentialsManager,
     MattermostCredentials,
     SlackCredentials,
+    WebhookCredentials,
     WeComCredentials,
 )
 
@@ -48,6 +49,7 @@ def clear_im_env(monkeypatch):
         "SLACK_BOT_TOKEN",
         "MATTERMOST_URL",
         "MATTERMOST_BOT_TOKEN",
+        "WEBHOOK_DELIVERY_URL",  # Plan 04-09 NOTI-07
     ]:
         monkeypatch.delenv(var, raising=False)
     yield
@@ -151,21 +153,22 @@ def test_credentials_are_frozen(monkeypatch):
 
 
 def test_load_warns_on_missing(caplog):
-    """未配置任何 provider → 5 条 warning。"""
+    """未配置任何 provider → 6 条 warning（Plan 04-09 新增 webhook）。"""
     caplog.set_level(logging.WARNING, logger="app.agent_builder.core.im_credentials")
     IMCredentialsManager()
 
     warnings = [r.message for r in caplog.records if r.levelno == logging.WARNING]
-    # 5 家全未配置 → 5 条 warning
+    # 6 家全未配置 → 至少 6 条 warning
     assert any("飞书" in w or "FEISHU" in w for w in warnings)
     assert any("企微" in w or "WECOM" in w for w in warnings)
     assert any("钉钉" in w or "DINGTALK" in w for w in warnings)
     assert any("Slack" in w or "SLACK" in w for w in warnings)
     assert any("Mattermost" in w or "MATTERMOST" in w for w in warnings)
+    assert any("Webhook" in w or "WEBHOOK" in w for w in warnings)
 
 
 def test_load_no_warning_when_all_configured(monkeypatch, caplog):
-    """5 家全配置 → 无 warning。"""
+    """6 家全配置 → 无 warning。"""
     monkeypatch.setenv("FEISHU_APP_ID", "a")
     monkeypatch.setenv("FEISHU_APP_SECRET", "b")
     monkeypatch.setenv("WECOM_CORP_ID", "c")
@@ -176,6 +179,7 @@ def test_load_no_warning_when_all_configured(monkeypatch, caplog):
     monkeypatch.setenv("SLACK_BOT_TOKEN", "h")
     monkeypatch.setenv("MATTERMOST_URL", "https://mm.example.com")
     monkeypatch.setenv("MATTERMOST_BOT_TOKEN", "i")
+    monkeypatch.setenv("WEBHOOK_DELIVERY_URL", "https://example.com/hook")
 
     caplog.set_level(logging.WARNING, logger="app.agent_builder.core.im_credentials")
     IMCredentialsManager()
@@ -197,6 +201,7 @@ def test_has_provider_returns_correct_bool(monkeypatch):
     assert mgr.has_wecom() is False
     assert mgr.has_slack() is False
     assert mgr.has_mattermost() is False
+    assert mgr.has_webhook() is False
 
 
 def test_list_configured_returns_sorted_names(monkeypatch):

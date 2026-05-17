@@ -30,6 +30,7 @@ from app.agent_builder.notification.providers.base import (
     PROVIDER_FEISHU,
     PROVIDER_MATTERMOST,
     PROVIDER_SLACK,
+    PROVIDER_WEBHOOK,
     PROVIDER_WECOM,
     IMProvider,
     clear_providers,
@@ -63,8 +64,8 @@ def test_mock_provider_satisfies_protocol():
     assert isinstance(mock, IMProvider)
 
 
-def test_known_providers_frozenset_contains_5():
-    """KNOWN_PROVIDERS 包含 5 家 IM 常量名。"""
+def test_known_providers_frozenset_contains_6():
+    """KNOWN_PROVIDERS 包含 6 家 IM 常量名（Plan 04-09 新增 webhook）。"""
     assert KNOWN_PROVIDERS == frozenset(
         {
             PROVIDER_FEISHU,
@@ -72,9 +73,10 @@ def test_known_providers_frozenset_contains_5():
             PROVIDER_DINGTALK,
             PROVIDER_SLACK,
             PROVIDER_MATTERMOST,
+            PROVIDER_WEBHOOK,
         }
     )
-    assert len(KNOWN_PROVIDERS) == 5
+    assert len(KNOWN_PROVIDERS) == 6
     # frozenset 不可变（添加抛 AttributeError）
     with pytest.raises(AttributeError):
         KNOWN_PROVIDERS.add("evil")  # type: ignore[attr-defined]

@@ -71,6 +71,19 @@ class MattermostCredentials:
     bot_token: str
 
 
+@dataclass(frozen=True)
+class WebhookCredentials:
+    """通用 Webhook 凭据（Plan 04-09 NOTI-07）。
+
+    HMAC_SECRET 复用项目全局密钥（已在 startup_checks 校验 ≥ 32 字节），
+    本 dataclass 仅承载用户配置的 delivery URL。
+
+    Phase 4 简化：全局单 URL；Phase 6 扩展 workspace 级多 URL。
+    """
+
+    delivery_url: str
+
+
 # ── Manager ───────────────────────────────────────────────────────────────────
 
 
@@ -94,6 +107,7 @@ class IMCredentialsManager:
         self._dingtalk: DingTalkCredentials | None = None
         self._slack: SlackCredentials | None = None
         self._mattermost: MattermostCredentials | None = None
+        self._webhook: WebhookCredentials | None = None  # Plan 04-09 NOTI-07
         self._load_from_env()
 
     def _load_from_env(self) -> None:
@@ -161,6 +175,16 @@ class IMCredentialsManager:
                 "MattermostProvider 不可用"
             )
 
+        # 通用 Webhook（Plan 04-09 NOTI-07）
+        wh_url = os.environ.get("WEBHOOK_DELIVERY_URL", "").strip()
+        if wh_url:
+            self._webhook = WebhookCredentials(delivery_url=wh_url)
+        else:
+            log.warning(
+                "未配置通用 Webhook 凭据（WEBHOOK_DELIVERY_URL）— "
+                "WebhookProvider 不可用"
+            )
+
     # ── Getters ──────────────────────────────────────────────────────────────
 
     def feishu(self) -> FeishuCredentials:
@@ -206,6 +230,14 @@ class IMCredentialsManager:
             )
         return self._mattermost
 
+    def webhook(self) -> WebhookCredentials:
+        """获取通用 Webhook 凭据；未配置抛 RuntimeError。Plan 04-09 NOTI-07。"""
+        if self._webhook is None:
+            raise RuntimeError(
+                "Webhook 凭据未配置 — 请设置环境变量 WEBHOOK_DELIVERY_URL"
+            )
+        return self._webhook
+
     # ── 检查（不抛错）──────────────────────────────────────────────────────
 
     def has_feishu(self) -> bool:
@@ -228,6 +260,10 @@ class IMCredentialsManager:
         """检查 Mattermost 凭据是否已配置。"""
         return self._mattermost is not None
 
+    def has_webhook(self) -> bool:
+        """检查通用 Webhook 凭据是否已配置。Plan 04-09 NOTI-07。"""
+        return self._webhook is not None
+
     def list_configured(self) -> list[str]:
         """列出已配置的 Provider 名（sorted）— 启动 banner / 健康检查用。"""
         configured: list[str] = []
@@ -241,4 +277,6 @@ class IMCredentialsManager:
             configured.append("slack")
         if self.has_mattermost():
             configured.append("mattermost")
+        if self.has_webhook():
+            configured.append("webhook")
         return sorted(configured)
