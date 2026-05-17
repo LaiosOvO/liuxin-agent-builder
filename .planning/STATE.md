@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-last_updated: "2026-05-17T03:41:39.635Z"
+last_updated: "2026-05-17T07:30:00.000Z"
 progress:
   total_phases: 5
   completed_phases: 3
   total_plans: 38
-  completed_plans: 36
+  completed_plans: 37
 ---
 
 # Project State
@@ -23,11 +23,11 @@ See: .planning/PROJECT.md (updated 2026-05-16)
 ## Current Position
 
 Phase: 4 of 7 (审批链 + IM 通知)
-Plan: 11 of 12 in current phase（Wave 5 04-10 完成 — multichannel fan-out NOTI-08 实现）
-Status: ✅ Phase 4 Wave 5 04-10 multichannel fan-out 完成；剩 04-11 / 04-12 待执行
-Last activity: 2026-05-17 — Plan 04-10 完成（NotificationService.enqueue_hitl_multichannel 多通道并发投递 NOTI-08：channels[]→fan-out N 行 notifications + N 个 arq job + im_bindings.get(channel) 缺失跳过+warn + 事务边界 commit 后才 enqueue (防 Pitfall 2) + 每行独立 payload dict (worker 写回 im_message_id 不污染) + enqueue_generic_im_card 与 enqueue_generic_email 平行 API + NOTIFY_CHANNELS_ENUM 7 值共享常量 hitl+notification schema + 'wechat'→'wecom' 修正 + notify_channels default=['email'] 向后兼容 + NotificationNodeExecutor 多 channel 分发 _normalize_recipients email 严校验 / IM 宽容 + per-channel try/except 失败隔离 + 39 新测试全绿 / 28 既有测试 0 regression / 126 IM provider 测试 0 regression / test_notification_node_unsupported_channel_skipped 重命名为 unknown 反映 feishu 已支持 / deferred-items.md 登记 pre-existing test_all_node_types_registered Plan 03-05 遗留）
+Plan: 12 of 12 in current phase（Wave 6 04-11 完成 — HITLNodeExecutor chain 集成 + multichannel 通知）
+Status: ✅ Phase 4 Wave 6 04-11 完成；剩 04-12 待执行（最后一 plan，本 phase 收尾）
+Last activity: 2026-05-17 — Plan 04-11 完成（HITLNodeExecutor chain 集成 + _on_hitl_enter：HITLNodeExecutor.interrupt_payload 加 4 chain 字段 chain_mode/approvers/current_idx/notify_channels（默认值保证 Phase 3 旧 DSL 100% 向后兼容 + approvers UUID list→str list 序列化 LangGraph checkpoint JSON 编码兼容）+ ExecutionEngine._on_hitl_enter HITL 节点 enter 钩子（resolve_assignees 4 表达式 router → NodeState INSERT + build_initial_payload(chain_mode, approvers) + chain_mode 分发 batch_create_tokens_for_actors single/sequential→approvers[0] vs parallel_*→全部 + per actor enqueue_hitl_multichannel 多通道 fan-out + per-actor try/except 失败不阻塞 + 结构化日志 hitl.node.entered 8 字段 extra dict Phase 7 Run Viewer 钩子）+ HitlService.resolve_assignees 4 表达式 router 独立实现 email/user:<uuid>/role:<code>/dept:<name>→NotImplementedError + 3 helper _resolve_user_uuid/_resolve_email_uuid/_resolve_role_uuids workspace 边界校验 + 去重保序防 sequential approvers[0] 不确定 + 25 新测试全绿 13 chain interrupt 单元测试 + 12 _on_hitl_enter 集成测试 4 chain mode×assignees 表达式 / Phase 3+04-02+04-10 既有 ~94 测试 0 regression）
 
-Progress: [███████░░░] 65%（3/7 phases complete; Phase 4 11/12 plans done — Wave 5 04-10 multichannel fan-out 完成）
+Progress: [████████░░] 75%（3/7 phases complete; Phase 4 12/12 plans done — Wave 6 04-11 完成 HITL chain 集成）
 
 ## Performance Metrics
 

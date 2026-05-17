@@ -109,7 +109,7 @@ Plans:
 - [x] 04-08-PLAN.md — DingTalk Provider (dingtalk-stream 0.24.3 + ActionCard btn_orientation="0" 横排 3 按钮 + OAPI asyncsend_v2 直调 + update_card→NotImplemented 走 send_supplement_text + lifespan 按需注册 + 37 测试通过；NOTI-04 完成，2026-05-17 完成)
 - [x] 04-09-PLAN.md — Slack + Mattermost + 通用 Webhook IMProviders（httpx 直调 REST 不引入 slack-bolt / mattermost-driver 重依赖；Slack Block Kit chat.postMessage + chat.update supports_card_update=True；Mattermost attachment /api/v4/posts + PUT /patch supports_card_update=True；通用 Webhook POST JSON + HMAC-SHA256 签名 X-Agent-Builder-Signature header 防伪造 supports_card_update=False；serialize_payload sort_keys 稳定序列化保证用户端可复现验签；3 个 event 常量 hitl_decision_required/hitl_supplement/hitl_card_update；WebhookCredentials 仅 delivery_url 字段 HMAC 走 HMAC_SECRET env；PROVIDER_WEBHOOK 加入 KNOWN_PROVIDERS 6 家扩展；59 新增测试全绿 19/21/19 + 33 既有 04-05 测试 0 regression；NOTI-05/06/07 完成，2026-05-17 完成）
 - [x] 04-10-PLAN.md — NotificationService 多通道 fan-out + schema 扩展（enqueue_hitl_multichannel channels[]→fan-out N 行 notifications + N arq job / 事务边界 commit 后才 enqueue 防 Pitfall 2 / im_bindings.get(channel) 缺失 skip+warn / 每行独立 payload dict worker 写回 im_message_id 不污染 / enqueue_generic_im_card 与 enqueue_generic_email 平行 API / NOTIFY_CHANNELS_ENUM 7 值共享常量 hitl+notification schema / 'wechat'→'wecom' 修正 / notify_channels default=['email'] 向后兼容 / NotificationNodeExecutor 多 channel 分发 + _normalize_recipients email 严校验/IM 宽容 / per-channel try/except 失败隔离 / 结构化日志 notification.multichannel.enqueued / 39 新测试全绿 + 28 既有 0 regression + 126 IM provider 0 regression / 4 commits Task 0+1+2+3；NOTI-08 完成，2026-05-17 完成）
-- [ ] 04-11-PLAN.md — HITLNodeExecutor + ExecutionEngine 集成 compute_chain_advance
+- [x] 04-11-PLAN.md — HITLNodeExecutor chain 集成 + multichannel 通知（HITLNodeExecutor.interrupt_payload 加 4 chain 字段 chain_mode/approvers/current_idx/notify_channels 默认值保 Phase 3 旧 DSL 100% 向后兼容 + approvers UUID list→str list 序列化 LangGraph checkpoint JSON 编码兼容 + ExecutionEngine._on_hitl_enter HITL 节点 enter 钩子集中处理副作用 NodeState INSERT + build_initial_payload(chain_mode, approvers) + chain_mode 分发 batch_create_tokens_for_actors single/sequential→approvers[0] vs parallel_*→全部 + per actor enqueue_hitl_multichannel Plan 04-10 复用多通道 fan-out + per-actor try/except 失败不阻塞 + 结构化日志 hitl.node.entered 8 字段 extra dict Phase 7 Run Viewer 钩子 + HitlService.resolve_assignees 4 表达式 router 独立实现 email/user:<uuid>/role:<code>/dept:<name>→NotImplementedError + 3 helper _resolve_user_uuid/_resolve_email_uuid/_resolve_role_uuids workspace 边界校验 + 去重保序防 sequential approvers[0] 不确定 + 25 新测试全绿 13 chain interrupt 单元测试 + 12 _on_hitl_enter 集成测试 / Phase 3+04-02+04-10 既有 ~94 测试 0 regression / 3 commits Task 0+1+2；HITL-02 + NOTI-08 收尾，2026-05-17 完成）
 - [ ] 04-12-PLAN.md — E2E gate (6 Playwright spec + MockIMProvider)
 
 ### Phase 4.5: Bot Triggers + Slash 分发 + Reply (双向 IM)
@@ -175,7 +175,7 @@ Plans:
 | 1. Skeleton + 账号体系 | 6/6 | ✓ Complete | 2026-05-16 |
 | 2. DSL 引擎 + 基础节点 | 10/10 | ✓ Complete | 2026-05-17 |
 | 3. HITL 单节点 + Email 审批 | 10/10 | ✓ Complete | 2026-05-17 |
-| 4. 审批链 + IM 通知 | 10/12 | In Progress|  |
+| 4. 审批链 + IM 通知 | 11/12 | In Progress|  |
 | 4.5. Bot Triggers + Slash | 0/TBD | Not started | - |
 | 5. IM 目录双向同步 | 0/TBD | Not started | - |
 | 6. 插件机制 | 0/TBD | Not started | - |
