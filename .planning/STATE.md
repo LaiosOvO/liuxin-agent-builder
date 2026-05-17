@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: milestone
 status: unknown
-last_updated: "2026-05-17T15:53:26.378Z"
+last_updated: "2026-05-17T16:41:24.434Z"
 progress:
   total_phases: 7
   completed_phases: 5
   total_plans: 50
-  completed_plans: 46
+  completed_plans: 48
 ---
 
 # Project State
@@ -22,12 +22,12 @@ See: .planning/PROJECT.md (updated 2026-05-16)
 
 ## Current Position
 
-Phase: 5.B of 7 (Plugin 沙箱 + Daemon 资源限制) — Wave 1 进行中
-Plan: 01 of 05 in current phase（5.A 全 7/7 ✓；5.B Plan 01 Wave 1 ✓ — SandboxConfig schema 扩展完成）
-Status: 🚀 Plan 05b-01 Complete（SandboxConfig 7 字段 + 2 派生属性 + sandbox/parser.py K8s 单位解析 helper — PLUG-FW-13 完成）
-Last activity: 2026-05-17 — Plan 05b-01 完成（Phase 5.B Wave 1：SandboxConfig 从 3 字段 placeholder 扩展为 7 字段 + 2 派生属性 + 3 validators + sandbox/ 子包：cpu_limit '2.0' pattern ^\d+(\.\d+)?$ / memory rename memory_limit→memory '1Gi' + field_validator 调 parse_memory / network list[str] regex ^[a-z0-9.-]+:\d+$ 默认 [] 禁所有出站 / timeout_invoke int Field gt=0 le=3600 / timeout_idle int Field gt=0 le=86400 / use_cgroups bool False / env_allowlist list[str] 默认 [] Pitfall 8 防 secret 泄漏 + memory_bytes property → parse_memory / cpu_limit_seconds property → parse_cpu_seconds + sandbox/parser.py 119 行 0 Pydantic 依赖 K8s 单位 SI K/M/G/T + binary Ki/Mi/Gi/Ti + 裸 bytes + parse_cpu_seconds 保守 3600s × cores RLIMIT_CPU 累积秒 + docs/reading-dify-05b-01-sandbox-config-2026-05-17.md 174 行 6 借鉴点 5 显式偏离 Dify PluginResourceRequirements 仅 memory:int Python 主仓库不做 sandbox enforcement 全下沉 Go daemon vs 我们 Python 主进程 setrlimit baseline + ConfigDict extra=forbid 与 5.A 决策一致 + plugins/huly/platform.yaml 加 sandbox 段 timeout_* / use_cgroups / env_allowlist HULY_ENDPOINT 演示新字段 + 49 测试 pass 21 parser SI/binary 单位 edge case 负数 + 14 TestSandboxConfig 默认值 validator 范围 property 派生 + 13 5.A baseline 0 regression + 193 platforms tests pass + 5/5 acid test pass + deferred-items.md 记 lark_oapi 模块 pre-existing dev env 缺失 out of scope + 4 commits e5d06cd docs 0a33a08 feat parser 1fc573d feat SandboxConfig 1c4d79e test [Deviation Rule 3 - Blocking] rename memory_limit→memory 同步 fixture + test 断言）
+Phase: 5.B of 7 (Plugin 沙箱 + Daemon 资源限制) — Wave 2 完成
+Plan: 03 of 05 in current phase（5.A 全 7/7 ✓；5.B Plan 01/02/03 Wave 1+2 ✓ — SandboxConfig + SandboxRunner Protocol + AllowlistTransport 全部完成）
+Status: 🚀 Plan 05b-03 Complete（AllowlistTransport + make_sandboxed_http_client + huly_plugin env-gated lazy import 集成 — PLUG-FW-11 完成）
+Last activity: 2026-05-18 — Plan 05b-03 完成（Phase 5.B Wave 2 并行 plan：AllowlistTransport httpx.AsyncBaseTransport 子类 exact host:port lowercase + scheme 推断 port 443/80 + 空 allow restrictive 拒所有 Pitfall 8 + 非白名单 raise NetworkBlockedError 含 host + port + allowlist 字段 + 结构化日志 network.blocked event + make_sandboxed_http_client factory delegate 默认 httpx.AsyncHTTPTransport 测试可 inject httpx.MockTransport + plugins/huly/huly_plugin.py env-gated 双路径 PLUGIN_NETWORK_ALLOW 空走 5.A aiohttp fallback 非空走 httpx + AllowlistTransport 新路径 HIGH-2 fix lazy import 防 5.A acid test 子进程 PYTHONPATH 未含 backend/ 时 ModuleNotFoundError + docs/reading-dify-05b-03-network-allowlist-2026-05-18.md 192 行 6 借鉴点 Dify Python 主仓库无 application-level 网络白名单全下沉 Go daemon namespace 真隔离 vs 本项目 v1 httpx Transport 注入轻量 cross-platform + v1 trade-off requests/urllib 旁路 v2 Phase 6 marketplace 真隔离 + 13 单元测试 PASS 拒绝模式 3 放行模式 4 边界 4 factory 2 全用 httpx.MockTransport delegate 不真发 TCP + 4 集成测试 PASS @pytest.mark.sandbox_integration fixtures/network_test_daemon.py rc 10=blocked 20=network_error 30=import_error + 215 platforms tests 0 regression + 5/5 acid test 0 regression + 5 commits ffe4276 docs ca3f4a8 feat AllowlistTransport 6ec4dd4 feat huly_plugin lazy import c7f1d05 test unit 4898743 test integration）
 
-Progress: [██████████] 97%（4/7 phases complete; Phase 5.A 7/7 ✓ 全完成 + Phase 5.B 1/5 plans done — Wave 1 SandboxConfig schema 落地完成，Wave 2/3 plans 接口契约 freeze，可并行 dispatch）
+Progress: [██████████] 98%（4/7 phases complete; Phase 5.A 7/7 ✓ 全完成 + Phase 5.B 3/5 plans done — Wave 1+2 全完成；Wave 3 plans 05b-04/05 可启动）
 
 ## Performance Metrics
 
@@ -83,6 +83,7 @@ Progress: [██████████] 97%（4/7 phases complete; Phase 5.A 
 | Phase 05a-platform-plugin-framework P05 | 16min | 3 tasks（Task 0 reading doc + Task 1 PlatformDaemonClient + echo_daemon + 11 单测 + Task 2 capability_facades 替换 stub + MockPlatformPlugin + 13 单测）| 9 files (6 created + 2 modified) — 24 新测试 pass（含 Pitfall 2 fault isolation 关键 test_daemon_crash_fails_pending_future invoke_timeout=2.0 elapsed<2.0s）+ 141/141 全 platforms tests pass + Phase 4 IM 51 测试 0 regression + 集成手工验证 facade→daemon→echo_daemon→response→dataclass rebuilt 通过 |
 | Phase 05b-plugin-sandbox P01 | 14min | 3 tasks（Task 0 Dify reading doc + Task 1 SandboxConfig 扩展 + sandbox/parser.py + Task 2 49 单测）| 10 files (6 created + 4 modified) — 49 测试 pass（21 parser SI/binary 单位 + 14 TestSandboxConfig + 13 5.A baseline + 1 fixture update）+ 193 platforms tests pass + 5/5 acid test pass + 0 5.A regression / [Deviation Rule 3] rename memory_limit→memory 同步 fixture + 1 测试断言 / Wave 2/3 plans 接口契约 freeze（memory_bytes / cpu_limit_seconds / env_allowlist 注入点确定） |
 | Phase 05b P01 | 14min | 3 tasks | 10 files |
+| Phase 05b P03 | 25m | 3 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -393,6 +394,9 @@ Recent decisions affecting current work:
 - [Phase 05a-05]: [Rule 1 - Bug] test_plugin_facades.py test_facade_methods_raise_not_implemented 改为 test_facade_methods_raise_plugin_error_when_daemon_missing — Plan 04 stub 合约升级为 Plan 05 新合约（NotImplementedError → PluginError）；deferred-items.md Plan 06 已 log 此场景，本 plan Rule 1 修复 close loop
 - [Phase 05a-05]: [Rule 3 - Blocking] ruff B007 unused loop variable + 3 F401 unused import + 4 文件 black 需 reformat — ruff --fix + black 自动修复全部；re-run 24 单测全 pass 确认无回归
 - [Phase 05b]: Plan 05b-01: SandboxConfig 7 字段 schema 落地 — rename memory_limit→memory（K8s 风格）+ network/env_allowlist 默认 [] restrictive baseline + memory_bytes/cpu_limit_seconds property 派生 Wave 2/3 用 + sandbox/parser.py 0 Pydantic 依赖 K8s 单位解析 helper
+- [Phase 05b]: Plan 05b-03: lazy import 防 5.A acid test daemon spawn ModuleNotFoundError (HIGH-2 fix)
+- [Phase 05b]: Plan 05b-03: env-gated 双路径 PLUGIN_NETWORK_ALLOW 空走 5.A aiohttp fallback 非空走 httpx + AllowlistTransport 新路径
+- [Phase 05b]: Plan 05b-03: v1 接受 requests/urllib 旁路 trade-off; v2 Phase 6 marketplace 上 nsjail / network namespace 真隔离
 
 ### Pending Todos
 

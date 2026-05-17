@@ -165,8 +165,8 @@ Plans:
   7. macOS dev 全 suite 通过（含 enforcement test skip）；Linux CI ubuntu-latest 全 suite 通过（含 RLIMIT 真行为验证）
 **Plans**: 5 plans (Wave 1 → 2⇉ → 3⇉)
   - [x] 05b-01-PLAN.md — SandboxConfig manifest schema 扩展 + parser.py + Dify reading doc（Wave 1，PLUG-FW-13）— Completed 2026-05-17 (14min, 49 测试 PASS, 193 platforms + 5/5 acid 0 regression)
-  - [ ] 05b-02-PLAN.md — SandboxRunner Protocol + PosixResourceSandbox + RLIMIT 4 类 + os.setsid 进程组 + Linux CI enforcement test（Wave 2 并行, PLUG-FW-09）
-  - [ ] 05b-03-PLAN.md — AllowlistTransport（httpx Transport API）+ NetworkBlockedError + make_sandboxed_http_client + huly_plugin env-gated 集成（Wave 2 并行，PLUG-FW-11）
+  - [x] 05b-02-PLAN.md — SandboxRunner Protocol + PosixResourceSandbox + RLIMIT 4 类 + os.setsid 进程组 + Linux CI enforcement test（Wave 2 并行, PLUG-FW-09）— Completed 2026-05-18 (9 passed, 1 skipped macOS — HIGH-3 fix close_fds)
+  - [x] 05b-03-PLAN.md — AllowlistTransport（httpx Transport API）+ NetworkBlockedError + make_sandboxed_http_client + huly_plugin env-gated 集成（Wave 2 并行，PLUG-FW-11）— Completed 2026-05-18 (25min, 13 unit + 4 integration PASS, 215 platforms + 5/5 acid 0 regression)
   - [ ] 05b-04-PLAN.md — SandboxWatchdog（SIGTERM 3s grace → SIGKILL）+ IdleDaemonReaper + PlatformDaemonClient 集成（_choose_runner + _build_filtered_env strip-all + last_invoke_at）（Wave 3，PLUG-FW-12）
   - [ ] 05b-05-PLAN.md — CgroupsV2Sandbox（systemd-run --user --scope）+ is_cgroups_v2_available 4 检查 + 真试 + 优雅降级（Wave 3 并行，PLUG-FW-10）
 
