@@ -44,6 +44,8 @@ from app.agent_builder.models import (  # noqa: E402,F401
     Workflow,
     WorkflowVersion,
     Workspace,
+    # Phase 5.A — workspace_plugin_installations（PLUG-FW-08）
+    WorkspacePluginInstallation,
 )
 
 # Alembic Config 对象

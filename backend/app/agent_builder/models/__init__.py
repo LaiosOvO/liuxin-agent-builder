@@ -25,6 +25,9 @@ from app.agent_builder.models.node_state import NodeState
 from app.agent_builder.models.hitl_token import HitlToken
 from app.agent_builder.models.notification import Notification
 
+# Phase 5.A PlatformPlugin 框架（per-workspace 安装态）
+from app.agent_builder.models.workspace_plugin_installation import WorkspacePluginInstallation
+
 __all__ = [
     "Base",
     # Phase 1 模型
@@ -45,4 +48,6 @@ __all__ = [
     # Phase 3 HITL 模型
     "HitlToken",
     "Notification",
+    # Phase 5.A PlatformPlugin 框架
+    "WorkspacePluginInstallation",
 ]
