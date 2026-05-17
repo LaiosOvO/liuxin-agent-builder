@@ -44,9 +44,18 @@ import os
 import sys
 import time
 import uuid
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from .exceptions import PluginDaemonExitedError, PluginInvocationError
+from .exceptions import (
+    PluginDaemonExitedError,
+    PluginInvocationError,
+)
+from .sandbox.runner import PosixResourceSandbox
+
+if TYPE_CHECKING:
+    from .manifest import SandboxConfig
+    from .sandbox.runner import SandboxRunner
+    from .sandbox.watchdog import SandboxWatchdog
 
 _log = logging.getLogger(__name__)
 
@@ -57,6 +66,49 @@ _DEFAULT_INVOKE_TIMEOUT = 30.0
 
 _TERMINATE_WAIT = 5.0
 """close 时 terminate 后等待进程退出秒数；超时后 kill -9。"""
+
+# ── env 过滤白名单（Pitfall 8 防 secret 泄漏）────────────────────────────────────
+
+_SAFE_BASE_ENV = (
+    "PATH",
+    "HOME",
+    "LANG",
+    "LC_ALL",
+    "TZ",
+    "PYTHONPATH",
+    "PYTHONUNBUFFERED",
+)
+"""默认放行的基础 env — daemon Python 解释器启动必需 + 国际化设置。
+
+PATH/HOME 是 OS 进程基础；LANG/LC_ALL/TZ 是国际化（不影响安全）；PYTHONPATH/UNBUFFERED
+是 Python 解释器必需（否则 `python -u -m <module>` 找不到 sys.path 或 stdout buffer）。
+"""
+
+_FORBIDDEN_PREFIXES = (
+    "AGENT_BUILDER_",
+    "INTERNAL_",
+    "HMAC_",
+    "DATABASE_",
+    "REDIS_",
+    "SMTP_",
+)
+"""即使 manifest env_allowlist 显式列出，匹配此前缀的 env 也拒绝传给 daemon。
+
+设计理由：plugin 作者**永远不应该**直接读项目内部敏感配置；如果 plugin 需要数据库，
+必须走主进程的 capability API（隔离层），不能直接拿 DATABASE_URL 自己连。
+"""
+
+_FORBIDDEN_EXACT = (
+    "HMAC_SECRET",
+    "DATABASE_URL",
+    "REDIS_URL",
+    "OPENAI_API_KEY",
+)
+"""精确匹配的 forbidden env — 即使前缀不匹配也强制拒绝（兜底名单）。
+
+例如 OPENAI_API_KEY 不在前缀黑名单内，但绝不允许直接传给第三方 plugin（应该走 LLM
+capability proxy 隔离 token 使用计数）。
+"""
 
 
 # ── PlatformDaemonClient ─────────────────────────────────────────────────────
@@ -102,6 +154,8 @@ class PlatformDaemonClient:
         env: dict[str, str] | None = None,
         invoke_timeout: float = _DEFAULT_INVOKE_TIMEOUT,
         cwd: str | None = None,
+        sandbox_config: "SandboxConfig | None" = None,
+        sandbox_runner: "SandboxRunner | None" = None,
     ) -> None:
         """构造 client（不实际 spawn 进程；首次 invoke 时懒启动）。
 
@@ -115,18 +169,141 @@ class PlatformDaemonClient:
                  Plan 07 acid test 注入项目根目录（让 ``python -m plugins.huly.huly_plugin``
                  能从根目录找到 ``plugins/`` 包，主进程的 pytest 跑在 ``backend/`` 下时
                  必须显式指定 cwd 让 daemon 看见 ``plugins/`` 包）。
+            sandbox_config: Wave 3 沙箱配置（默认 None = 走 5.A 兼容路径不沙箱）
+                            非 None 时启用：
+                            - SandboxRunner spawn_with_limits 注入 RLIMIT（替代 asyncio.create_subprocess_exec）
+                            - _build_filtered_env strip-all-allowlist（替代 merge os.environ）
+                            - SandboxWatchdog asyncio task 监控 RSS（SIGTERM grace → SIGKILL）
+            sandbox_runner: Wave 3 注入 SandboxRunner 实例（默认 None = 自动选 PosixResourceSandbox）
+                            主要用于测试 inject MockSandboxRunner；生产路径让 _choose_runner 自动选
+
+        5.A 兼容性约束：
+        - sandbox_config=None 时走老路径（asyncio.create_subprocess_exec + dict(os.environ)）
+        - 5.A 既有 11 测试不传 sandbox_config → 0 regression
+        - 5.A 5/5 acid test 不传 sandbox_config → 0 regression
         """
         self._module_entry = module_entry
         self._env = env
         self._invoke_timeout = invoke_timeout
         self._cwd = cwd
+        self._sandbox_config = sandbox_config
+        self._sandbox_runner = sandbox_runner
 
         self._proc: asyncio.subprocess.Process | None = None
         self._pending: dict[str, asyncio.Future[Any]] = {}
         self._reader_task: asyncio.Task[None] | None = None
         self._stderr_task: asyncio.Task[None] | None = None
+        self._watchdog: "SandboxWatchdog | None" = None
         self._closed = False
         self._lock = asyncio.Lock()
+
+        # public 字段（IdleDaemonReaper 读）— 在 invoke() finally 块更新
+        self.last_invoke_at: float = 0.0
+        """daemon 最后一次 invoke 完成时间（time.monotonic 时间戳）。
+
+        IdleDaemonReaper 用此字段判断 daemon idle 时长。
+        在 invoke() 的 finally 块更新（不是 try 内 — Pitfall 6 保证 exception 也更新）。
+        默认 0.0 表示从未 invoke 过。
+        """
+
+    # ── 5.B 沙箱 helper（仅 sandbox_config 非 None 时调用）───────────────────
+
+    def _choose_runner(self) -> "SandboxRunner":
+        """自动选择 SandboxRunner 实现 — 测试可注入；生产 cgroups opt-in + 优雅降级。
+
+        优先级（Plan 05b-05 升级）：
+        1. 显式注入 ``self._sandbox_runner``（测试用 MockSandboxRunner — 优先级最高）
+        2. ``sandbox_config.use_cgroups`` + ``is_cgroups_v2_available()`` →
+           ``CgroupsV2Sandbox`` (Linux opt-in 路径)
+        3. Fallback ``PosixResourceSandbox`` — cross-platform baseline
+
+        **优雅降级（Pitfall 2 — 容器友好）**：
+            ``use_cgroups: true`` 但运行环境不支持 cgroups v2 / systemd-run
+            （macOS / docker 无 cgroup delegation / 无 systemd-userdbd） →
+            **不 fail startup**，log warning + 降级到 PosixResourceSandbox。
+
+        Returns:
+            SandboxRunner: 满足 Protocol 的 sandbox 实例（``spawn_with_limits`` 可直接调用）。
+
+        Note:
+            ``is_cgroups_v2_available()`` silent-fails（绝不抛异常 — Pitfall 2）；
+            本方法所有路径均不抛异常，可在 ``start()`` 同步调用。
+            仅在 ``sandbox_config is not None`` 路径调用（5.A 兼容路径不进入此方法）。
+        """
+        # 1. 显式注入优先（测试 mock）
+        if self._sandbox_runner is not None:
+            return self._sandbox_runner
+
+        # 2. manifest opt-in 检测 + cgroups v2 available 检测（Plan 05b-05）
+        if self._sandbox_config is not None and self._sandbox_config.use_cgroups:
+            # 延迟 import 避免无 sandbox_config 场景加载 cgroups_v2 模块
+            from .sandbox.cgroups_v2 import (
+                CgroupsV2Sandbox,
+                is_cgroups_v2_available,
+            )
+
+            if is_cgroups_v2_available():
+                _log.info("sandbox.runner.selected runner=CgroupsV2Sandbox")
+                return CgroupsV2Sandbox()
+            # use_cgroups=true 但运行时不可用 — 优雅降级 + warning（不 fail startup）
+            _log.warning(
+                "sandbox.cgroups_v2.unavailable — falling back to PosixResourceSandbox "
+                "(可能原因：非 Linux / 容器无 cgroup delegation / systemd-run 缺失 / "
+                "systemd-userdbd 未运行)"
+            )
+
+        # 3. cross-platform baseline
+        return PosixResourceSandbox()
+
+    def _build_filtered_env(self) -> dict[str, str]:
+        """strip-all-allowlist env 过滤（Pitfall 8 防 secret 泄漏）— 仅 sandbox_config 非 None 时调用。
+
+        过滤层级：
+        1. base env: PATH/HOME/LANG/LC_ALL/TZ/PYTHONPATH/PYTHONUNBUFFERED 默认放行
+           （daemon Python 解释器必需 + 国际化）
+        2. manifest env_allowlist opt-in: SandboxConfig.env_allowlist 显式列出的 env 才传
+        3. 双层黑名单兜底（即使 manifest 显式 allow 也拒）:
+           - _FORBIDDEN_PREFIXES: AGENT_BUILDER_* / INTERNAL_* / HMAC_* / DATABASE_* / REDIS_* / SMTP_*
+           - _FORBIDDEN_EXACT: HMAC_SECRET / DATABASE_URL / REDIS_URL / OPENAI_API_KEY
+        4. 用户传入 _env override（如 acid test 注入 HULY_ENDPOINT）
+
+        被拒的 env 记 warning log 让运维知道 plugin 作者可能想做不该做的事。
+
+        Returns:
+            dict[str, str]: 过滤后的 env，可直接传给 SandboxRunner.spawn_with_limits
+        """
+        filtered: dict[str, str] = {}
+
+        # 1. base env
+        for key in _SAFE_BASE_ENV:
+            if key in os.environ:
+                filtered[key] = os.environ[key]
+
+        # 2. manifest env_allowlist opt-in
+        if self._sandbox_config is not None:
+            for key in self._sandbox_config.env_allowlist:
+                if key in _FORBIDDEN_EXACT:
+                    _log.warning(
+                        "env_allowlist refused: %s on FORBIDDEN_EXACT list (module=%s)",
+                        key,
+                        self._module_entry,
+                    )
+                    continue
+                if any(key.startswith(p) for p in _FORBIDDEN_PREFIXES):
+                    _log.warning(
+                        "env_allowlist refused: %s matches FORBIDDEN_PREFIXES (module=%s)",
+                        key,
+                        self._module_entry,
+                    )
+                    continue
+                if key in os.environ:
+                    filtered[key] = os.environ[key]
+
+        # 3. 用户传入 env override（acid test 注入路径）
+        if self._env:
+            filtered.update(self._env)
+
+        return filtered
 
     # ── 公开 API ───────────────────────────────────────────────────────────────
 
@@ -154,21 +331,37 @@ class PlatformDaemonClient:
             # close 后重新 start 场景：重置 closed 标志
             self._closed = False
 
-            merged_env = dict(os.environ)
-            if self._env:
-                merged_env.update(self._env)
+            cmd = [sys.executable, "-u", "-m", self._module_entry]
 
-            self._proc = await asyncio.create_subprocess_exec(
-                sys.executable,
-                "-u",
-                "-m",
-                self._module_entry,
-                stdin=asyncio.subprocess.PIPE,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-                env=merged_env,
-                cwd=self._cwd,
-            )
+            if self._sandbox_config is not None:
+                # 5.B 沙箱路径：strip-all-allowlist env + SandboxRunner spawn + watchdog
+                env = self._build_filtered_env()
+                runner = self._choose_runner()
+                self._proc = await runner.spawn_with_limits(
+                    cmd,
+                    cpu_seconds=self._sandbox_config.cpu_limit_seconds,
+                    memory_bytes=self._sandbox_config.memory_bytes,
+                    env=env,
+                    cwd=self._cwd,
+                )
+            else:
+                # 5.A 兼容路径（不动 5.A 11 测试 + 5/5 acid test）
+                merged_env = dict(os.environ)
+                if self._env:
+                    merged_env.update(self._env)
+
+                self._proc = await asyncio.create_subprocess_exec(
+                    sys.executable,
+                    "-u",
+                    "-m",
+                    self._module_entry,
+                    stdin=asyncio.subprocess.PIPE,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                    env=merged_env,
+                    cwd=self._cwd,
+                )
+
             self._reader_task = asyncio.create_task(
                 self._read_loop(),
                 name=f"daemon-stdout-reader[{self._module_entry}]",
@@ -178,10 +371,22 @@ class PlatformDaemonClient:
                 name=f"daemon-stderr-drain[{self._module_entry}]",
             )
 
+            # 5.B: 仅在沙箱路径起 watchdog（5.A 老路径 daemon 未设 setsid，killpg 会误杀主进程）
+            if self._sandbox_config is not None:
+                from .sandbox.watchdog import SandboxWatchdog
+
+                self._watchdog = SandboxWatchdog(
+                    pid=self._proc.pid,
+                    memory_limit_bytes=self._sandbox_config.memory_bytes,
+                    on_violation=self._fail_all_pending,
+                )
+                self._watchdog.start()
+
             _log.info(
-                "daemon spawned: module=%s pid=%s",
+                "daemon spawned: module=%s pid=%s sandbox=%s",
                 self._module_entry,
                 self._proc.pid,
+                self._sandbox_config is not None,
             )
 
     async def invoke(
@@ -248,6 +453,10 @@ class PlatformDaemonClient:
             self._pending.pop(req_id, None)
             latency_ms = int((time.monotonic() - start_ts) * 1000)
 
+            # Pitfall 6: last_invoke_at 必须在 finally 块更新（不是 try 内）
+            # — 写在 try 内 exception 时不会更新，导致 IdleDaemonReaper 误判该 daemon idle
+            self.last_invoke_at = time.monotonic()
+
             # Structured log: Phase 7 Run Viewer 钩子（capability call latency 埋点）
             outcome = (
                 "success"
@@ -282,6 +491,11 @@ class PlatformDaemonClient:
             return
 
         self._closed = True
+
+        # 5.B: 先 stop watchdog（防 watchdog 在 close 流程中误触发 SIGKILL）
+        if self._watchdog is not None:
+            self._watchdog.stop()
+            self._watchdog = None
 
         if self._proc is None:
             return
