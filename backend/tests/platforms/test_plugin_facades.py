@@ -8,7 +8,7 @@
 5. test_plugin_lazy_facades_im — 首次访问 .im 实例化 IMFacade + 二次返回 cache
 6. test_plugin_facade_missing_capability_returns_none — 未声明的 capability 返回 None
 7. test_plugin_all_4_facades_cached — 4 facade 都被 cache（IM/Doc/HR/Identity）
-8. test_facade_methods_raise_not_implemented — stub facade 方法 raise NotImplementedError
+8. test_facade_methods_raise_plugin_error_when_daemon_missing — daemon=None 时 raise PluginError（Plan 05 演进）
 9. test_facade_share_same_daemon — 4 facade 共享同一 _daemon 引用
 10. test_facade_async_generator_is_marked — subscribe_events / watch_user_changes 是 async generator function
 """
@@ -151,32 +151,49 @@ def test_plugin_all_4_facades_cached(huly_manifest) -> None:
 
 
 @pytest.mark.asyncio
-async def test_facade_methods_raise_not_implemented(huly_manifest) -> None:
-    """stub facade 方法 raise NotImplementedError（Plan 05 真接入 daemon 后会变真转发）。"""
+async def test_facade_methods_raise_plugin_error_when_daemon_missing(
+    huly_manifest,
+) -> None:
+    """**Plan 05 演进**：daemon=None 时所有 facade method raise PluginError（fail-fast）。
+
+    Plan 04 stub 行为是 raise NotImplementedError；Plan 05 接入真 daemon 后，
+    daemon 缺失走 _ensure_daemon() 校验 → raise PluginError("daemon not attached")。
+    调用方应先 attach_daemon(daemon) 再调 method。
+    """
+    from app.agent_builder.platforms.capabilities import (
+        MessageRef,
+        NormalizedCard,
+        RecipientSpec,
+    )
+    from app.agent_builder.platforms.exceptions import PluginError
+
     plugin = PlatformPlugin(manifest=huly_manifest, daemon=None)
 
-    # IMFacade methods
+    # IMFacade methods —— 用真实 dataclass 参数（asdict() 序列化要求）
     im_f = plugin.im
-    with pytest.raises(NotImplementedError):
-        await im_f.send_card(recipient=object(), card=object(), idempotency_key="k1")
-    with pytest.raises(NotImplementedError):
-        await im_f.update_card(object(), object())
-    with pytest.raises(NotImplementedError):
-        await im_f.send_text(object(), "hi")
+    recipient = RecipientSpec(kind="channel", id="c1")
+    card = NormalizedCard(title="t", body_markdown="b", actions=[])
+    msg_ref = MessageRef(plugin_name="huly", native_id="x")
+    with pytest.raises(PluginError, match="daemon not attached"):
+        await im_f.send_card(recipient=recipient, card=card, idempotency_key="k1")
+    with pytest.raises(PluginError, match="daemon not attached"):
+        await im_f.update_card(msg_ref, card)
+    with pytest.raises(PluginError, match="daemon not attached"):
+        await im_f.send_text(recipient, "hi")
 
     # DocFacade methods
     doc_f = plugin.doc
-    with pytest.raises(NotImplementedError):
+    with pytest.raises(PluginError, match="daemon not attached"):
         await doc_f.create_document(title="t", markdown="md")
 
     # HRFacade methods
     hr_f = plugin.hr
-    with pytest.raises(NotImplementedError):
+    with pytest.raises(PluginError, match="daemon not attached"):
         await hr_f.resolve_department_members("dept:研发部")
 
     # IdentityFacade methods
     identity_f = plugin.identity
-    with pytest.raises(NotImplementedError):
+    with pytest.raises(PluginError, match="daemon not attached"):
         await identity_f.list_users()
 
 
