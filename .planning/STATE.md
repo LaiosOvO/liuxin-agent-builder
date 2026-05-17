@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: milestone
 status: unknown
-last_updated: "2026-05-17T13:02:44Z"
+last_updated: "2026-05-17T15:53:26.378Z"
 progress:
-  total_phases: 6
-  completed_phases: 4
-  total_plans: 45
-  completed_plans: 44
+  total_phases: 7
+  completed_phases: 5
+  total_plans: 50
+  completed_plans: 46
 ---
 
 # Project State
@@ -22,12 +22,12 @@ See: .planning/PROJECT.md (updated 2026-05-16)
 
 ## Current Position
 
-Phase: 5.A of 7 (PlatformPlugin 框架，Dify-style) — Wave 4 完成
-Plan: 05 of 07 in current phase（Plan 01-06 全 ✓ Wave 4 完成；Plan 07 Wave 5 acid test 待启动）
-Status: 🚀 Plan 05a-05 Complete（PlatformDaemonClient JSONRPC over stdio + 4 capability facades 真接入 daemon + MockPlatformPlugin + echo_daemon fixture — PLUG-FW-05 + PLUG-FW-06 双 requirement 完成）
-Last activity: 2026-05-17 — Plan 05a-05 完成（Wave 4 后半：PlatformDaemonClient 460 行 JSONRPC over stdio asyncio.create_subprocess_exec python -u -m unbuffered + UUID4 hex request_id 路由 _pending dict[str, asyncio.Future] + line-delimited JSON envelope + _read_loop stdout EOF 检测 _fail_all_pending Pitfall 2 fault isolation 立即失败 < 2s + _stderr_drain 独立 task Pitfall 8 防 pipe buffer 满死锁 + close 幂等 terminate→wait 5s→kill + start 幂等 + close 后 re-start 重置 _closed + structured log capability/method/latency_ms/outcome Phase 7 Run Viewer 钩子 + capability_facades 192→527 行 替换 Plan 04 stub 真转发 IMFacade/DocFacade/HRFacade/IdentityFacade 共享 _BaseFacade _ensure_daemon fail-fast PluginError + dataclass asdict 序列化 + 返回 dict 重建 dataclass + CRDTDelta.payload bytes → base64 encode + subscribe_events/watch_user_changes 保 if False yield {} asyncgenfunction 标记 + mock_plugin.py 299 行 MockPlatformPlugin 4 capability in-process MockIMCapability/MockDocCapability/MockHRCapability/MockIdentityCapability records sent/updated/texts/created 历史 + Mock 类直接 isinstance Protocol 不强制继承 + MockDocCapability supports_collaborative_edit=False apply_document_delta raise 测双路径分流 + MockIdentityCapability is_source_of_truth=False watch_user_changes raise + echo_daemon.py 141 行 测试用 daemon im.send_card/update_card/send_text/echo_error/im.crash sys.exit(1)/im.slow + 24 新测试 pass 11 daemon_client 含 test_daemon_crash_fails_pending_future Pitfall 2 关键 invoke_timeout=2.0 timing assert elapsed<2.0 + 13 mock_plugin 含 isinstance Protocol/records history/CRDT raise 测试 + 141/141 全 platforms tests pass + Phase 4 IM 51 测试 0 regression + 集成手工验证 facade→daemon→echo_daemon→response→dataclass rebuilt 通过 + Plan 04 test_plugin_facades 1 测试改写 NotImplementedError→PluginError Plan 05 新合约 [Deviation Rule 1 Bug fix] + 5 借鉴点 Dify entities/plugin_daemon.py PluginDaemonBasicResponse[T]/PluginDaemonError/dify-plugin-daemon Go→Python 简化/PluginInstallTask 异步→v1 同步/spawn-restart→v1 crash 不自动重启 + License attribution Dify AGPL-3.0 vs agent-builder Apache-2.0 严禁拷源代码 + ruff clean + black clean）
+Phase: 5.B of 7 (Plugin 沙箱 + Daemon 资源限制) — Wave 1 进行中
+Plan: 01 of 05 in current phase（5.A 全 7/7 ✓；5.B Plan 01 Wave 1 ✓ — SandboxConfig schema 扩展完成）
+Status: 🚀 Plan 05b-01 Complete（SandboxConfig 7 字段 + 2 派生属性 + sandbox/parser.py K8s 单位解析 helper — PLUG-FW-13 完成）
+Last activity: 2026-05-17 — Plan 05b-01 完成（Phase 5.B Wave 1：SandboxConfig 从 3 字段 placeholder 扩展为 7 字段 + 2 派生属性 + 3 validators + sandbox/ 子包：cpu_limit '2.0' pattern ^\d+(\.\d+)?$ / memory rename memory_limit→memory '1Gi' + field_validator 调 parse_memory / network list[str] regex ^[a-z0-9.-]+:\d+$ 默认 [] 禁所有出站 / timeout_invoke int Field gt=0 le=3600 / timeout_idle int Field gt=0 le=86400 / use_cgroups bool False / env_allowlist list[str] 默认 [] Pitfall 8 防 secret 泄漏 + memory_bytes property → parse_memory / cpu_limit_seconds property → parse_cpu_seconds + sandbox/parser.py 119 行 0 Pydantic 依赖 K8s 单位 SI K/M/G/T + binary Ki/Mi/Gi/Ti + 裸 bytes + parse_cpu_seconds 保守 3600s × cores RLIMIT_CPU 累积秒 + docs/reading-dify-05b-01-sandbox-config-2026-05-17.md 174 行 6 借鉴点 5 显式偏离 Dify PluginResourceRequirements 仅 memory:int Python 主仓库不做 sandbox enforcement 全下沉 Go daemon vs 我们 Python 主进程 setrlimit baseline + ConfigDict extra=forbid 与 5.A 决策一致 + plugins/huly/platform.yaml 加 sandbox 段 timeout_* / use_cgroups / env_allowlist HULY_ENDPOINT 演示新字段 + 49 测试 pass 21 parser SI/binary 单位 edge case 负数 + 14 TestSandboxConfig 默认值 validator 范围 property 派生 + 13 5.A baseline 0 regression + 193 platforms tests pass + 5/5 acid test pass + deferred-items.md 记 lark_oapi 模块 pre-existing dev env 缺失 out of scope + 4 commits e5d06cd docs 0a33a08 feat parser 1fc573d feat SandboxConfig 1c4d79e test [Deviation Rule 3 - Blocking] rename memory_limit→memory 同步 fixture + test 断言）
 
-Progress: [██████████] 96%（4/7 phases complete; Phase 5.A 6/7 plans done — Wave 4 完成，Wave 5 待 Plan 07 HulyPlugin acid test 端到端验证）
+Progress: [██████████] 97%（4/7 phases complete; Phase 5.A 7/7 ✓ 全完成 + Phase 5.B 1/5 plans done — Wave 1 SandboxConfig schema 落地完成，Wave 2/3 plans 接口契约 freeze，可并行 dispatch）
 
 ## Performance Metrics
 
@@ -81,6 +81,8 @@ Progress: [██████████] 96%（4/7 phases complete; Phase 5.A 
 | Phase 05a-platform-plugin-framework P04 | 15m | 3 tasks | 12 files |
 | Phase 05a-platform-plugin-framework P06 | 14min | 3 tasks | 7 files |
 | Phase 05a-platform-plugin-framework P05 | 16min | 3 tasks（Task 0 reading doc + Task 1 PlatformDaemonClient + echo_daemon + 11 单测 + Task 2 capability_facades 替换 stub + MockPlatformPlugin + 13 单测）| 9 files (6 created + 2 modified) — 24 新测试 pass（含 Pitfall 2 fault isolation 关键 test_daemon_crash_fails_pending_future invoke_timeout=2.0 elapsed<2.0s）+ 141/141 全 platforms tests pass + Phase 4 IM 51 测试 0 regression + 集成手工验证 facade→daemon→echo_daemon→response→dataclass rebuilt 通过 |
+| Phase 05b-plugin-sandbox P01 | 14min | 3 tasks（Task 0 Dify reading doc + Task 1 SandboxConfig 扩展 + sandbox/parser.py + Task 2 49 单测）| 10 files (6 created + 4 modified) — 49 测试 pass（21 parser SI/binary 单位 + 14 TestSandboxConfig + 13 5.A baseline + 1 fixture update）+ 193 platforms tests pass + 5/5 acid test pass + 0 5.A regression / [Deviation Rule 3] rename memory_limit→memory 同步 fixture + 1 测试断言 / Wave 2/3 plans 接口契约 freeze（memory_bytes / cpu_limit_seconds / env_allowlist 注入点确定） |
+| Phase 05b P01 | 14min | 3 tasks | 10 files |
 
 ## Accumulated Context
 
@@ -390,6 +392,7 @@ Recent decisions affecting current work:
 - [Phase 05a-05]: echo_daemon fixture im.crash sys.exit(1) — Pitfall 2 fault isolation 测试入口；最小测试 daemon 模式 + 各种 method 覆盖（im.send_card/update_card/send_text/echo_error/im.slow）便于后续 plugin daemon 复用模板
 - [Phase 05a-05]: [Rule 1 - Bug] test_plugin_facades.py test_facade_methods_raise_not_implemented 改为 test_facade_methods_raise_plugin_error_when_daemon_missing — Plan 04 stub 合约升级为 Plan 05 新合约（NotImplementedError → PluginError）；deferred-items.md Plan 06 已 log 此场景，本 plan Rule 1 修复 close loop
 - [Phase 05a-05]: [Rule 3 - Blocking] ruff B007 unused loop variable + 3 F401 unused import + 4 文件 black 需 reformat — ruff --fix + black 自动修复全部；re-run 24 单测全 pass 确认无回归
+- [Phase 05b]: Plan 05b-01: SandboxConfig 7 字段 schema 落地 — rename memory_limit→memory（K8s 风格）+ network/env_allowlist 默认 [] restrictive baseline + memory_bytes/cpu_limit_seconds property 派生 Wave 2/3 用 + sandbox/parser.py 0 Pydantic 依赖 K8s 单位解析 helper
 
 ### Pending Todos
 

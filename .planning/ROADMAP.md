@@ -164,7 +164,7 @@ Plans:
   6. 5.A 5/5 acid test + 162 platforms 测试 + Phase 4 81 IM 0 regression
   7. macOS dev 全 suite 通过（含 enforcement test skip）；Linux CI ubuntu-latest 全 suite 通过（含 RLIMIT 真行为验证）
 **Plans**: 5 plans (Wave 1 → 2⇉ → 3⇉)
-  - [ ] 05b-01-PLAN.md — SandboxConfig manifest schema 扩展 + parser.py + Dify reading doc（Wave 1，PLUG-FW-13）
+  - [x] 05b-01-PLAN.md — SandboxConfig manifest schema 扩展 + parser.py + Dify reading doc（Wave 1，PLUG-FW-13）— Completed 2026-05-17 (14min, 49 测试 PASS, 193 platforms + 5/5 acid 0 regression)
   - [ ] 05b-02-PLAN.md — SandboxRunner Protocol + PosixResourceSandbox + RLIMIT 4 类 + os.setsid 进程组 + Linux CI enforcement test（Wave 2 并行, PLUG-FW-09）
   - [ ] 05b-03-PLAN.md — AllowlistTransport（httpx Transport API）+ NetworkBlockedError + make_sandboxed_http_client + huly_plugin env-gated 集成（Wave 2 并行，PLUG-FW-11）
   - [ ] 05b-04-PLAN.md — SandboxWatchdog（SIGTERM 3s grace → SIGKILL）+ IdleDaemonReaper + PlatformDaemonClient 集成（_choose_runner + _build_filtered_env strip-all + last_invoke_at）（Wave 3，PLUG-FW-12）
@@ -236,7 +236,7 @@ Plans:
 | 4. 审批链 + IM 通知 | 12/12 | ✓ Complete | 2026-05-17 |
 | 4.5. Bot Triggers + Slash | 0/TBD | Not started | - |
 | 5.A. PlatformPlugin 框架（Dify-style）| 7/7 | ✓ Complete | 2026-05-17 |
-| 5.B. Plugin 沙箱 + Daemon 通信资源限制 | 0/5 | Planned | - |
+| 5.B. Plugin 沙箱 + Daemon 通信资源限制 | 1/5 | In progress | - |
 | 5.C. DocCapability 真接入 | 0/TBD | Not started | - |
 | 5.D. HRCapability + Identity 反向 sync | 0/TBD | Not started | - |
 | 6. Plugin Marketplace | 0/TBD | Not started | - |
