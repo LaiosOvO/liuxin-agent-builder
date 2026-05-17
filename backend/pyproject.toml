@@ -119,6 +119,11 @@ filterwarnings = [
     "ignore::UserWarning",
     "ignore::pytest.PytestUnraisableExceptionWarning",
 ]
+markers = [
+    "linux_only: 仅 Linux 跑（macOS skipped — RLIMIT 弱 enforcement, Pitfall 1）",
+    "sandbox_integration: Phase 5.B sandbox 集成测试（spawn 真子进程）",
+    "cgroups_v2: cgroups v2 测试（需 systemd-run + cgroup v2 内核）",
+]
 
 [tool.coverage.run]
 omit = [
