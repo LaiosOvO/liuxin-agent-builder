@@ -298,3 +298,122 @@ def test_list_manifests_returns_loaded(
     manifests = PlatformPluginRegistry.list_manifests()
     assert len(manifests) == 1
     assert manifests[0].name == "huly"
+
+
+# ── Plan 06 Blocker 3 fallback to LegacyAdapter 测试（3 个）─────────────────
+#
+# 验证 Registry.get_capability(IMCapability) 在缺 manifest plugin 时正确 fallback 到
+# _PROVIDERS_AS_CAP wrapped LegacyIMProviderAdapter（Blocker 3 修复 — 让 CONTEXT
+# decision "新老 plugin 共存" 真正落地）。
+#
+# 参考：docs/reading-dify-05a-06-legacy-adapter-2026-05-17.md
+# 借鉴点 1（双轨并存）+ 借鉴点 4（迁移后旧接口仍可用）
+
+
+class _MockLegacyProviderForFallback:
+    """模拟 Phase 4 IMProvider — 简化版（仅 fallback 测试用）。"""
+
+    def __init__(self, name: str) -> None:
+        self.name = name
+        self.supports_card_update = True
+
+    async def send_hitl_card(self, **kwargs) -> dict:
+        return {"message_id": f"{self.name}-msg-1"}
+
+    async def update_card(self, **kwargs) -> None:
+        pass
+
+    async def send_supplement_text(self, **kwargs) -> None:
+        pass
+
+
+@pytest.mark.asyncio
+async def test_get_capability_falls_back_to_legacy_when_no_manifest_plugin(
+    fresh_registry,
+) -> None:
+    """无 manifest plugin 声明 im 时，fallback 到 _PROVIDERS_AS_CAP wrapped LegacyAdapter。
+
+    Blocker 3 核心修复：当 Registry 中没有 manifest plugin 声明 im capability，
+    应当 fallback 到 _PROVIDERS_AS_CAP 拿 LegacyIMProviderAdapter（Phase 4 6 家
+    provider 通过新接口被调用）。
+    """
+    from app.agent_builder.notification.providers.base import (
+        clear_providers,
+        register_provider,
+    )
+    from app.agent_builder.platforms.legacy_im_adapter import (
+        LegacyIMProviderAdapter,
+    )
+
+    clear_providers()
+    register_provider(_MockLegacyProviderForFallback("feishu"))
+
+    # Registry 中没 manifest plugin 声明 im（_MANIFESTS 为空）
+    cap = await PlatformPluginRegistry.get_capability(
+        uuid.uuid4(), IMCapability, prefer="feishu"
+    )
+    assert cap is not None, "应当 fallback 到 _PROVIDERS_AS_CAP['feishu']"
+    assert isinstance(cap, LegacyIMProviderAdapter)
+    assert cap.name == "feishu"
+
+    clear_providers()
+
+
+@pytest.mark.asyncio
+async def test_get_capability_prefers_manifest_plugin_over_legacy(
+    fresh_registry, plugins_dir_with_huly: Path
+) -> None:
+    """既有 manifest plugin（huly）又有 legacy provider（feishu）时，manifest plugin 优先。
+
+    不指定 prefer 时，遍历 _MANIFESTS 查找 im capability，找到 huly → 返回 huly.im facade。
+    不应走 fallback 路径（因为 manifest 候选已满足）。
+
+    Plan 04 stub 现实：IMFacade.name == "facade_im_stub"（非 manifest.name "huly"），
+    LegacyIMProviderAdapter.name == "feishu"（=底层 legacy.name）。
+    用 isinstance(cap, IMFacade) 区分两种返回类型即可（避免与 stub name 字段耦合）。
+    """
+    from app.agent_builder.notification.providers.base import (
+        clear_providers,
+        register_provider,
+    )
+    from app.agent_builder.platforms.legacy_im_adapter import (
+        LegacyIMProviderAdapter,
+    )
+
+    clear_providers()
+    PlatformPluginRegistry.discover(plugins_dir_with_huly)
+    register_provider(_MockLegacyProviderForFallback("feishu"))
+
+    # 不指定 prefer → 应当先取 manifest plugin (huly) 的 facade（不走 fallback）
+    cap = await PlatformPluginRegistry.get_capability(uuid.uuid4(), IMCapability)
+    assert cap is not None
+    # 关键：必须是 IMFacade（manifest plugin），不是 LegacyIMProviderAdapter（fallback）
+    assert isinstance(
+        cap, IMFacade
+    ), f"应优先返回 manifest plugin (IMFacade)，实际类型 {type(cap).__name__}"
+    assert not isinstance(
+        cap, LegacyIMProviderAdapter
+    ), "不应 fallback 到 LegacyIMProviderAdapter（manifest 候选已满足）"
+
+    clear_providers()
+
+
+@pytest.mark.asyncio
+async def test_get_capability_non_im_does_not_fallback(fresh_registry) -> None:
+    """fallback 仅适用 IMCapability — TriggerCapability 等仍 return None（不走 _PROVIDERS_AS_CAP）。
+
+    防御性测试：确保 fallback 严格限定在 cap_name == "im"，
+    避免 TriggerCapability / ToolCapability 等错误路由到 LegacyAdapter。
+    """
+    from app.agent_builder.notification.providers.base import (
+        clear_providers,
+        register_provider,
+    )
+
+    clear_providers()
+    register_provider(_MockLegacyProviderForFallback("feishu"))
+
+    cap = await PlatformPluginRegistry.get_capability(uuid.uuid4(), TriggerCapability)
+    assert cap is None, "Trigger capability 不该 fallback 到 IM legacy"
+
+    clear_providers()

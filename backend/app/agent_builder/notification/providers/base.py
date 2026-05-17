@@ -17,6 +17,7 @@ CLAUDE.md 2.7 Dify 参考点：
 - Dify provider lifecycle init/cleanup → 本项目 register_provider / clear_providers
 - 不实现 Dify yaml schema 校验（IM Provider 数量固定 5，硬编码 PROVIDER_* 常量更简洁）
 """
+
 from __future__ import annotations
 
 from typing import Any, Protocol, runtime_checkable
@@ -173,6 +174,12 @@ def register_provider(provider: IMProvider) -> None:
 
     Raises:
         ValueError: provider.name 不在 KNOWN_PROVIDERS 集合中（typo 防护）
+
+    Phase 5.A 增强（IM-LEGACY-WRAP / PLUG-FW-04）：
+        register_provider 调用时自动 wrap 为 LegacyIMProviderAdapter 并存入
+        _PROVIDERS_AS_CAP dict —— 新代码可通过 `get_capability_for_legacy(name)`
+        或 `PlatformPluginRegistry.get_capability(IMCapability, prefer=name)` 调用。
+        Phase 4 既有调用方仍走 get_provider(name)，0 改动 + 0 测试 regression。
     """
     if provider.name not in KNOWN_PROVIDERS:
         raise ValueError(
@@ -180,6 +187,7 @@ def register_provider(provider: IMProvider) -> None:
             f"必须是 KNOWN_PROVIDERS 之一: {sorted(KNOWN_PROVIDERS)}"
         )
     _PROVIDERS[provider.name] = provider
+    _maybe_wrap_for_capability(provider)
 
 
 def get_provider(name: str) -> IMProvider:
@@ -207,5 +215,74 @@ def list_providers() -> list[str]:
 
 
 def clear_providers() -> None:
-    """清空 Provider 注册表 — 测试 fixture 用（每 test setup/teardown 调）。"""
+    """清空 Provider 注册表 — 测试 fixture 用（每 test setup/teardown 调）。
+
+    Phase 5.A 增强：同步清空 _PROVIDERS_AS_CAP 双轨 dict，保证测试隔离。
+    """
     _PROVIDERS.clear()
+    _PROVIDERS_AS_CAP.clear()
+
+
+# ── Phase 5.A 增强：双轨 Registry（IM-LEGACY-WRAP / PLUG-FW-04）─────────────
+#
+# 用户硬性 DoD #3：register_provider 自动 wrap 为 LegacyIMProviderAdapter
+# 存入 _PROVIDERS_AS_CAP，让 PlatformPluginRegistry.get_capability(IMCapability,
+# prefer=name) 在缺 manifest plugin 时 fallback 拿到 IMCapability 接口实现，
+# **0 改动老代码 + 0 Phase 4 测试 regression**。
+#
+# 设计要点（参考 docs/reading-dify-05a-06-legacy-adapter-2026-05-17.md 借鉴点 1-4）：
+# - 双轨数据共存（Dify data_migration 模式）：_PROVIDERS（老） + _PROVIDERS_AS_CAP（新）
+# - 同一 raw provider 实例被两个 dict 引用 —— adapter 内部 self._legacy 指向同一对象
+#   关键不变量：`get_provider(name) is _PROVIDERS_AS_CAP[name]._legacy`
+# - try/except ImportError 静默降级（测试隔离场景 platforms 模块未加载兼容）
+
+_PROVIDERS_AS_CAP: dict[str, Any] = {}
+"""新增 dict —— 存 LegacyIMProviderAdapter 实例（类型 forward ref 避免循环 import）。
+
+Type: `dict[str, LegacyIMProviderAdapter]`
+但用 `Any` 避免 import circular（base.py 不能 import platforms.legacy_im_adapter
+顶层 —— legacy_im_adapter.py 反过来 import base.py 中的 IMProvider 类型）。
+"""
+
+
+def _maybe_wrap_for_capability(provider: IMProvider) -> None:
+    """register_provider 时自动 wrap 一份为 IMCapability，存入双轨 dict。
+
+    用 try/except ImportError 包住 import — 测试隔离场景下若 platforms 模块未加载
+    不报错（fail-quiet 降级：仅老路径 _PROVIDERS 工作；新路径 _PROVIDERS_AS_CAP 留空）。
+
+    Args:
+        provider: register_provider 传入的 IMProvider 实例
+    """
+    try:
+        from app.agent_builder.platforms.legacy_im_adapter import (
+            LegacyIMProviderAdapter,
+        )
+    except ImportError:
+        # 测试隔离场景下（platforms 模块未加载）允许失败 — 老路径仍工作
+        # （生产场景 lifespan startup 时 platforms 模块一定 import 过 → 不会进此分支）
+        return
+    _PROVIDERS_AS_CAP[provider.name] = LegacyIMProviderAdapter(provider)
+
+
+def get_capability_for_legacy(name: str) -> Any | None:
+    """新代码用 —— 拿老 provider 的 IMCapability 接口实现（LegacyIMProviderAdapter 包装）。
+
+    Args:
+        name: Provider 名（PROVIDER_FEISHU / PROVIDER_WECOM / ...）
+
+    Returns:
+        LegacyIMProviderAdapter 实例（实现 IMCapability Protocol）
+        None: name 未注册（或 _maybe_wrap_for_capability ImportError 静默降级）
+
+    Note:
+        与 get_provider(name) 区别：
+        - get_provider 返回原 Phase 4 IMProvider（老接口 send_hitl_card / update_card / send_supplement_text）
+        - get_capability_for_legacy 返回 LegacyIMProviderAdapter（新 IMCapability send_card / update_card / send_text）
+    """
+    return _PROVIDERS_AS_CAP.get(name)
+
+
+def list_legacy_capabilities() -> list[str]:
+    """列出已 wrap 为 LegacyIMProviderAdapter 的 provider 名（顺序稳定 sorted）。"""
+    return sorted(_PROVIDERS_AS_CAP.keys())

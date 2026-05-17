@@ -289,6 +289,33 @@ class PlatformPluginRegistry:
             if facade is not None:
                 return facade
 
+        # ── Blocker 3 修复：fallback 到 _PROVIDERS_AS_CAP（LegacyAdapter wrapped）─
+        #
+        # 当 manifest plugin 没声明该 capability 时，查 Phase 4 老 IMProvider 双轨注册表
+        # 让"Phase 4 6 家 provider 通过 get_capability(IMCapability) 调到"承诺真正落地。
+        #
+        # 仅适用 cap_name == "im"（其他 capability 不存在 LegacyAdapter）：
+        # - prefer 优先（与 manifest plugin 路由保持语义一致）
+        # - 否则按 sorted name 取首个（确定性 fallback）
+        # - ImportError 捕获保证 notification.providers.base 未加载时静默失败（fail-quiet）
+        #
+        # 参考：docs/reading-dify-05a-06-legacy-adapter-2026-05-17.md
+        # 借鉴点 1（双轨并存）+ 借鉴点 2（失败容忍 + 静默降级）
+        if cap_name == "im":
+            try:
+                from app.agent_builder.notification.providers.base import (
+                    _PROVIDERS_AS_CAP,
+                )
+            except ImportError:
+                return None
+
+            # prefer 优先
+            if prefer and prefer in _PROVIDERS_AS_CAP:
+                return _PROVIDERS_AS_CAP[prefer]
+            # 否则返回任一已注册的 legacy adapter（按 name 排序确定性）
+            for name in sorted(_PROVIDERS_AS_CAP.keys()):
+                return _PROVIDERS_AS_CAP[name]
+
         return None
 
 
