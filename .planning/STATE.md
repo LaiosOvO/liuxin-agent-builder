@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-last_updated: "2026-05-17T06:10:00.000Z"
+last_updated: "2026-05-17T02:29:14.976Z"
 progress:
-  total_phases: 7
+  total_phases: 5
   completed_phases: 3
-  total_plans: 50
-  completed_plans: 30
+  total_plans: 38
+  completed_plans: 31
 ---
 
 # Project State
@@ -23,11 +23,11 @@ See: .planning/PROJECT.md (updated 2026-05-16)
 ## Current Position
 
 Phase: 4 of 7 (审批链 + IM 通知)
-Plan: 4 of 12 in current phase（Wave 2 完成 — 04-01 / 04-02 / 04-03 / 04-04 全部 SUMMARY 落地）
-Status: ✅ Phase 4 Wave 2 完成 — chain executor (04-02) + delegation API (04-03) + escalation 4 表达式 (04-04) 全部 SUMMARY 落地；Wave 3 04-05+ IM Provider 抽象 准备启动
-Last activity: 2026-05-17 — Plan 04-02 + 04-03 完成（HITL-02 chain 4 模式 service 层完整 + HITL-06 任务委托端点完整：submit_action 11 步插入 chain 分叉 + advisory_lock 内 invalidate_chain + 结构化日志 hitl.chain.advance；POST /hitl/action/<jwt>?op=delegate 端点 + create_delegate_token + 5 DelegateError 错误码 + 委托链深度 ≤ 3 + deadline 重置；总计 41 集成测试通过 真实 PG + Redis 全绿）
+Plan: 5 of 12 in current phase（Wave 3 04-05 完成 — IM Provider 抽象层落地，Wave 4 04-06/07/08/09 4 家 Provider 可并行启动）
+Status: ✅ Phase 4 Wave 3 完成 — IMProvider Protocol + Registry + MockIMProvider + IMCredentialsManager + im_jobs.send_hitl_card_job 抽象层全部落地；Wave 4 4 家 Provider plan 可并行开发
+Last activity: 2026-05-17 — Plan 04-05 完成（Phase 4 IM 抽象层基础设施：IMProvider Protocol 鸭子类型 + Phase 4.5 接口预留 / 模块级 Registry 工厂 / MockIMProvider 测试用 / IMCredentialsManager 5 家 frozen dataclass + .env 加载 / im_jobs.send_hitl_card_job 克隆 email_jobs 模板 + tenacity 3 次重试 + 结构化日志 'im.card.send' / 43 测试全绿）
 
-Progress: [█████░░░░░] 46%（3/7 phases complete; Phase 4 4/12 plans done）
+Progress: [██████░░░░] 50%（3/7 phases complete; Phase 4 5/12 plans done）
 
 ## Performance Metrics
 
@@ -68,6 +68,7 @@ Progress: [█████░░░░░] 46%（3/7 phases complete; Phase 4 4/
 | Phase 04-approval-chain-im P04 | 9min | 3 tasks | 6 files |
 | Phase 04-approval-chain-im P02 | 16min | 3 tasks（Task0 reading doc + Task1 batch_create_tokens + Task2 chain executor）| 5 files (3 created + 2 modified) — 21 集成测试 (15 chain + 6 batch) |
 | Phase 04-approval-chain-im P03 | 11min | 3 tasks（Task0 reading doc + Task1 service + Task2 API endpoint + tests）| 6 files (3 created + 3 modified) — 20 集成测试 (11 service + 9 API) |
+| Phase 04-approval-chain-im P05 | 25min | 4 tasks | 14 files |
 
 ## Accumulated Context
 
@@ -245,6 +246,23 @@ Recent decisions affecting current work:
 - [Phase 04-03]: DelegateError 业务校验失败 → db.rollback 防 token 半状态（原 token 已 consume 但 new_tokens 未创建）
 - [Phase 04-03]: 用 op Query 参数路由 vs 新路由 /hitl/delegate — 选 op Query (复用 advisory_lock + JWT 解码 + cookie 校验)；新路由需重复 200+ 行前置代码
 - [Phase 04-03]: [Rule 3 - Blocking] 回归测试用 Accept: application/json 走 JSON 路径 — 规避 deferred-items.md §1 记录的 Starlette 1.0 HTML 模板预先存在 bug（不在 04-03 范围）
+- [Phase 04-approval-chain-im]: [Phase 04-05] IMProvider Protocol（鸭子类型 + Phase 4.5 预留 subscribe/verify_webhook_signature）+ 模块级 Registry + MockIMProvider + IMCredentialsManager 5 家 frozen dataclass + im_jobs.send_hitl_card_job + 43 测试
+- [Phase 04-05]: Protocol over ABC — 用 typing.Protocol + runtime_checkable 不用 abc.ABC（CLAUDE.md python/patterns.md 推荐 + MockIMProvider 无需继承基类即可满足鸭子类型）
+- [Phase 04-05]: [Rule 3 - Blocking] runtime_checkable Protocol 校验依赖方法存在性 → MockIMProvider 必须显式实现 subscribe/verify_webhook_signature 抛 NotImplementedError（Protocol body NotImplementedError 默认行为不会被自动继承到鸭子类型 instance — 这与 ABC 行为不同）
+- [Phase 04-05]: 模块级 Registry dict + factory function（不用 FastAPI Depends — provider 应在 startup 一次注册而非每请求初始化）
+- [Phase 04-05]: 5 家 frozen dataclass per provider credentials（vs 通用 dict[str,str]）— 类型清晰 + immutable 防外部修改
+- [Phase 04-05]: env 缺失 warn 不抛错（按需配置 — 用户可能只用 2-3 家）；getter 调用时缺失抛 RuntimeError + 提示需要的环境变量名
+- [Phase 04-05]: env strip + 空字符串视为未配置（防 .env 文件意外引号 / 空格）
+- [Phase 04-05]: register_provider 校验 name 必须在 KNOWN_PROVIDERS 集合（typo 防护，FakeProvider 抛 ValueError）
+- [Phase 04-05]: get_provider 抛 KeyError 时携带已注册列表（便于排查）
+- [Phase 04-05]: im_jobs 克隆 email_jobs 状态机（pending→sending→sent/failed + tenacity 3 次 1s/2s/4s + audit_log 失败可观测）
+- [Phase 04-05]: im_jobs payload['im_message_id'] 写回供后续 update_card 用（新 dict immutable 模式，不修改既有 payload dict）
+- [Phase 04-05]: 结构化日志 logger.info('im.card.send', extra={provider, recipient, status, latency_ms, notification_id, message_id}) — Phase 7 ELK / Loki 查询友好
+- [Phase 04-05]: [Rule 1 - Bug] unknown provider 路径 audit_log 必须在 commit 之前调（而非之后） — 否则 audit_log 仅 buffered 不 flush 导致测试断言行数 0 失败
+- [Phase 04-05]: 不引入新 IM SDK 依赖（lark-oapi / wechatpy / 等留 04-06+ Provider 实现 plan 单独 import）
+- [Phase 04-05]: backend/app/agent_builder/core/ 独立目录（不动 flock app/core/ — CLAUDE.md §2.3 Fork discipline）
+- [Phase 04-05]: CardBuilder 用 Protocol 不用基类（各 Provider plan 自实现 build_hitl_card / build_supplement_text）
+- [Phase 04-05]: HitlCardPayload 用 tuple[dict[str,str], ...] 而非 list（frozen dataclass + 不可变集合双重防修改）
 
 ### Pending Todos
 
@@ -260,6 +278,6 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-05-17
-Stopped at: Completed 04-02-PLAN.md + 04-03-PLAN.md（Phase 4 Wave 2 完成：chain executor + delegation API + 41 集成测试 + 2 SUMMARY）
+Stopped at: Completed 04-05-PLAN.md（Phase 4 Wave 3 完成：IM Provider 抽象层 — Protocol + Registry + MockIMProvider + IMCredentialsManager + im_jobs + 43 测试 + 1 SUMMARY）
 Resume file: None
-Next action: Wave 3 04-05+ IM Provider 抽象（Protocol + Factory + im_jobs.py）启动；同 wave 04-06/07/08/09 5 家 IM Provider 可并行 dispatch
+Next action: Wave 4 04-06/07/08/09 4 家 IM Provider 并行开发（FeishuProvider + WeComProvider + DingTalkProvider + Slack/Mattermost）— 全部 import 本 plan 抽象层，互不冲突可 parallel dispatch

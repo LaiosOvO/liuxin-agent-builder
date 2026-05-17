@@ -103,7 +103,7 @@ Plans:
 - [x] 04-02-PLAN.md — chain executor (HitlActionService.submit_action 4 mode 完整分支 + invalidate_chain in advisory_lock + 结构化日志 hitl.chain.advance 8 字段 + 21 集成测试通过；HITL-02 完成，2026-05-17 完成)
 - [x] 04-03-PLAN.md — delegation API (POST /hitl/action/<jwt>?op=delegate + create_delegate_token + DelegateError 5 错误码 + 委托链深度 ≤ 3 + deadline 重置 + 20 集成测试通过；HITL-06 完成，2026-05-17 完成)
 - [x] 04-04-PLAN.md — EscalationService 4 表达式扩展 (resolve email/user:/role:/dept:NotImpl + perform 多 email fan-out + 40 escalation 测试通过；HITL-04 完成，2026-05-17 完成)
-- [ ] 04-05-PLAN.md — IMProvider Protocol + Factory + im_jobs.py
+- [x] 04-05-PLAN.md — IMProvider Protocol + Registry + MockIMProvider + IMCredentialsManager + im_jobs.send_hitl_card_job（鸭子类型 + 5 家 frozen dataclass 凭据 + Phase 4.5 接口预留 + tenacity 3 次重试 + 结构化日志 'im.card.send' + 43 单元/集成测试通过；Wave 3 抽象层完成，2026-05-17 完成）
 - [ ] 04-06-PLAN.md — Feishu Provider (lark-oapi 1.6.5)
 - [ ] 04-07-PLAN.md — WeCom Provider (wechatpy 1.8.18 + Bot fallback)
 - [ ] 04-08-PLAN.md — DingTalk Provider (dingtalk-stream 0.24.3)
