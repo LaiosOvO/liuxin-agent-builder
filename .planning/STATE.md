@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: milestone
 status: unknown
-last_updated: "2026-05-17T12:39:16.817Z"
+last_updated: "2026-05-17T13:04:57.496Z"
 progress:
   total_phases: 6
   completed_phases: 4
@@ -22,12 +22,12 @@ See: .planning/PROJECT.md (updated 2026-05-16)
 
 ## Current Position
 
-Phase: 5.A of 7 (PlatformPlugin 框架，Dify-style) — Wave 3 启动
-Plan: 04 of 07 in current phase（Plan 01 ✓ + Plan 02 ✓ + Plan 03 ✓ + Plan 04 ✓ Wave 3 首发完成）
-Status: 🚀 Plan 05a-04 Complete（PlatformManifest Pydantic v2 schema extra=forbid + PlatformPluginRegistry per-workspace 隔离 + PlatformPlugin lazy facade + capability_facades stub + plugins/huly/platform.yaml fixture）
-Last activity: 2026-05-17 — Plan 05a-04 完成（Wave 3 首发：PlatformManifest 顶层 schema + 3 嵌套子类型 extra=forbid 严格 + load_manifest yaml.safe_load 异常翻译 + PlatformPluginRegistry classmethod-only 进程级 singleton + _PLUGINS (workspace_id, plugin_name) tuple key Pitfall 5 防护 + discover() fail-fast + get_plugin 懒加载缓存 + get_capability 按类型路由 fail-quiet + prefer 参数 + PlatformPlugin 4 lazy facade 共享 _daemon + attach_daemon 注入预留点 + 重复 attach raise + capability_facades 4 stub class IMFacade/DocFacade/HRFacade/IdentityFacade 共享 _BaseFacade Plan 05 替换为真 daemon 转发 0 接口破坏 + plugins/huly/platform.yaml Plan 07 acid test 入口 + 36 单测 pass（13 manifest + 13 registry 含 test_two_workspaces_isolated Pitfall 5 关键 + 10 plugin_facades 含 isasyncgenfunction 静态断言）+ 94/94 全 platforms tests 累积 + Phase 4 IM 51 测试 0 regression + 6 借鉴点指回 Dify Manifest/PluginService/Permission 模块 + License attribution Apache-2.0 vs AGPL-3.0 + ruff clean + black clean）
+Phase: 5.A of 7 (PlatformPlugin 框架，Dify-style) — Wave 4 进行中
+Plan: 06 of 07 in current phase（Plan 01-06 ✓ Wave 4 LegacyIMProviderAdapter 完成）
+Status: 🚀 Plan 05a-06 Complete（LegacyIMProviderAdapter Phase 4 IMProvider → IMCapability 适配 + base.py 双轨 _PROVIDERS_AS_CAP + Registry IMCapability fallback to LegacyAdapter — Blocker 3 修复 + 用户硬性 DoD #3 达成）
+Last activity: 2026-05-17 — Plan 05a-06 完成（Wave 4：LegacyIMProviderAdapter 311 行实现 Phase 4 IMProvider → IMCapability 适配 + 零接口破坏 register_provider 签名不变 + 同一 raw provider 实例共享不变量 adapter._legacy is get_provider(name) + 参数映射 RecipientSpec/NormalizedCard → 8 字段 send_hitl_card + title.split " — " 拆 flow_title/node_title lossy 还原 + cap flags 推导 webhook 唯一例外 supports_native_buttons / getattr supports_card_update / supports_threads=False + subscribe_events raise NotImplementedError if False yield {} async generator 标记 Phase 4.5 业务层处理 + base.py +78 行 _PROVIDERS_AS_CAP dict 双轨 + _maybe_wrap_for_capability hook try/except ImportError 静默降级 + get_capability_for_legacy/list_legacy_capabilities helper + register_provider 末尾追加副作用 + clear_providers 清空双 dict + registry.py +27 行 get_capability 末尾追加 IM-only fallback prefer 优先 sorted name fallback + 23 新测试 pass 20 adapter+3 registry fallback + Phase 4 IM 61 测试 0 regression + Phase 4 notification 33 测试 0 regression + e2e_v2 26 specs collect 成功 0 regression + 5 借鉴点 Dify data_migration/plugin_migration/auto_upgrade 模块 + License attribution AGPL-3.0 vs Apache-2.0 + ruff clean + black clean）
 
-Progress: [█████████░] 92%（4/7 phases complete; Phase 5.A 4/7 plans done — Wave 3 首发完成，Wave 4 待 Plan 05 LegacyAdapter + Daemon Client 启动）
+Progress: [██████████] 95%（4/7 phases complete; Phase 5.A 6/7 plans done — Wave 4 完成，Wave 5 待 Plan 07 HulyPlugin acid test 端到端验证）
 
 ## Performance Metrics
 
@@ -79,6 +79,7 @@ Progress: [█████████░] 92%（4/7 phases complete; Phase 5.A 
 | Phase 05a-platform-plugin-framework P02 | ~14min | 3 tasks（Task 0 reading doc + Task 1 IMCapability + Task 2 DocCapability）| 7 files (1 doc + 4 source + 2 test) — 17 测试 (8 IM + 9 Doc) / 74/74 platforms tests pass / Phase 4 IM Protocol 0 regression / Huly acid test gap #a + #2 解决 / 注：Task 1 文件被并行 Plan 03 commit b0353c0 一并 bundled（git ls-tree 验证文件归属正确）|
 | Phase 05a-platform-plugin-framework P03 | 15min | 3 tasks | 10 files |
 | Phase 05a-platform-plugin-framework P04 | 15m | 3 tasks | 12 files |
+| Phase 05a-platform-plugin-framework P06 | 14min | 3 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -365,6 +366,9 @@ Recent decisions affecting current work:
 - [Phase 05a-04]: [Rule 1 - Bug] test_get_capability_im_returns_facade 初版 hr_cap_none 断言错误 — fixture manifest_valid.yaml 实际声明 4 capability 含 hr；改 isinstance(hr_cap, HRFacade) 与其他 capability 同模式
 - [Phase 05a-04]: [Rule 1 - Bug] manifest.py docstring 含 `\\d` 触发 Python 3.13 SyntaxWarning — module docstring 前缀 `"""` 改为 raw string `r"""` 不处理 escape sequence
 - [Phase 05a-04]: [Rule 3 - Blocking] ruff UP037 quoted-annotation 9 处 + I001 unsorted-imports 3 处 + black reformat 7 文件 — `ruff check --fix` + `black` 自动修复全部；re-run 测试全 pass 确认无回归
+- [Phase 05a-platform-plugin-framework]: Plan 06: LegacyIMProviderAdapter 共享同一 raw provider 实例 — Phase 4 0 regression 关键不变量
+- [Phase 05a-platform-plugin-framework]: Plan 06: register_provider 接口签名不变 + 内部追加 _maybe_wrap_for_capability hook 副作用 — Phase 4 调用 0 改动
+- [Phase 05a-platform-plugin-framework]: Plan 06: Registry.get_capability(IMCapability) fallback to _PROVIDERS_AS_CAP — Blocker 3 修复 让新老 plugin 共存真正落地
 
 ### Pending Todos
 
