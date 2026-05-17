@@ -1,0 +1,65 @@
+# Phase 5.A Huly platform plugin manifest（Plan 04 fixture / Plan 07 acid test 入口）
+#
+# 用途：
+# - Plan 04 PlatformPluginRegistry.discover("plugins/") 启动期扫描的目标
+# - Plan 07 Huly acid test 端到端流程的 manifest 数据源
+#
+# 设计要点：
+# - 声明 4 capability（im / doc / hr / identity）— Huly 是一体化平台
+# - sandbox 配置仅 5.A 解析；5.B 落地 cgroups v2 强制
+# - config_schema 是 workspace 配置 UI 的 JSON Schema（前端 5.C 自动渲染）
+#
+# Plan 07 注：
+# - plugins/huly/huly_plugin.py daemon entry 由 Plan 07 创建（非本 plan 任务）
+# - 本 plan 仅创建 platform.yaml fixture 让 discover() 测试有真目录扫
+# - plugins/huly/__init__.py 也留 Plan 07
+
+name: huly
+version: 1.0.0
+description: "Huly platform stub (Phase 5.A acid test) — IM + Doc + HR + Identity 一体化"
+license: EPL-2.0
+agent_builder_version: ">=1.0"
+
+runtime:
+  type: python
+  entry: plugins.huly.huly_plugin
+  python_version: "3.11"
+
+capabilities:
+  - im
+  - doc
+  - hr
+  - identity
+
+config_schema:
+  type: object
+  required:
+    - endpoint
+    - auth_token
+  properties:
+    endpoint:
+      type: string
+      format: uri
+      description: "Huly server endpoint URL"
+    auth_token:
+      type: string
+      format: password
+      description: "Huly API access token"
+
+im:
+  supports_native_buttons: false
+  supports_card_update: true
+  supports_threads: true
+
+doc:
+  supports_collaborative_edit: true
+  supports_comments: true
+
+identity:
+  is_source_of_truth: true
+
+sandbox:
+  cpu_limit: "1.0"
+  memory_limit: "512Mi"
+  network:
+    - "huly.example.com:443"

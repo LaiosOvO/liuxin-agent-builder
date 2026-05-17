@@ -15,6 +15,7 @@
 
 Reference: Dify `core/plugin/entities/plugin.py` Pydantic v2 校验模式（AGPL-3.0，仅借鉴）。
 """
+
 from __future__ import annotations
 
 from pathlib import Path

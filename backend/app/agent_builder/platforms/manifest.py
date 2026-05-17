@@ -15,6 +15,7 @@ r"""Phase 5.A PlatformManifest — platform.yaml Pydantic v2 schema（PLUG-FW-02
 Reference: Dify `api/core/plugin/entities/plugin.py:70-141` (PluginDeclaration, AGPL-3.0)
 本 module 100% 独立创作，不拷贝任何 Dify 源码；仅借鉴 Pydantic v2 + extra=forbid 模式。
 """
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -24,7 +25,6 @@ import yaml
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from .exceptions import ManifestValidationError
-
 
 # ── Sub-models（嵌套结构，借鉴 Dify 嵌套 BaseModel 组织风格）─────────────────────
 
@@ -154,7 +154,9 @@ class PlatformManifest(BaseModel):
     def at_least_one_capability(cls, v: list[str]) -> list[str]:
         """plugin 必须声明至少 1 个 capability —— 防空 plugin 注册。"""
         if not v:
-            raise ValueError("plugin 必须声明至少 1 个 capability（im/doc/hr/identity/trigger/tool）")
+            raise ValueError(
+                "plugin 必须声明至少 1 个 capability（im/doc/hr/identity/trigger/tool）"
+            )
         return v
 
 
