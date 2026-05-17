@@ -193,6 +193,7 @@ class PosixResourceSandbox:
         memory_bytes: int,
         env: dict[str, str] | None = None,
         cwd: str | None = None,
+        docker_networks: list[str] | None = None,
     ) -> asyncio.subprocess.Process:
         loop = asyncio.get_event_loop()
         # env 默认 merge os.environ 是为了 contract test 简单（PATH / PYTHONPATH 保留）
@@ -233,6 +234,17 @@ class PosixResourceSandbox:
             memory_bytes,
             cmd[:2],  # 只 log 前 2 元素防长 module path 污染日志
         )
+
+        # Phase 5.C Pattern 4: docker_networks 处理（PosixResourceSandbox no-op）
+        # daemon 在 PosixResourceSandbox 路径是 host 进程（非 container），
+        # docker network attach 物理上无法生效 — log info 提示 + 返回（绝不 raise）。
+        if docker_networks:
+            _log.info(
+                "sandbox.docker_networks ignored on PosixResourceSandbox "
+                "(daemon pid=%d runs as host process, not container): %s",
+                proc.pid,
+                docker_networks,
+            )
         return proc
 
 
