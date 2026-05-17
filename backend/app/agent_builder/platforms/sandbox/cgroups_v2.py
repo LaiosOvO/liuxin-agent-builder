@@ -28,11 +28,20 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import re
 import shutil
 import subprocess
 from pathlib import Path
 
 _log = logging.getLogger(__name__)
+
+# ── Phase 5.C Pattern 4: cgroup → docker container_id 解析 regex ────────────────
+# /proc/<pid>/cgroup 行格式（兼容 cgroup v1 + v2）:
+#   v1:                "12:devices:/docker/abc123def456..."
+#   v2 (slash):        "0::/docker/abc123def456..."
+#   v2 (systemd-slice): "0::/system.slice/docker-abc123def456.scope"
+# 三种格式统一用 `/docker[/-]<hash>` 提取 container_id（16-64 hex chars）。
+_CGROUP_DOCKER_RE = re.compile(r"/docker[/-]([0-9a-f]{12,64})")
 
 # ── detection 常量 ────────────────────────────────────────────────────────────
 
@@ -168,6 +177,7 @@ class CgroupsV2Sandbox:
         memory_bytes: int,
         env: dict[str, str] | None = None,
         cwd: str | None = None,
+        docker_networks: list[str] | None = None,
     ) -> asyncio.subprocess.Process:
         """spawn 受限子进程（systemd-run --user --scope 包裹）。
 
@@ -178,6 +188,10 @@ class CgroupsV2Sandbox:
             memory_bytes: MemoryMax 硬上限（cgroups v2 OOM kill 自动）
             env: 注入子进程的环境变量；None 时 merge ``os.environ``（contract test 友好）
             cwd: 子进程工作目录；None 继承父进程
+            docker_networks: spawn 后需要 attach 的 docker network 列表（Phase 5.C Pattern 4）。
+                None / [] 时走 5.B 行为（无 attach）；非空时调 `_attach_docker_networks` 真做
+                `docker network connect <net> <container_id>`。任一失败 raise + terminate
+                daemon（Pitfall 5 避免假成功）。
 
         Returns:
             asyncio.subprocess.Process —— stdin/stdout/stderr 全 PIPE，可直接传给
@@ -215,7 +229,130 @@ class CgroupsV2Sandbox:
             cpu_seconds,
             cmd[:2],  # 只 log 前 2 元素防 module path 污染日志
         )
+
+        # Phase 5.C Pattern 4: docker network attach（仅在 docker_networks 非空时做）
+        if docker_networks:
+            await self._attach_docker_networks(proc, docker_networks)
+
         return proc
+
+    async def _attach_docker_networks(
+        self,
+        proc: asyncio.subprocess.Process,
+        docker_networks: list[str],
+    ) -> None:
+        """spawn 后 attach docker networks（Phase 5.C Pattern 4 / Pitfall 5）。
+
+        三种失败模式（每种独立诊断 + raise RuntimeError + terminate daemon 避免假成功）:
+
+        1. docker daemon 不可用（CI / macOS dev）→ raise "docker daemon not available"
+        2. network 不存在（拼写错 / Huly stack 未启）→ raise "docker network not found"
+        3. daemon pid 不在 container（host process）→ raise "daemon pid not in container"
+
+        **决策**（CONTEXT Decision 3 + RESEARCH §Pattern 4）:
+        attach 失败必须 raise + terminate daemon — 不允许 "silently no network"
+        否则 Huly 调用一直 ConnectionError 看起来像超时，难诊断。
+
+        Args:
+            proc: 5.B systemd-run 包裹的 daemon 子进程
+            docker_networks: 要 attach 的 network 列表（非空 — 调用方已 if 过滤）
+
+        Raises:
+            RuntimeError: 三失败模式之一（错误信息含明确诊断）
+        """
+        # docker SDK import — 延迟到方法内（CI 不一定装；放方法内部 try/except ImportError）
+        try:
+            import docker
+            from docker.errors import DockerException, NotFound
+        except ImportError as e:
+            proc.terminate()
+            await proc.wait()
+            raise RuntimeError(
+                f"docker python SDK not installed but docker_networks={docker_networks!r} requested "
+                f"(install with `pip install docker>=7.0`)"
+            ) from e
+
+        # 失败模式 1: docker daemon 不可用（ping 失败）
+        try:
+            client = docker.from_env()
+            client.ping()
+        except (DockerException, Exception) as e:
+            proc.terminate()
+            await proc.wait()
+            raise RuntimeError(
+                f"docker daemon not available "
+                f"(cannot attach networks={docker_networks!r}): {e}"
+            ) from e
+
+        # 失败模式 3: daemon pid 不在 container（先查 pid → container，避免拿不到 id 还去查 network）
+        container_id = self._resolve_container_for_pid(proc.pid)
+        if container_id is None:
+            proc.terminate()
+            await proc.wait()
+            raise RuntimeError(
+                f"daemon pid={proc.pid} not in any docker container — "
+                f"cannot attach networks={docker_networks!r}. "
+                f"(Note: docker_networks 仅在 daemon 自身运行在 docker container 内时生效；"
+                f"host process 部署请用 PosixResourceSandbox 并保持 docker_networks=[])"
+            )
+
+        # 逐个 attach network（任一失败 raise + terminate）
+        for net_name in docker_networks:
+            # 失败模式 2: network 不存在
+            try:
+                net = client.networks.get(net_name)
+            except NotFound as e:
+                proc.terminate()
+                await proc.wait()
+                raise RuntimeError(
+                    f"docker network {net_name!r} not found "
+                    f"(check spelling or docker-compose up <stack> first): {e}"
+                ) from e
+
+            # 真做 attach
+            try:
+                net.connect(container_id)
+                _log.info(
+                    "docker network attached: net=%s -> container=%s pid=%d",
+                    net_name,
+                    container_id[:12],
+                    proc.pid,
+                )
+            except Exception as e:
+                proc.terminate()
+                await proc.wait()
+                raise RuntimeError(
+                    f"docker network {net_name!r} connect failed for "
+                    f"container={container_id[:12]}: {e}"
+                ) from e
+
+    def _resolve_container_for_pid(self, pid: int) -> str | None:
+        """读 /proc/<pid>/cgroup 提取 docker container_id（兼容 cgroup v1 + v2 格式）。
+
+        cgroup 行格式三种（_CGROUP_DOCKER_RE 统一匹配）:
+            v1:                 "12:devices:/docker/abc123def456..."
+            v2 (slash):         "0::/docker/abc123def456..."
+            v2 (systemd-slice): "0::/system.slice/docker-abc123def456.scope"
+
+        Args:
+            pid: daemon 子进程 pid
+
+        Returns:
+            container_id (full hash) 或 None（daemon 不在 container / pid 已死 / 无权读 /proc）
+        """
+        try:
+            content = Path(f"/proc/{pid}/cgroup").read_text()
+        except (FileNotFoundError, PermissionError, OSError):
+            # FileNotFoundError: macOS / pid 已死
+            # PermissionError: 容器内可能无权读其他 pid 的 /proc
+            # OSError: 兜底
+            return None
+
+        for line in content.splitlines():
+            m = _CGROUP_DOCKER_RE.search(line)
+            if m:
+                return m.group(1)
+        return None
 
 
 __all__ = [
@@ -226,4 +363,5 @@ __all__ = [
     "_SYSTEMD_SLICE",
     "_CPU_QUOTA",
     "_TASKS_MAX",
+    "_CGROUP_DOCKER_RE",  # Phase 5.C: expose for test mock
 ]
