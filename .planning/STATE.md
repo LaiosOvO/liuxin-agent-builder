@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-last_updated: "2026-05-17T02:29:14.976Z"
+last_updated: "2026-05-17T03:02:08.444Z"
 progress:
   total_phases: 5
   completed_phases: 3
   total_plans: 38
-  completed_plans: 31
+  completed_plans: 33
 ---
 
 # Project State
@@ -23,11 +23,11 @@ See: .planning/PROJECT.md (updated 2026-05-16)
 ## Current Position
 
 Phase: 4 of 7 (审批链 + IM 通知)
-Plan: 5 of 12 in current phase（Wave 3 04-05 完成 — IM Provider 抽象层落地，Wave 4 04-06/07/08/09 4 家 Provider 可并行启动）
-Status: ✅ Phase 4 Wave 3 完成 — IMProvider Protocol + Registry + MockIMProvider + IMCredentialsManager + im_jobs.send_hitl_card_job 抽象层全部落地；Wave 4 4 家 Provider plan 可并行开发
-Last activity: 2026-05-17 — Plan 04-05 完成（Phase 4 IM 抽象层基础设施：IMProvider Protocol 鸭子类型 + Phase 4.5 接口预留 / 模块级 Registry 工厂 / MockIMProvider 测试用 / IMCredentialsManager 5 家 frozen dataclass + .env 加载 / im_jobs.send_hitl_card_job 克隆 email_jobs 模板 + tenacity 3 次重试 + 结构化日志 'im.card.send' / 43 测试全绿）
+Plan: 8 of 12 in current phase（Wave 4 04-08 完成 — DingTalkProvider ActionCard 实现，与 04-06/07/09 并行进行中）
+Status: ✅ Phase 4 Wave 4 进行中 — 04-06 Feishu / 04-07 WeCom / 04-08 DingTalk / 04-09 Slack 4 家 Provider 并行完成；Wave 5 04-10 multichannel fan-out 待启动
+Last activity: 2026-05-17 — Plan 04-08 完成（钉钉 ActionCard 工作通知出站投递：dingtalk-stream 0.24.3 token + httpx OAPI 直调 asyncsend_v2 + btn_orientation="0" 横排 3 中文按钮 + update_card NotImplemented → send_supplement_text 兜底 + ConnectionError 统一包装触发 tenacity 重试 + lifespan 按需注册基础设施 + 37 测试全绿 / 80 IM 测试 0 regression）
 
-Progress: [██████░░░░] 50%（3/7 phases complete; Phase 4 5/12 plans done）
+Progress: [███████░░░] 56%（3/7 phases complete; Phase 4 8/12 plans done — Wave 4 4 家 Provider 全部完成）
 
 ## Performance Metrics
 
@@ -69,6 +69,7 @@ Progress: [██████░░░░] 50%（3/7 phases complete; Phase 4 5/
 | Phase 04-approval-chain-im P02 | 16min | 3 tasks（Task0 reading doc + Task1 batch_create_tokens + Task2 chain executor）| 5 files (3 created + 2 modified) — 21 集成测试 (15 chain + 6 batch) |
 | Phase 04-approval-chain-im P03 | 11min | 3 tasks（Task0 reading doc + Task1 service + Task2 API endpoint + tests）| 6 files (3 created + 3 modified) — 20 集成测试 (11 service + 9 API) |
 | Phase 04-approval-chain-im P05 | 25min | 4 tasks | 14 files |
+| Phase 04 P08 | 9min | 3 tasks（Task0 reading doc + Task1 card builder + Task2 Provider）| 7 files (5 created + 2 modified) — 37 测试 (19 单元 + 18 集成) / 80 IM 测试 0 regression / 锁定 dingtalk-stream==0.24.3 |
 
 ## Accumulated Context
 
@@ -263,6 +264,16 @@ Recent decisions affecting current work:
 - [Phase 04-05]: backend/app/agent_builder/core/ 独立目录（不动 flock app/core/ — CLAUDE.md §2.3 Fork discipline）
 - [Phase 04-05]: CardBuilder 用 Protocol 不用基类（各 Provider plan 自实现 build_hitl_card / build_supplement_text）
 - [Phase 04-05]: HitlCardPayload 用 tuple[dict[str,str], ...] 而非 list（frozen dataclass + 不可变集合双重防修改）
+- [Phase 04-08]: OAPI HTTP 直调（dingtalk-stream 0.24.3 SDK 不暴露工作通知 ActionCard send 方法）— httpx.AsyncClient 调 /topapi/message/corpconversation/asyncsend_v2
+- [Phase 04-08]: access_token 走 SDK 同步 get_access_token + asyncio.to_thread 桥接 — 保留 SDK 5min buffer 缓存逻辑，避免重写
+- [Phase 04-08]: btn_orientation="0" 字符串硬编码横排（钉钉 OAPI 要求 string 类型，PC + 手机最佳兼容）
+- [Phase 04-08]: update_card 抛 NotImplementedError + 提示用 send_supplement_text — 钉钉工作通知 ActionCard 静态不支持改（与企微一致）
+- [Phase 04-08]: ConnectionError 统一包装 — OAPI errcode != 0（如 40078 token 过期）/ 网络错 / 5xx 都包装为 ConnectionError 触发 tenacity 重试新 token 后可成功
+- [Phase 04-08]: _ZH_LABELS 中文 label 映射 + 未知 action 退化为原字符串（防新 action 类型加入报错）
+- [Phase 04-08]: 固定走 btn_json_list（即使 1 按钮也用列表）— 避免 single_title/single_url 与 btn_json_list 互斥触发 OAPI 错
+- [Phase 04-08]: DINGTALK_AGENT_ID 直接从 env 读（非 IMCredentialsManager 字段）— 是部署 config 而非凭据本身，避免改 04-05 已完成 plan
+- [Phase 04-08]: [Rule 3 - Blocking] pyproject.toml 加 dingtalk-stream==0.24.3 锁定（手工 pip install 仅本地生效）
+- [Phase 04-08]: [Rule 2 - Missing Critical] lifespan 新增 _register_im_providers_if_configured + _close_registered_im_providers 基础设施，为 Wave 4 其他 Provider plan 建好扩展点
 
 ### Pending Todos
 
@@ -278,6 +289,6 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-05-17
-Stopped at: Completed 04-05-PLAN.md（Phase 4 Wave 3 完成：IM Provider 抽象层 — Protocol + Registry + MockIMProvider + IMCredentialsManager + im_jobs + 43 测试 + 1 SUMMARY）
+Stopped at: Completed 04-08-PLAN.md（Phase 4 Wave 4：钉钉 ActionCard 工作通知出站投递 — DingTalkProvider 实现 IMProvider Protocol + build_dingtalk_action_card (btn_orientation="0" 横排 3 中文按钮) + access_token via SDK + httpx.AsyncClient OAPI 直调 + update_card → NotImplementedError + send_supplement_text 兜底 + agent_builder/main.py lifespan 按需注册扩展点 + 37 测试全绿 + 80 IM 测试 0 regression）
 Resume file: None
-Next action: Wave 4 04-06/07/08/09 4 家 IM Provider 并行开发（FeishuProvider + WeComProvider + DingTalkProvider + Slack/Mattermost）— 全部 import 本 plan 抽象层，互不冲突可 parallel dispatch
+Next action: Wave 5 04-10 multichannel fan-out（NotificationService 扩展支持 notify_channels 数组 + 并发投递路由到 5 家 Provider Registry + sibling token 跨通道失效）
